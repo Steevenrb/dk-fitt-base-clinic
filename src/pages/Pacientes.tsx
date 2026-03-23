@@ -106,6 +106,7 @@ function PacientesTopBarContent({
 }
 
 const Pacientes = () => {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [adherenceFilter, setAdherenceFilter] = useState("todos");
