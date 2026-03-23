@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Search, UserPlus, AlertTriangle, Eye } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,7 @@ function PacientesTopBarContent({
 }
 
 const Pacientes = () => {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [adherenceFilter, setAdherenceFilter] = useState("todos");
@@ -209,7 +211,7 @@ const Pacientes = () => {
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-primary">
+                        <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-primary" onClick={() => navigate(`/pacientes/${p.id}`)}>
                           <Eye className="h-3.5 w-3.5" />
                           Ver detalle
                         </Button>
