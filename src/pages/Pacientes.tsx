@@ -210,7 +210,7 @@ const Pacientes = () => {
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-primary">
+                        <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-primary" onClick={() => navigate(`/pacientes/${p.id}`)}>
                           <Eye className="h-3.5 w-3.5" />
                           Ver detalle
                         </Button>
