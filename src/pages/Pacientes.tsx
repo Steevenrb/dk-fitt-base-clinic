@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Search, UserPlus, AlertTriangle, Eye } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
