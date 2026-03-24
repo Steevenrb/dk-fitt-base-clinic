@@ -9,6 +9,7 @@ import FichaPaciente from "./pages/FichaPaciente.tsx";
 import PlanesNutricionales from "./pages/PlanesNutricionales.tsx";
 import Seguimiento from "./pages/Seguimiento.tsx";
 import Alertas from "./pages/Alertas.tsx";
+import Citas from "./pages/Citas.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
