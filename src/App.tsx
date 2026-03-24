@@ -8,6 +8,7 @@ import Pacientes from "./pages/Pacientes.tsx";
 import FichaPaciente from "./pages/FichaPaciente.tsx";
 import PlanesNutricionales from "./pages/PlanesNutricionales.tsx";
 import Seguimiento from "./pages/Seguimiento.tsx";
+import Alertas from "./pages/Alertas.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/pacientes/:id" element={<FichaPaciente />} />
           <Route path="/planes" element={<PlanesNutricionales />} />
           <Route path="/seguimiento" element={<Seguimiento />} />
+          <Route path="/alertas" element={<Alertas />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
