@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Users,
   ClipboardList,
+  UtensilsCrossed,
   Activity,
   Bell,
   CalendarDays,
