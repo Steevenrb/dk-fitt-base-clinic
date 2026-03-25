@@ -24,6 +24,7 @@ const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Pacientes", url: "/pacientes", icon: Users },
   { title: "Planes Nutricionales", url: "/planes", icon: ClipboardList },
+  { title: "Alimentos y Recetas", url: "/alimentos", icon: UtensilsCrossed },
   { title: "Seguimiento", url: "/seguimiento", icon: Activity },
   { title: "Alertas", url: "/alertas", icon: Bell },
   { title: "Citas", url: "/citas", icon: CalendarDays },
