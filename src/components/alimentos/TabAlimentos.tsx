@@ -28,6 +28,41 @@ export function TabAlimentos({ base, setBase, onUseInRecipe }: TabAlimentosProps
   const [filtroCat, setFiltroCat] = useState("Todas");
   const [editDialog, setEditDialog] = useState(false);
   const [editItem, setEditItem] = useState<Alimento | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    nombre: "", categoria: "Otro" as string,
+    calorias: "", proteinas: "", carbohidratos: "", azucares: "",
+    grasas: "", grasasSaturadas: "", fibra: "", sodio: "",
+  });
+
+  const resetManualForm = () => setManualForm({
+    nombre: "", categoria: "Otro",
+    calorias: "", proteinas: "", carbohidratos: "", azucares: "",
+    grasas: "", grasasSaturadas: "", fibra: "", sodio: "",
+  });
+
+  const saveManual = () => {
+    if (!manualForm.nombre.trim()) {
+      toast.error("El nombre del alimento es obligatorio");
+      return;
+    }
+    const newAlimento: Alimento = {
+      id: `manual-${Date.now()}`,
+      nombre: manualForm.nombre.trim(),
+      categoria: (manualForm.categoria === "Proteína animal" ? "Proteína" : manualForm.categoria) as Alimento["categoria"],
+      calorias: Number(manualForm.calorias) || 0,
+      proteinas: Number(manualForm.proteinas) || 0,
+      carbohidratos: Number(manualForm.carbohidratos) || 0,
+      azucares: Number(manualForm.azucares) || 0,
+      grasas: Number(manualForm.grasas) || 0,
+      grasasSaturadas: Number(manualForm.grasasSaturadas) || 0,
+      fibra: Number(manualForm.fibra) || 0,
+      sodio: Number(manualForm.sodio) || 0,
+    };
+    setBase(prev => [...prev, newAlimento]);
+    toast.success("Alimento guardado correctamente ✓");
+    resetManualForm();
+  };
 
   const resultadosBusqueda = busqueda.length >= 2
     ? alimentosDB.filter(a => a.nombre.toLowerCase().includes(busqueda.toLowerCase()))
