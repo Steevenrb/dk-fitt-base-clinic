@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, X, Trash2, Edit, Save, RotateCcw, UtensilsCrossed, CheckCircle2, Info } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, X, Trash2, Edit, Save, RotateCcw, UtensilsCrossed, CheckCircle2, Info, PenLine, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Alimento, alimentosDB, catColors } from "./alimentosData";
 
@@ -16,7 +17,8 @@ interface TabAlimentosProps {
   onUseInRecipe: (a: Alimento) => void;
 }
 
-const categorias = ["Todas", "Fruta", "Vegetal", "Proteína", "Cereal", "Lácteo", "Grasa", "Otro"];
+const categorias = ["Todas", "Fruta", "Vegetal", "Proteína", "Proteína vegetal", "Cereal", "Lácteo", "Grasa", "Legumbre", "Bebida", "Snack", "Otro"];
+const categoriasForm = ["Fruta", "Vegetal", "Proteína animal", "Proteína vegetal", "Cereal", "Lácteo", "Grasa", "Legumbre", "Bebida", "Snack", "Otro"];
 
 export function TabAlimentos({ base, setBase, onUseInRecipe }: TabAlimentosProps) {
   const [busqueda, setBusqueda] = useState("");
@@ -26,6 +28,41 @@ export function TabAlimentos({ base, setBase, onUseInRecipe }: TabAlimentosProps
   const [filtroCat, setFiltroCat] = useState("Todas");
   const [editDialog, setEditDialog] = useState(false);
   const [editItem, setEditItem] = useState<Alimento | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    nombre: "", categoria: "Otro" as string,
+    calorias: "", proteinas: "", carbohidratos: "", azucares: "",
+    grasas: "", grasasSaturadas: "", fibra: "", sodio: "",
+  });
+
+  const resetManualForm = () => setManualForm({
+    nombre: "", categoria: "Otro",
+    calorias: "", proteinas: "", carbohidratos: "", azucares: "",
+    grasas: "", grasasSaturadas: "", fibra: "", sodio: "",
+  });
+
+  const saveManual = () => {
+    if (!manualForm.nombre.trim()) {
+      toast.error("El nombre del alimento es obligatorio");
+      return;
+    }
+    const newAlimento: Alimento = {
+      id: `manual-${Date.now()}`,
+      nombre: manualForm.nombre.trim(),
+      categoria: (manualForm.categoria === "Proteína animal" ? "Proteína" : manualForm.categoria) as Alimento["categoria"],
+      calorias: Number(manualForm.calorias) || 0,
+      proteinas: Number(manualForm.proteinas) || 0,
+      carbohidratos: Number(manualForm.carbohidratos) || 0,
+      azucares: Number(manualForm.azucares) || 0,
+      grasas: Number(manualForm.grasas) || 0,
+      grasasSaturadas: Number(manualForm.grasasSaturadas) || 0,
+      fibra: Number(manualForm.fibra) || 0,
+      sodio: Number(manualForm.sodio) || 0,
+    };
+    setBase(prev => [...prev, newAlimento]);
+    toast.success("Alimento guardado correctamente ✓");
+    resetManualForm();
+  };
 
   const resultadosBusqueda = busqueda.length >= 2
     ? alimentosDB.filter(a => a.nombre.toLowerCase().includes(busqueda.toLowerCase()))
@@ -188,6 +225,85 @@ export function TabAlimentos({ base, setBase, onUseInRecipe }: TabAlimentosProps
                 </CardContent>
               </Card>
             )}
+
+            {/* ─── MANUAL ENTRY ─── */}
+            <Collapsible open={manualOpen} onOpenChange={setManualOpen}>
+              <Card className="border-border/60 bg-card/80">
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <PenLine className="h-4 w-4 text-primary" />
+                        <div>
+                          <CardTitle className="text-sm">Ingresar alimento manualmente</CardTitle>
+                          <CardDescription className="text-xs">Para alimentos personalizados o que no aparecen en el buscador</CardDescription>
+                        </div>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${manualOpen ? "rotate-180" : ""}`} />
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4 pt-0">
+                    {/* Name & Category */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Nombre del alimento *</label>
+                        <Input
+                          placeholder="Ej: Quinoa, Tofu, Chía..."
+                          className="h-8 text-xs"
+                          value={manualForm.nombre}
+                          onChange={e => setManualForm({ ...manualForm, nombre: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Categoría</label>
+                        <Select value={manualForm.categoria} onValueChange={v => setManualForm({ ...manualForm, categoria: v })}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {categoriasForm.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Nutritional values */}
+                    <div>
+                      <p className="text-xs font-medium text-primary border-b border-border/50 pb-1 mb-3">Valores por 100 g</p>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                        {([
+                          { key: "calorias", label: "Calorías", unit: "kcal", ph: "0" },
+                          { key: "proteinas", label: "Proteínas", unit: "g", ph: "0.0" },
+                          { key: "carbohidratos", label: "Carbohidratos", unit: "g", ph: "0.0" },
+                          { key: "azucares", label: "Azúcares", unit: "g", ph: "0.0" },
+                          { key: "grasas", label: "Grasas totales", unit: "g", ph: "0.0" },
+                          { key: "grasasSaturadas", label: "Grasas saturadas", unit: "g", ph: "0.0" },
+                          { key: "fibra", label: "Fibra", unit: "g", ph: "0.0" },
+                          { key: "sodio", label: "Sodio", unit: "mg", ph: "0" },
+                        ] as const).map(({ key, label, unit, ph }) => (
+                          <div key={key} className="space-y-0.5">
+                            <label className="text-[10px] text-muted-foreground">{label} ({unit})</label>
+                            <Input
+                              type="number"
+                              className="h-7 text-xs"
+                              placeholder={ph}
+                              value={manualForm[key]}
+                              onChange={e => setManualForm({ ...manualForm, [key]: e.target.value })}
+                              min={0}
+                              step={0.1}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Button className="w-full" onClick={saveManual}>
+                      <Save className="h-3.5 w-3.5 mr-1" /> Guardar en mi base
+                    </Button>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           </CardContent>
         </Card>
 

@@ -11,7 +11,7 @@ export interface Alimento {
   azucares: number;
   fibra: number;
   sodio: number;
-  categoria: "Fruta" | "Vegetal" | "Proteína" | "Cereal" | "Lácteo" | "Grasa" | "Otro";
+  categoria: "Fruta" | "Vegetal" | "Proteína" | "Proteína vegetal" | "Cereal" | "Lácteo" | "Grasa" | "Legumbre" | "Bebida" | "Snack" | "Otro";
 }
 
 export interface Ingrediente {
