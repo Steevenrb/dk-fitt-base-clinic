@@ -48,6 +48,7 @@ const FichaPaciente = () => {
         <Tabs defaultValue="resumen" className="space-y-6">
           <TabsList className="bg-card border border-border p-1 h-auto flex-wrap">
             <TabsTrigger value="resumen" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Resumen General</TabsTrigger>
+            <TabsTrigger value="perfil" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Perfil Clínico</TabsTrigger>
             <TabsTrigger value="evaluaciones" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Evaluaciones Clínicas</TabsTrigger>
             <TabsTrigger value="plan" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Plan Nutricional</TabsTrigger>
             <TabsTrigger value="seguimiento" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Seguimiento</TabsTrigger>
