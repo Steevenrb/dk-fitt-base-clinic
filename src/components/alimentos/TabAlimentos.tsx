@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, X, Trash2, Edit, Save, RotateCcw, UtensilsCrossed, CheckCircle2, Info } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, X, Trash2, Edit, Save, RotateCcw, UtensilsCrossed, CheckCircle2, Info, PenLine, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Alimento, alimentosDB, catColors } from "./alimentosData";
 
