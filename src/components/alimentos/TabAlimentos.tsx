@@ -17,7 +17,8 @@ interface TabAlimentosProps {
   onUseInRecipe: (a: Alimento) => void;
 }
 
-const categorias = ["Todas", "Fruta", "Vegetal", "Proteína", "Cereal", "Lácteo", "Grasa", "Otro"];
+const categorias = ["Todas", "Fruta", "Vegetal", "Proteína", "Proteína vegetal", "Cereal", "Lácteo", "Grasa", "Legumbre", "Bebida", "Snack", "Otro"];
+const categoriasForm = ["Fruta", "Vegetal", "Proteína animal", "Proteína vegetal", "Cereal", "Lácteo", "Grasa", "Legumbre", "Bebida", "Snack", "Otro"];
 
 export function TabAlimentos({ base, setBase, onUseInRecipe }: TabAlimentosProps) {
   const [busqueda, setBusqueda] = useState("");
