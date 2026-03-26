@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabResumen } from "@/components/ficha/TabResumen";
+import { TabPerfilClinico } from "@/components/ficha/TabPerfilClinico";
 import { TabEvaluaciones } from "@/components/ficha/TabEvaluaciones";
 import { TabPlan } from "@/components/ficha/TabPlan";
 import { TabSeguimiento } from "@/components/ficha/TabSeguimiento";
