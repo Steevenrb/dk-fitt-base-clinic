@@ -58,6 +58,7 @@ const FichaPaciente = () => {
           </TabsList>
 
           <TabsContent value="resumen"><TabResumen /></TabsContent>
+          <TabsContent value="perfil"><TabPerfilClinico /></TabsContent>
           <TabsContent value="evaluaciones"><TabEvaluaciones /></TabsContent>
           <TabsContent value="plan"><TabPlan /></TabsContent>
           <TabsContent value="seguimiento"><TabSeguimiento /></TabsContent>
