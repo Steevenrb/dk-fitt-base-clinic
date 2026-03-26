@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabResumen } from "@/components/ficha/TabResumen";
+import { TabPerfilClinico } from "@/components/ficha/TabPerfilClinico";
 import { TabEvaluaciones } from "@/components/ficha/TabEvaluaciones";
 import { TabPlan } from "@/components/ficha/TabPlan";
 import { TabSeguimiento } from "@/components/ficha/TabSeguimiento";
@@ -47,6 +48,7 @@ const FichaPaciente = () => {
         <Tabs defaultValue="resumen" className="space-y-6">
           <TabsList className="bg-card border border-border p-1 h-auto flex-wrap">
             <TabsTrigger value="resumen" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Resumen General</TabsTrigger>
+            <TabsTrigger value="perfil" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Perfil Clínico</TabsTrigger>
             <TabsTrigger value="evaluaciones" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Evaluaciones Clínicas</TabsTrigger>
             <TabsTrigger value="plan" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Plan Nutricional</TabsTrigger>
             <TabsTrigger value="seguimiento" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Seguimiento</TabsTrigger>
@@ -56,6 +58,7 @@ const FichaPaciente = () => {
           </TabsList>
 
           <TabsContent value="resumen"><TabResumen /></TabsContent>
+          <TabsContent value="perfil"><TabPerfilClinico /></TabsContent>
           <TabsContent value="evaluaciones"><TabEvaluaciones /></TabsContent>
           <TabsContent value="plan"><TabPlan /></TabsContent>
           <TabsContent value="seguimiento"><TabSeguimiento /></TabsContent>
