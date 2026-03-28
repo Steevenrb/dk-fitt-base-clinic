@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, ClipboardList, UtensilsCrossed,
-  Activity, Bell, CalendarDays, Sun, Moon, LogOut,
+  Activity, Bell, CalendarDays, Sun, Moon, LogOut, UserCircle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
