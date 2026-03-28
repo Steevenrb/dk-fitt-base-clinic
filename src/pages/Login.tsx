@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, LogIn, UserPlus, CheckCircle, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -8,25 +8,13 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
-  const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [registered, setRegistered] = useState(false);
 
-  // Login
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loginErrors, setLoginErrors] = useState<{ email?: string; password?: string }>({});
-
-  // Register
-  const [regFirstName, setRegFirstName] = useState("");
-  const [regLastName, setRegLastName] = useState("");
-  const [regEmail, setRegEmail] = useState("");
-  const [regPassword, setRegPassword] = useState("");
-  const [regConfirm, setRegConfirm] = useState("");
-  const [regErrors, setRegErrors] = useState<Record<string, string>>({});
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -51,35 +39,6 @@ export default function Login() {
       setLoginError(result.error || "Error desconocido");
     }
   };
-
-  const getPasswordStrength = (p: string) => {
-    if (p.length < 4) return { label: "Débil", color: "bg-destructive", w: "w-1/3" };
-    if (p.length < 8) return { label: "Media", color: "bg-[hsl(var(--accent-amber))]", w: "w-2/3" };
-    return { label: "Fuerte", color: "bg-primary", w: "w-full" };
-  };
-
-  const handleRegister = async () => {
-    const errs: Record<string, string> = {};
-    if (!regFirstName.trim()) errs.firstName = "Este campo es obligatorio";
-    if (!regLastName.trim()) errs.lastName = "Este campo es obligatorio";
-    if (!regEmail.trim()) errs.email = "Este campo es obligatorio";
-    if (!regPassword.trim()) errs.password = "Este campo es obligatorio";
-    if (regPassword !== regConfirm) errs.confirm = "Las contraseñas no coinciden";
-    setRegErrors(errs);
-    if (Object.keys(errs).length) return;
-
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setLoading(false);
-    setRegistered(true);
-  };
-
-  const switchToLogin = () => {
-    setIsLogin(true);
-    setRegistered(false);
-  };
-
-  const strength = getPasswordStrength(regPassword);
 
   return (
     <div className="min-h-screen flex bg-background">
