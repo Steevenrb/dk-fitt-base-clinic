@@ -46,6 +46,7 @@ function AppRoutes() {
       <Route path="/seguimiento" element={<ProtectedRoute role="nutricionista"><Seguimiento /></ProtectedRoute>} />
       <Route path="/alertas" element={<ProtectedRoute role="nutricionista"><Alertas /></ProtectedRoute>} />
       <Route path="/citas" element={<ProtectedRoute role="nutricionista"><Citas /></ProtectedRoute>} />
+      <Route path="/mi-perfil" element={<ProtectedRoute role="nutricionista"><MiPerfil /></ProtectedRoute>} />
 
       {/* Admin routes */}
       <Route path="/admin" element={<ProtectedRoute role="admin"><DashboardAdmin /></ProtectedRoute>} />

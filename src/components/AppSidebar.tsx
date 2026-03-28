@@ -71,6 +71,16 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   );
                 })}
+                {/* Separator */}
+                <div className="my-2 border-t border-sidebar-border" />
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === "/mi-perfil"}>
+                    <NavLink to="/mi-perfil" className={`hover:bg-sidebar-accent ${location.pathname === "/mi-perfil" ? "bg-sidebar-accent text-primary font-semibold" : ""}`} activeClassName="bg-sidebar-accent text-primary font-semibold">
+                      <UserCircle className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>Mi Perfil</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={() => setShowLogout(true)} className="hover:bg-sidebar-accent text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
