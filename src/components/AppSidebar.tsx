@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, ClipboardList, UtensilsCrossed,
-  Activity, Bell, CalendarDays, Sun, Moon, LogOut,
+  Activity, Bell, CalendarDays, Sun, Moon, LogOut, UserCircle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -71,6 +71,16 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   );
                 })}
+                {/* Separator */}
+                <div className="my-2 border-t border-sidebar-border" />
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.pathname === "/mi-perfil"}>
+                    <NavLink to="/mi-perfil" className={`hover:bg-sidebar-accent ${location.pathname === "/mi-perfil" ? "bg-sidebar-accent text-primary font-semibold" : ""}`} activeClassName="bg-sidebar-accent text-primary font-semibold">
+                      <UserCircle className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>Mi Perfil</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={() => setShowLogout(true)} className="hover:bg-sidebar-accent text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />

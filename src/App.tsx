@@ -13,6 +13,7 @@ import Seguimiento from "./pages/Seguimiento.tsx";
 import Alertas from "./pages/Alertas.tsx";
 import Citas from "./pages/Citas.tsx";
 import AlimentosRecetas from "./pages/AlimentosRecetas.tsx";
+import MiPerfil from "./pages/MiPerfil.tsx";
 import DashboardAdmin from "./pages/admin/DashboardAdmin.tsx";
 import GestionUsuarios from "./pages/admin/GestionUsuarios.tsx";
 import EstadisticasSistema from "./pages/admin/EstadisticasSistema.tsx";
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/seguimiento" element={<ProtectedRoute role="nutricionista"><Seguimiento /></ProtectedRoute>} />
       <Route path="/alertas" element={<ProtectedRoute role="nutricionista"><Alertas /></ProtectedRoute>} />
       <Route path="/citas" element={<ProtectedRoute role="nutricionista"><Citas /></ProtectedRoute>} />
+      <Route path="/mi-perfil" element={<ProtectedRoute role="nutricionista"><MiPerfil /></ProtectedRoute>} />
 
       {/* Admin routes */}
       <Route path="/admin" element={<ProtectedRoute role="admin"><DashboardAdmin /></ProtectedRoute>} />

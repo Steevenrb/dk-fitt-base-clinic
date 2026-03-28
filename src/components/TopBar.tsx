@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { Bell, Sun, Moon, LogOut } from "lucide-react";
+import { Bell, Sun, Moon, LogOut, User, Lock, Settings } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 
 interface TopBarProps {
   children?: ReactNode;
@@ -41,21 +42,41 @@ export function TopBar({ children }: TopBarProps) {
             <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">5</span>
           </Button>
 
-          <Button variant="ghost" size="icon" onClick={() => setShowLogout(true)} className="text-muted-foreground hover:text-foreground" title="Cerrar sesión">
-            <LogOut className="h-5 w-5" />
-          </Button>
-
-          <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8 border border-border">
-              <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-                {user?.avatar || "NK"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="hidden md:block">
-              <p className="text-sm font-medium leading-none text-foreground">{user?.name || "Nutricionista Karen"}</p>
-              <p className="text-xs text-muted-foreground">Nutrióloga clínica</p>
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-accent/50 transition-colors cursor-pointer">
+                <Avatar className="h-8 w-8 border border-border">
+                  <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+                    {user?.avatar || "NK"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden md:block text-left">
+                  <p className="text-sm font-medium leading-none text-foreground">{user?.name || "Nutricionista Karen"}</p>
+                  <p className="text-xs text-muted-foreground">Nutrióloga clínica</p>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="font-normal">
+                <p className="text-sm font-medium text-foreground">{user?.name || "Nutricionista Karen"}</p>
+                <p className="text-xs text-muted-foreground">Nutrióloga clínica</p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/mi-perfil")} className="cursor-pointer gap-2">
+                <User className="h-4 w-4" /> Mi perfil
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/mi-perfil?tab=security")} className="cursor-pointer gap-2">
+                <Lock className="h-4 w-4" /> Cambiar contraseña
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/mi-perfil?tab=prefs")} className="cursor-pointer gap-2">
+                <Settings className="h-4 w-4" /> Preferencias
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setShowLogout(true)} className="cursor-pointer gap-2 text-destructive">
+                <LogOut className="h-4 w-4" /> Cerrar sesión
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
