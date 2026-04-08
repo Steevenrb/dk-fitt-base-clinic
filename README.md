@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# DK Fitt Base Clinic
 
 TODO: Document your project here
