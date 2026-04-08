@@ -38,19 +38,17 @@ export function AppSidebar() {
     navigate("/login");
   };
 
+  const logoSrc = theme === "light" ? "/logo_DKFitt_invertido.png" : "/logo_DKFitt.png";
+
   return (
     <>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          <div className="flex items-center gap-3 px-4 py-6">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">DK</span>
-            </div>
-            {!collapsed && (
-              <span className="text-lg font-bold tracking-tight text-foreground">
-                DK <span className="text-primary">Fitt</span>
-              </span>
-            )}
+          <div className="flex flex-col items-center justify-center px-4 pt-6 pb-4">
+            <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl transparent">
+              <img src={logoSrc} alt="DK Fitt" className="h-24 w-24 object-contain" />
+            </div> 
+                   
           </div>
 
           <SidebarGroup>
