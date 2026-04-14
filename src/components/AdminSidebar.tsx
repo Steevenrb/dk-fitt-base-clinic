@@ -17,7 +17,6 @@ const navItems = [
   { title: "Gestión de Usuarios", url: "/admin/usuarios", icon: Users },
   { title: "Estadísticas del Sistema", url: "/admin/estadisticas", icon: BarChart3 },
   { title: "Historial de Actividad", url: "/admin/historial", icon: History },
-  { title: "Configuración", url: "/admin/configuracion", icon: Settings },
 ];
 
 export function AdminSidebar() {
@@ -33,22 +32,20 @@ export function AdminSidebar() {
     logout();
     navigate("/login");
   };
+  const logoSrc = theme === "light" ? "/logo_DKFitt_invertido.png" : "/logo_DKFitt.png";
 
   return (
     <>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          <div className="flex items-center gap-3 px-4 py-6">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">DK</span>
+          <div className="flex flex-col items-center justify-center px-4 pt-6 pb-4">
+            <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl transparent">
+              <img src={logoSrc} alt="DK Fitt" className="h-24 w-24 object-contain" />
             </div>
             {!collapsed && (
-              <div>
-                <span className="text-lg font-bold tracking-tight text-foreground">
-                  DK <span className="text-primary">Fitt</span>
-                </span>
-                <Badge className="ml-2 bg-primary/20 text-primary border-primary/30 text-[10px]">Panel Admin</Badge>
-              </div>
+              <span className="mt-1 text-center text-lg font-bold tracking-tight text-foreground">
+                Panel <span className="text-primary">Administrativo</span>
+              </span>
             )}
           </div>
 
@@ -70,12 +67,6 @@ export function AdminSidebar() {
                     </SidebarMenuItem>
                   );
                 })}
-                <SidebarMenuItem>
-                  <SidebarMenuButton onClick={() => setShowLogout(true)} className="hover:bg-sidebar-accent text-destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    {!collapsed && <span>Cerrar sesión</span>}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

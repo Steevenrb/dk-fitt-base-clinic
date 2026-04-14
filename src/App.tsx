@@ -18,7 +18,6 @@ import DashboardAdmin from "./pages/admin/DashboardAdmin.tsx";
 import GestionUsuarios from "./pages/admin/GestionUsuarios.tsx";
 import EstadisticasSistema from "./pages/admin/EstadisticasSistema.tsx";
 import HistorialActividad from "./pages/admin/HistorialActividad.tsx";
-import Configuracion from "./pages/admin/Configuracion.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -53,7 +52,7 @@ function AppRoutes() {
       <Route path="/admin/usuarios" element={<ProtectedRoute role="admin"><GestionUsuarios /></ProtectedRoute>} />
       <Route path="/admin/estadisticas" element={<ProtectedRoute role="admin"><EstadisticasSistema /></ProtectedRoute>} />
       <Route path="/admin/historial" element={<ProtectedRoute role="admin"><HistorialActividad /></ProtectedRoute>} />
-      <Route path="/admin/configuracion" element={<ProtectedRoute role="admin"><Configuracion /></ProtectedRoute>} />
+      
 
       <Route path="*" element={<NotFound />} />
     </Routes>

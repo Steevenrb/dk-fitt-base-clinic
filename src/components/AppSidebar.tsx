@@ -47,10 +47,13 @@ export function AppSidebar() {
           <div className="flex flex-col items-center justify-center px-4 pt-6 pb-4">
             <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl transparent">
               <img src={logoSrc} alt="DK Fitt" className="h-24 w-24 object-contain" />
-            </div> 
-                   
+            </div>
+            {!collapsed && (
+              <span className="mt-1 text-center text-lg font-bold tracking-tight text-foreground">
+                Panel <span className="text-primary">Clinico</span>
+              </span>
+            )}                    
           </div>
-
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
