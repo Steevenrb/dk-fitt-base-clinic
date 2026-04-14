@@ -28,12 +28,11 @@ export default function Login() {
     if (Object.keys(errs).length) return;
 
     setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    const result = login(loginEmail, loginPassword);
+    const result = await login(loginEmail, loginPassword);
     setLoading(false);
 
     if (result.success) {
-      if (loginEmail === "admin") navigate("/admin");
+      if (result.role === "admin") navigate("/admin");
       else navigate("/");
     } else {
       setLoginError(result.error || "Error desconocido");
@@ -43,20 +42,12 @@ export default function Login() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-sidebar flex-col items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5" style={{ backgroundImage: "radial-gradient(circle at 25% 25%, hsl(var(--primary)) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-        <div className="relative z-10 text-center space-y-6">
-          <div className="flex items-center justify-center gap-3">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary">
-              <span className="text-2xl font-bold text-primary-foreground">DK</span>
-            </div>
-          </div>
-          <h1 className="text-4xl font-bold text-foreground">
-            DK <span className="text-primary">Fitt</span>
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-sm">
-            Plataforma clínica de nutrición profesional
-          </p>
+      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-cover bg-center opacity-60" style={{ backgroundImage: "url('/fondo_food.jpg')" }} />
+        <div className="absolute inset-0 bg-black/50" />
+        <div className="relative z-10 flex flex-col items-center justify-center gap-4 text-center">
+          <img src="/logo_DKFitt.png" alt="DK Fitt" className="h-56 w-56 object-contain drop-shadow-2xl" />
+          <p className="text-xl font-semibold text-white drop-shadow-md">La Salud es Vida</p>
         </div>
       </div>
 
@@ -64,11 +55,8 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md space-y-6">
           {/* Mobile logo */}
-          <div className="flex lg:hidden items-center justify-center gap-2 mb-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">DK</span>
-            </div>
-            <span className="text-lg font-bold text-foreground">DK <span className="text-primary">Fitt</span></span>
+          <div className="flex lg:hidden items-center justify-center mb-4">
+            <img src="/logo_DKFitt.png" alt="DK Fitt" className="h-14 w-14 object-contain" />
           </div>
 
           <div className="space-y-6 animate-in fade-in duration-300">

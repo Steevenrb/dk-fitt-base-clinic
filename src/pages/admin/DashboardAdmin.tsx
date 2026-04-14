@@ -1,7 +1,7 @@
 import { AdminLayout } from "@/components/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserCheck, ClipboardList, UserPlus, Activity, Heart } from "lucide-react";
+import { Users, UserCheck, ClipboardList, Boxes, Activity, Heart } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 const kpis = [
@@ -9,7 +9,7 @@ const kpis = [
   { title: "Total pacientes", value: 147, icon: UserCheck, trend: "+12 este mes" },
   { title: "Pacientes activos", value: 132, icon: Heart, trend: "89.8% activos" },
   { title: "Planes activos", value: 89, icon: ClipboardList, trend: "60% cobertura" },
-  { title: "Cuentas pendientes", value: 3, icon: UserPlus, trend: "Por aprobar", accent: true },
+  { title: "Cantidad de recetas", value: 3, icon: Boxes, trend: "+3 esta semana"}
 ];
 
 const monthlyData = [
@@ -74,7 +74,6 @@ export default function DashboardAdmin() {
                   <div className="p-2 rounded-lg bg-primary/10">
                     <k.icon className="h-5 w-5 text-primary" />
                   </div>
-                  {k.accent && <Badge className="bg-accent text-accent-foreground text-[10px]">{k.value}</Badge>}
                 </div>
                 <p className="text-2xl font-bold text-foreground">{k.value}</p>
                 <p className="text-xs text-muted-foreground">{k.title}</p>
