@@ -1,469 +1,581 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Edit, Save, User, Activity, HeartPulse, AlertTriangle, Apple,
-  Plus, X, Camera
-} from "lucide-react";
+import { apiRequest } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { User, Activity, HeartPulse, AlertTriangle, Apple } from "lucide-react";
 
-const activityLevels = [
-  { key: "sedentario", label: "Sedentario", desc: "Sin act. física" },
-  { key: "bajo", label: "Bajo", desc: "1-2 días por semana" },
-  { key: "moderado", label: "Moderado", desc: "3-4 días por semana" },
-  { key: "alto", label: "Alto", desc: "5+ días por semana" },
-];
+const ACCESS_TOKEN_KEY = "dkfitt-access-token";
+const PROFILE_ENDPOINTS = ["/api/patient-profile", "/patient-profile"];
+const PATIENT_DETAIL_ENDPOINTS = ["/api/patients", "/patients"];
 
-const medicalOptions = [
-  "Diabetes tipo 1", "Diabetes tipo 2", "Hipertensión arterial",
-  "Hipotiroidismo", "Hipertiroidismo", "Síndrome de ovario poliquístico (SOP)",
-  "Insuficiencia renal", "Enfermedad cardiovascular", "Anemia",
-];
-
-const allergyOptions = [
-  "Intolerancia a la lactosa", "Celiaquía (gluten)", "Alergia a frutos secos",
-  "Alergia al mariscos", "Alergia al huevo", "Alergia a la soya",
-];
-
-interface ProfileData {
-  nombre: string;
-  sexo: string;
-  fechaNacimiento: string;
-  correo: string;
-  telefono: string;
-  actividadFisica: string;
-  deportes: string[];
-  tieneCondiciones: boolean;
-  condiciones: string[];
-  otraCondicion: string;
-  observacionesMedicas: string;
-  tieneAlergias: boolean;
-  alergias: string[];
-  otraAlergia: string;
-  descripcionAlergias: string;
-  preferencias: Record<string, string[]>;
-  noLeGusta: string;
-}
-
-const initialData: ProfileData = {
-  nombre: "María González",
-  sexo: "Femenino",
-  fechaNacimiento: "1992-03-15",
-  correo: "maria.gonzalez@email.com",
-  telefono: "+593 987 654 321",
-  actividadFisica: "moderado",
-  deportes: ["Yoga", "Caminata"],
-  tieneCondiciones: true,
-  condiciones: ["Hipotiroidismo", "Síndrome de ovario poliquístico (SOP)"],
-  otraCondicion: "",
-  observacionesMedicas: "Levotiroxina 50mcg en ayunas. Control endocrinológico cada 6 meses.",
-  tieneAlergias: true,
-  alergias: ["Intolerancia a la lactosa"],
-  otraAlergia: "",
-  descripcionAlergias: "Sensibilidad moderada. Tolera pequeñas cantidades de queso curado.",
-  preferencias: {
-    proteinas: ["Pollo", "Huevo", "Atún"],
-    carbohidratos: ["Arroz integral", "Avena", "Quinoa"],
-    lacteos: ["Leche sin lactosa", "Yogur sin lactosa"],
-    vegetales: ["Espinaca", "Brócoli", "Zanahoria"],
-    frutas: ["Manzana", "Banano", "Fresas"],
-  },
-  noLeGusta: "Hígado, sardinas, coliflor",
+type ApiCondition = {
+  id_condicion?: number;
+  nombre?: string;
+  descripcion?: string;
 };
 
-const prefCategories = [
-  { key: "proteinas", label: "Proteínas", icon: "🥩" },
-  { key: "carbohidratos", label: "Carbohidratos", icon: "🌾" },
-  { key: "lacteos", label: "Lácteos", icon: "🥛" },
-  { key: "vegetales", label: "Vegetales", icon: "🥦" },
-  { key: "frutas", label: "Frutas", icon: "🍎" },
+type ApiFood = {
+  id_preferencia?: number;
+  id_alimento?: number;
+  nombre_alimento?: string;
+  tipo?: string;
+};
+
+type ApiSport = {
+  id_actividad_interes?: number;
+  deporte?: string;
+};
+
+type ProfileApiData = {
+  id_perfil?: number;
+  id_usuario?: number;
+  nombre_completo?: string;
+  nombres?: string;
+  apellidos?: string;
+  fecha_nacimiento?: string;
+  telefono?: string;
+  telefono_contacto?: string;
+  sexo?: string;
+  correo_institucional?: string;
+  correo?: string;
+  email?: string;
+  nivel_actividad_fisica?: string;
+  objetivo?: string;
+  alergias_intolerancias?: string;
+  restricciones_alimenticias?: string;
+  formulario_completado?: boolean;
+  fecha_ultima_actualizacion?: string;
+  condiciones?: ApiCondition[];
+  alimentos_preferidos?: ApiFood[];
+  alimentos_restringidos?: ApiFood[];
+  deportes?: ApiSport[];
+};
+
+type PatientDetailApiData = {
+  id_usuario?: number;
+  nombre_completo?: string;
+  nombres?: string;
+  apellidos?: string;
+  fecha_nacimiento?: string;
+  telefono?: string;
+  telefono_contacto?: string;
+  sexo?: string;
+  correo_institucional?: string;
+  correo?: string;
+  email?: string;
+  nivel_actividad_fisica?: string;
+};
+
+type ApiResponse<T> = {
+  success?: boolean;
+  data?: T;
+};
+
+type ClinicalProfileView = {
+  fullName: string;
+  birthDate: string;
+  phone: string;
+  sex: string;
+  email: string;
+  activityLevelKey: string;
+  sports: string[];
+  medicalConditions: ApiCondition[];
+  medicalObservation: string;
+  allergiesRaw: string;
+  preferredFoods: string[];
+  dislikesOrRestrictions: string;
+};
+
+const activityLevels = [
+  { key: "sedentario", label: "Sedentario", desc: "Sin act. fisica" },
+  { key: "bajo", label: "Bajo", desc: "1-2 dias por semana" },
+  { key: "medio", label: "Medio", desc: "3-4 dias por semana" },
+  { key: "alto", label: "Alto", desc: "5+ dias por semana" },
 ];
 
-function calcAge(dob: string) {
-  const d = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - d.getFullYear();
-  if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) age--;
-  return age;
+const baseMedicalOptions = [
+  "Diabetes tipo 1",
+  "Diabetes tipo 2",
+  "Diabetes",
+  "Hipertension arterial",
+  "Hipertension",
+  "Hipotiroidismo",
+  "Hipertiroidismo",
+  "Sindrome de ovario poliquistico (SOP)",
+  "Insuficiencia renal",
+  "Enfermedad cardiovascular",
+  "Anemia",
+];
+
+const baseAllergyOptions = [
+  "Intolerancia a la lactosa",
+  "Lactosa",
+  "Celiaquia (gluten)",
+  "Alergia a frutos secos",
+  "Alergia a mariscos",
+  "Alergia al huevo",
+  "Alergia a la soya",
+];
+
+const prefCategories = [
+  { key: "proteinas", label: "Proteinas", icon: "🥩" },
+  { key: "carbohidratos", label: "Carbohidratos", icon: "🌾" },
+  { key: "lacteos", label: "Lacteos", icon: "🥛" },
+  { key: "vegetales", label: "Vegetales", icon: "🥦" },
+  { key: "frutas", label: "Frutas", icon: "🍎" },
+] as const;
+
+const OPTION_WIDTH_CLASS = "w-full sm:w-[15.5rem]";
+
+const foodCategoryKeywords: Record<string, string[]> = {
+  proteinas: ["pollo", "atun", "pescado", "res", "huevo", "huevos", "pavo"],
+  carbohidratos: ["arroz", "avena", "banana", "batata", "legumbres", "pan", "papas", "pasta", "quinoa"],
+  lacteos: ["queso", "yogur", "crema", "cuajada", "leche", "mantequilla"],
+  vegetales: ["brocoli", "cebolla", "espinaca", "lechuga", "pimientos", "zanahoria"],
+  frutas: ["fresas", "manzana", "naranja", "sandia", "uvas", "arandanos"],
+};
+
+function normalizeText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
-export function TabPerfilClinico() {
-  const [editing, setEditing] = useState(false);
-  const [data, setData] = useState<ProfileData>(initialData);
-  const [newSport, setNewSport] = useState("");
-  const [newItems, setNewItems] = useState<Record<string, string>>({});
+function formatDate(value?: string): string {
+  if (!value) return "---";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "---";
+  return d.toLocaleDateString("es-EC", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
 
-  const update = <K extends keyof ProfileData>(key: K, val: ProfileData[K]) =>
-    setData(prev => ({ ...prev, [key]: val }));
+function formatSex(value?: string): string {
+  const raw = String(value || "").toUpperCase();
+  if (raw === "F") return "Femenino";
+  if (raw === "M") return "Masculino";
+  if (raw === "O") return "Otro";
+  return value || "---";
+}
 
-  const toggleCondition = (c: string) => {
-    const next = data.condiciones.includes(c)
-      ? data.condiciones.filter(x => x !== c)
-      : [...data.condiciones, c];
-    update("condiciones", next);
+function normalizeActivityKey(value?: string): string {
+  const raw = normalizeText(value || "");
+  if (raw === "moderado") return "medio";
+  return raw;
+}
+
+function getInitials(name: string): string {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "P";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+}
+
+function splitList(raw: string): string[] {
+  return raw
+    .split(/[;,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqueMerge(base: string[], dynamic: string[]): string[] {
+  const map = new Map<string, string>();
+  for (const item of [...base, ...dynamic]) {
+    const key = normalizeText(item);
+    if (!map.has(key)) map.set(key, item);
+  }
+  return [...map.values()];
+}
+
+function categorizeFoods(foods: string[]): Record<string, string[]> {
+  const result: Record<string, string[]> = {
+    proteinas: [],
+    carbohidratos: [],
+    lacteos: [],
+    vegetales: [],
+    frutas: [],
   };
 
-  const toggleAllergy = (a: string) => {
-    const next = data.alergias.includes(a)
-      ? data.alergias.filter(x => x !== a)
-      : [...data.alergias, a];
-    update("alergias", next);
-  };
+  for (const food of foods) {
+    const normalizedFood = normalizeText(food);
+    let assigned = false;
 
-  const addSport = () => {
-    if (newSport.trim() && !data.deportes.includes(newSport.trim())) {
-      update("deportes", [...data.deportes, newSport.trim()]);
-      setNewSport("");
+    for (const [category, keywords] of Object.entries(foodCategoryKeywords)) {
+      if (keywords.some((keyword) => normalizedFood.includes(keyword))) {
+        result[category].push(food);
+        assigned = true;
+        break;
+      }
     }
-  };
 
-  const addPrefItem = (cat: string) => {
-    const val = (newItems[cat] || "").trim();
-    if (val && !data.preferencias[cat]?.includes(val)) {
-      update("preferencias", {
-        ...data.preferencias,
-        [cat]: [...(data.preferencias[cat] || []), val],
+    if (!assigned) {
+      result.vegetales.push(food);
+    }
+  }
+
+  for (const key of Object.keys(result)) {
+    result[key] = [...new Set(result[key])];
+  }
+
+  return result;
+}
+
+async function requestProfileWithFallback(patientId: number, token: string): Promise<ApiResponse<ProfileApiData>> {
+  let lastError: unknown;
+  for (const base of PROFILE_ENDPOINTS) {
+    try {
+      return await apiRequest<ApiResponse<ProfileApiData>>(`${base}/${patientId}`, {
+        method: "GET",
+        accessToken: token,
       });
-      setNewItems(prev => ({ ...prev, [cat]: "" }));
+    } catch (error) {
+      lastError = error;
     }
-  };
+  }
+  throw lastError;
+}
 
-  const removePrefItem = (cat: string, item: string) => {
-    update("preferencias", {
-      ...data.preferencias,
-      [cat]: data.preferencias[cat].filter(x => x !== item),
-    });
+async function requestPatientDetailWithFallback(patientId: number, token: string): Promise<ApiResponse<PatientDetailApiData> | null> {
+  let lastError: unknown;
+  for (const base of PATIENT_DETAIL_ENDPOINTS) {
+    try {
+      return await apiRequest<ApiResponse<PatientDetailApiData>>(`${base}/${patientId}`, {
+        method: "GET",
+        accessToken: token,
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) {
+    return null;
+  }
+
+  return null;
+}
+
+function toViewModel(profile?: ProfileApiData, detail?: PatientDetailApiData): ClinicalProfileView {
+  const fullName =
+    detail?.nombre_completo
+    || profile?.nombre_completo
+    || `${detail?.nombres || profile?.nombres || ""} ${detail?.apellidos || profile?.apellidos || ""}`.trim()
+    || "---";
+
+  const preferredFoods = (profile?.alimentos_preferidos || [])
+    .map((item) => item.nombre_alimento)
+    .filter((v): v is string => Boolean(v));
+
+  const sports = (profile?.deportes || [])
+    .map((item) => item.deporte)
+    .filter((v): v is string => Boolean(v));
+
+  return {
+    fullName,
+    birthDate: formatDate(detail?.fecha_nacimiento || profile?.fecha_nacimiento),
+    phone: detail?.telefono || detail?.telefono_contacto || profile?.telefono || profile?.telefono_contacto || "---",
+    sex: formatSex(detail?.sexo || profile?.sexo),
+    email: detail?.correo_institucional || detail?.correo || detail?.email || profile?.correo_institucional || profile?.correo || profile?.email || "---",
+    activityLevelKey: normalizeActivityKey(profile?.nivel_actividad_fisica || detail?.nivel_actividad_fisica),
+    sports,
+    medicalConditions: profile?.condiciones || [],
+    medicalObservation: profile?.objetivo || "---",
+    allergiesRaw: profile?.alergias_intolerancias || "---",
+    preferredFoods,
+    dislikesOrRestrictions: profile?.restricciones_alimenticias || "---",
   };
+}
+
+export function TabPerfilClinico({ patientId }: { patientId: number }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<ClinicalProfileView>(toViewModel(undefined, undefined));
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!patientId || Number.isNaN(patientId)) {
+        setLoading(false);
+        setProfile(toViewModel(undefined, undefined));
+        return;
+      }
+
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (!token) {
+        setLoading(false);
+        setProfile(toViewModel(undefined, undefined));
+        toast({ title: "Sesion no valida", description: "No se encontro token de acceso.", variant: "destructive" });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const profileRes = await requestProfileWithFallback(patientId, token);
+        const detailRes = await requestPatientDetailWithFallback(patientId, token);
+        setProfile(toViewModel(profileRes.data, detailRes?.data));
+      } catch {
+        setProfile(toViewModel(undefined, undefined));
+        toast({
+          title: "No se pudo cargar perfil clinico",
+          description: "Verifica endpoint GET /patient-profile/{patientId}.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void fetchProfile();
+  }, [patientId, toast]);
+
+  const initials = useMemo(() => getInitials(profile.fullName === "---" ? "Paciente" : profile.fullName), [profile.fullName]);
+
+  const selectedConditionNames = useMemo(
+    () => profile.medicalConditions.map((c) => c.nombre).filter((v): v is string => Boolean(v)),
+    [profile.medicalConditions],
+  );
+
+  const medicalOptions = useMemo(
+    () => uniqueMerge(baseMedicalOptions, selectedConditionNames),
+    [selectedConditionNames],
+  );
+
+  const selectedConditionSet = useMemo(
+    () => new Set(selectedConditionNames.map((name) => normalizeText(name))),
+    [selectedConditionNames],
+  );
+
+  const allergyTokens = useMemo(() => {
+    if (!profile.allergiesRaw || profile.allergiesRaw === "---") return [];
+    return splitList(profile.allergiesRaw);
+  }, [profile.allergiesRaw]);
+
+  const allergyOptions = useMemo(
+    () => uniqueMerge(baseAllergyOptions, allergyTokens),
+    [allergyTokens],
+  );
+
+  const selectedAllergySet = useMemo(
+    () => new Set(allergyTokens.map((item) => normalizeText(item))),
+    [allergyTokens],
+  );
+
+  const foodsByCategory = useMemo(() => categorizeFoods(profile.preferredFoods), [profile.preferredFoods]);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-end">
-        {editing ? (
-          <Button size="sm" className="gap-1.5 text-xs" onClick={() => setEditing(false)}>
-            <Save className="h-3.5 w-3.5" /> Guardar cambios
-          </Button>
-        ) : (
-          <Button size="sm" className="gap-1.5 text-xs" onClick={() => setEditing(true)}>
-            <Edit className="h-3.5 w-3.5" /> Editar perfil
-          </Button>
-        )}
-      </div>
+      {loading && (
+        <Card className="border-border">
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">Cargando perfil clinico...</CardContent>
+        </Card>
+      )}
 
-      {/* SECCIÓN 1 — Datos Personales */}
-      <Card className="border-border">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" /> Datos Personales
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-6">
-            {/* Avatar */}
-            <div className="flex flex-col items-center gap-2">
-              <Avatar className="h-28 w-28 border-2 border-primary">
-                <AvatarFallback className="text-3xl font-bold bg-primary/15 text-primary">
-                  {data.nombre.charAt(0)}
-                </AvatarFallback>
-              </Avatar>
-              {editing && (
-                <Button variant="outline" size="sm" className="text-xs gap-1">
-                  <Camera className="h-3 w-3" /> Cambiar foto
-                </Button>
-              )}
-            </div>
-
-            {/* Fields */}
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Nombre completo" value={data.nombre} editing={editing}
-                onChange={v => update("nombre", v)} />
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Sexo</label>
-                {editing ? (
-                  <Select value={data.sexo} onValueChange={v => update("sexo", v)}>
-                    <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {["Femenino", "Masculino", "Otro"].map(s => (
-                        <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-sm text-foreground">{data.sexo}</p>
-                )}
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Fecha de nacimiento</label>
-                {editing ? (
-                  <Input type="date" value={data.fechaNacimiento} className="h-9 text-xs"
-                    onChange={e => update("fechaNacimiento", e.target.value)} />
-                ) : (
-                  <p className="text-sm text-foreground">
-                    {new Date(data.fechaNacimiento).toLocaleDateString("es-ES")} ({calcAge(data.fechaNacimiento)} años)
-                  </p>
-                )}
-              </div>
-              <Field label="Correo electrónico" value={data.correo} editing={editing}
-                onChange={v => update("correo", v)} />
-              <Field label="Teléfono" value={data.telefono} editing={editing}
-                onChange={v => update("telefono", v)} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* SECCIÓN 2 — Actividad Física */}
-      <Card className="border-border">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Activity className="h-4 w-4 text-primary" /> Actividad Física
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-2 block">Nivel de actividad física</label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {activityLevels.map(l => {
-                const active = data.actividadFisica === l.key;
-                return (
-                  <button key={l.key} disabled={!editing}
-                    onClick={() => update("actividadFisica", l.key)}
-                    className={`rounded-lg border p-3 text-center transition-colors ${
-                      active
-                        ? "border-primary bg-primary/15 text-primary"
-                        : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                    } ${!editing ? "cursor-default" : "cursor-pointer"}`}
-                  >
-                    <p className="text-xs font-semibold">{l.label}</p>
-                    <p className="text-[10px] mt-0.5 opacity-70">{l.desc}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-2 block">Deportes o actividades</label>
-            <div className="flex flex-wrap gap-2">
-              {data.deportes.map(d => (
-                <Badge key={d} variant="outline" className="bg-primary/15 text-primary border-primary/30 text-xs gap-1">
-                  {d}
-                  {editing && (
-                    <X className="h-3 w-3 cursor-pointer hover:text-destructive"
-                      onClick={() => update("deportes", data.deportes.filter(x => x !== d))} />
-                  )}
-                </Badge>
-              ))}
-              {editing && (
-                <div className="flex gap-1">
-                  <Input value={newSport} onChange={e => setNewSport(e.target.value)}
-                    placeholder="Agregar deporte..." className="h-7 text-xs w-36"
-                    onKeyDown={e => e.key === "Enter" && addSport()} />
-                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={addSport}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
+      {!loading && (
+        <>
+          <Card className="border-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <User className="h-4 w-4 text-primary" /> Datos Personales
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row gap-6">
+                <div className="flex flex-col items-center gap-2">
+                  <Avatar className="h-28 w-28 border-2 border-primary">
+                    <AvatarFallback className="text-3xl font-bold bg-primary/15 text-primary">{initials}</AvatarFallback>
+                  </Avatar>
                 </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* SECCIÓN 3 — Condiciones Médicas */}
-      <Card className="border-border">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <HeartPulse className="h-4 w-4 text-primary" /> Condiciones Médicas
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-muted-foreground">¿Padece alguna condición médica?</label>
-            <Switch checked={data.tieneCondiciones} disabled={!editing}
-              onCheckedChange={v => update("tieneCondiciones", v)} />
-            <span className="text-xs text-muted-foreground">{data.tieneCondiciones ? "Sí" : "No"}</span>
-          </div>
-
-          {data.tieneCondiciones && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {medicalOptions.map(c => (
-                  <label key={c} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <Checkbox checked={data.condiciones.includes(c)} disabled={!editing}
-                      onCheckedChange={() => toggleCondition(c)} />
-                    <span className="text-foreground">{c}</span>
-                  </label>
-                ))}
-                {editing && (
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={!!data.otraCondicion} disabled />
-                    <Input value={data.otraCondicion} placeholder="Otra condición..."
-                      className="h-7 text-xs flex-1"
-                      onChange={e => update("otraCondicion", e.target.value)} />
-                  </div>
-                )}
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Info label="Nombre completo" value={profile.fullName} />
+                  <Info label="Sexo" value={profile.sex} />
+                  <Info label="Fecha de nacimiento" value={profile.birthDate} />
+                  <Info label="Correo electronico" value={profile.email} />
+                  <Info label="Telefono" value={profile.phone} />
+                </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="flex flex-wrap gap-1.5">
-                {data.condiciones.map(c => (
-                  <Badge key={c} variant="outline" className="bg-accent/15 text-accent border-accent/30 text-[10px]">
-                    {c}
-                  </Badge>
-                ))}
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Observaciones médicas</label>
-                {editing ? (
-                  <Textarea value={data.observacionesMedicas} className="text-xs min-h-[60px]"
-                    placeholder="Medicamentos actuales, tratamientos..."
-                    onChange={e => update("observacionesMedicas", e.target.value)} />
-                ) : (
-                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-md p-3">{data.observacionesMedicas}</p>
-                )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* SECCIÓN 4 — Alergias e Intolerancias */}
-      <Card className="border-border">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-primary" /> Alergias e Intolerancias
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-muted-foreground">¿Tiene alergias o intolerancias?</label>
-            <Switch checked={data.tieneAlergias} disabled={!editing}
-              onCheckedChange={v => update("tieneAlergias", v)} />
-            <span className="text-xs text-muted-foreground">{data.tieneAlergias ? "Sí" : "No"}</span>
-          </div>
-
-          {data.tieneAlergias && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {allergyOptions.map(a => (
-                  <label key={a} className="flex items-center gap-2 text-xs cursor-pointer">
-                    <Checkbox checked={data.alergias.includes(a)} disabled={!editing}
-                      onCheckedChange={() => toggleAllergy(a)} />
-                    <span className="text-foreground">{a}</span>
-                  </label>
-                ))}
-                {editing && (
-                  <div className="flex items-center gap-2">
-                    <Checkbox checked={!!data.otraAlergia} disabled />
-                    <Input value={data.otraAlergia} placeholder="Otra alergia..."
-                      className="h-7 text-xs flex-1"
-                      onChange={e => update("otraAlergia", e.target.value)} />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {data.alergias.map(a => (
-                  <Badge key={a} variant="outline" className="bg-accent/15 text-accent border-accent/30 text-[10px] gap-1">
-                    <AlertTriangle className="h-2.5 w-2.5" /> {a}
-                  </Badge>
-                ))}
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Descripción detallada</label>
-                {editing ? (
-                  <Textarea value={data.descripcionAlergias} className="text-xs min-h-[60px]"
-                    placeholder="Describe reacciones, nivel de sensibilidad..."
-                    onChange={e => update("descripcionAlergias", e.target.value)} />
-                ) : (
-                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-md p-3">{data.descripcionAlergias}</p>
-                )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* SECCIÓN 5 — Preferencias Alimentarias */}
-      <Card className="border-border">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Apple className="h-4 w-4 text-primary" /> Preferencias Alimentarias
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <label className="text-xs font-medium text-muted-foreground block">Alimentos que consume con frecuencia</label>
-          <div className="space-y-3">
-            {prefCategories.map(cat => (
-              <div key={cat.key} className="rounded-lg border border-border bg-muted/20 p-3">
-                <p className="text-xs font-semibold mb-2">{cat.icon} {cat.label}</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {(data.preferencias[cat.key] || []).map(item => (
-                    <Badge key={item} variant="outline"
-                      className="bg-primary/10 text-primary border-primary/30 text-[10px] gap-1">
-                      {item}
-                      {editing && (
-                        <X className="h-2.5 w-2.5 cursor-pointer hover:text-destructive"
-                          onClick={() => removePrefItem(cat.key, item)} />
-                      )}
-                    </Badge>
-                  ))}
-                  {editing && (
-                    <div className="flex gap-1">
-                      <Input value={newItems[cat.key] || ""}
-                        onChange={e => setNewItems(prev => ({ ...prev, [cat.key]: e.target.value }))}
-                        placeholder="Agregar..." className="h-6 text-[10px] w-24"
-                        onKeyDown={e => e.key === "Enter" && addPrefItem(cat.key)} />
-                      <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => addPrefItem(cat.key)}>
-                        <Plus className="h-2.5 w-2.5" />
-                      </Button>
+          <Card className="border-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" /> Actividad Fisica
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <label className="text-xs font-medium text-muted-foreground mb-2 block">Nivel de actividad fisica</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {activityLevels.map((level) => {
+                  const active = profile.activityLevelKey === level.key;
+                  return (
+                    <div
+                      key={level.key}
+                      className={`rounded-lg border p-3 text-center transition-colors ${
+                        active
+                          ? "border-primary bg-primary/15 text-primary"
+                          : "border-border bg-card text-muted-foreground"
+                      }`}
+                    >
+                      <p className="text-xs font-semibold">{level.label}</p>
+                      <p className="text-[10px] mt-0.5 opacity-70">{level.desc}</p>
                     </div>
+                  );
+                })}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">Deportes o actividades</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {profile.sports.length > 0 ? (
+                    profile.sports.map((sport) => (
+                      <Badge key={sport} variant="outline" className="bg-primary/15 text-primary border-primary/30 text-xs">
+                        {sport}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-sm text-muted-foreground">---</span>
                   )}
                 </div>
               </div>
-            ))}
-          </div>
 
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Alimentos que no le gustan o evita</label>
-            {editing ? (
-              <Textarea value={data.noLeGusta} className="text-xs min-h-[60px]"
-                placeholder="Ej: no tolera el sabor del pescado..."
-                onChange={e => update("noLeGusta", e.target.value)} />
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {data.noLeGusta.split(",").map(item => item.trim()).filter(Boolean).map(item => (
-                  <Badge key={item} variant="outline" className="bg-muted text-muted-foreground border-border text-[10px]">
-                    {item}
-                  </Badge>
-                ))}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Objetivo del paciente</label>
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <p className="text-xs text-muted-foreground leading-relaxed">{profile.medicalObservation}</p>
+                </div>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-primary" /> Condiciones Medicas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content] gap-y-2 sm:gap-x-2 sm:justify-start">
+                {medicalOptions.map((condition) => {
+                  const active = selectedConditionSet.has(normalizeText(condition));
+                  return (
+                    <div key={condition} className="justify-self-start">
+                      <span
+                      className={`${OPTION_WIDTH_CLASS} inline-flex rounded-md border px-2.5 py-1.5 text-xs leading-none ${
+                        active
+                          ? "border-accent/50 bg-accent/15 text-accent font-semibold"
+                          : "border-border text-muted-foreground"
+                      }`}
+                      >
+                        {condition}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Observacion / Descripcion</label>
+                {profile.medicalConditions.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {profile.medicalConditions.map((condition) => (
+                      <div key={`${condition.id_condicion || condition.nombre || "obs"}`} className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          <span className="font-semibold text-foreground">{condition.nombre || "Condicion"}: </span>
+                          {condition.descripcion || "---"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                    <p className="text-xs text-muted-foreground leading-relaxed">---</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-primary" /> Alergias e Intolerancias
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content] gap-y-2 sm:gap-x-2 sm:justify-start">
+                {allergyOptions.map((allergy) => {
+                  const active = selectedAllergySet.has(normalizeText(allergy));
+                  return (
+                    <div key={allergy} className="justify-self-start">
+                      <span
+                      className={`${OPTION_WIDTH_CLASS} inline-flex rounded-md border px-2.5 py-1.5 text-xs leading-none ${
+                        active
+                          ? "border-accent/50 bg-accent/15 text-accent font-semibold"
+                          : "border-border text-muted-foreground"
+                      }`}
+                      >
+                        {allergy}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Descripcion</label>
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <p className="text-xs text-muted-foreground leading-relaxed">{profile.allergiesRaw}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Apple className="h-4 w-4 text-primary" /> Preferencias Alimenticias
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {prefCategories.map((category) => (
+                <div key={category.key} className="rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-xs font-semibold mb-2">{category.icon} {category.label}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(foodsByCategory[category.key] || []).length > 0 ? (
+                      foodsByCategory[category.key].map((food) => (
+                        <Badge key={`${category.key}-${food}`} variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px]">
+                          {food}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground">---</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Alimentos que no le gustan / restricciones</label>
+                <p className="text-xs text-muted-foreground bg-muted/30 rounded-md p-3">{profile.dislikesOrRestrictions}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
 
-function Field({ label, value, editing, onChange }: {
-  label: string; value: string; editing: boolean; onChange: (v: string) => void;
-}) {
+function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      {editing ? (
-        <Input value={value} onChange={e => onChange(e.target.value)} className="h-9 text-xs" />
-      ) : (
-        <p className="text-sm text-foreground">{value}</p>
-      )}
+      <p className="text-sm text-foreground">{value || "---"}</p>
     </div>
   );
 }

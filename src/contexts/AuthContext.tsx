@@ -16,8 +16,10 @@ interface User {
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
+  requiresPasswordChange: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: UserRole; requiresPasswordChange?: boolean }>;
   logout: () => void;
+  clearPasswordChangeRequirement: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -25,9 +27,11 @@ const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 const AUTH_STORAGE_KEY = "dkfitt-auth";
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const REFRESH_TOKEN_KEY = "dkfitt-refresh-token";
+const FORCE_PASSWORD_CHANGE_KEY = "dkfitt-force-password-change";
 
 interface LoginResponse {
   success: boolean;
+  message?: string;
   data?: {
     access_token?: string;
     refresh_token?: string;
@@ -45,18 +49,43 @@ interface LoginResponse {
       rol?: string;
       role?: string;
       estado?: string;
+      requiere_cambio_contrasena?: boolean;
+      requiereCambioContrasena?: boolean;
+      must_change_password?: boolean;
+      mustChangePassword?: boolean;
+      password_temporal?: boolean;
+      passwordTemporal?: boolean;
+      temporal_password?: boolean;
+      temporalPassword?: boolean;
     };
+    requiere_cambio_contrasena?: boolean;
+    requiereCambioContrasena?: boolean;
+    must_change_password?: boolean;
+    mustChangePassword?: boolean;
+    password_temporal?: boolean;
+    passwordTemporal?: boolean;
+    temporal_password?: boolean;
+    temporalPassword?: boolean;
   };
 }
 
 interface MeResponse {
   success: boolean;
+  message?: string;
   data: {
     id: number;
     email: string;
     role: string;
     id_perfil: number | null;
     estado: string;
+    requiere_cambio_contrasena?: boolean;
+    requiereCambioContrasena?: boolean;
+    must_change_password?: boolean;
+    mustChangePassword?: boolean;
+    password_temporal?: boolean;
+    passwordTemporal?: boolean;
+    temporal_password?: boolean;
+    temporalPassword?: boolean;
   };
 }
 
@@ -68,10 +97,62 @@ const normalizeRole = (role: string | null | undefined): UserRole => {
   return null;
 };
 
+const shouldForcePasswordChange = (obj: Record<string, unknown> | undefined): boolean => {
+  if (!obj) return false;
+
+  const candidates = [
+    "requiere_cambio_contrasena",
+    "requiereCambioContrasena",
+    "must_change_password",
+    "mustChangePassword",
+    "password_temporal",
+    "passwordTemporal",
+    "temporal_password",
+    "temporalPassword",
+  ];
+
+  return candidates.some((key) => obj[key] === true);
+};
+
+const hasPasswordChangeRequirement = (value: unknown): boolean => {
+  const queue: unknown[] = [value];
+  const visited = new Set<unknown>();
+
+  const keyPattern = /(must.*change.*password|change.*password|required.*password|requiere.*contras|contras.*temporal|password.*temporal|first.*login|primer.*login)/i;
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || visited.has(current)) continue;
+    visited.add(current);
+
+    for (const [key, raw] of Object.entries(current as Record<string, unknown>)) {
+      if (raw === true && keyPattern.test(key)) return true;
+      if (typeof raw === "string") {
+        const lower = raw.toLowerCase();
+        if (keyPattern.test(key) && (lower === "true" || lower.includes("temporal") || lower.includes("required") || lower.includes("obligatoria"))) {
+          return true;
+        }
+        if ((key === "message" || key === "mensaje") && (lower.includes("cambiar") && lower.includes("contrase") && lower.includes("temporal"))) {
+          return true;
+        }
+      }
+
+      if (raw && typeof raw === "object") {
+        queue.push(raw);
+      }
+    }
+  }
+
+  return false;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem(AUTH_STORAGE_KEY);
     return saved ? JSON.parse(saved) : null;
+  });
+  const [requiresPasswordChange, setRequiresPasswordChange] = useState<boolean>(() => {
+    return localStorage.getItem(FORCE_PASSWORD_CHANGE_KEY) === "true";
   });
 
   useEffect(() => {
@@ -92,13 +173,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           estado: res.data.estado,
           idPerfil: res.data.id_perfil,
         };
+        const requiresChange = shouldForcePasswordChange(res.data as unknown as Record<string, unknown>);
         setUser(nextUser);
+        setRequiresPasswordChange(requiresChange);
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
+        localStorage.setItem(FORCE_PASSWORD_CHANGE_KEY, String(requiresChange));
       } catch {
         setUser(null);
+        setRequiresPasswordChange(false);
         localStorage.removeItem(AUTH_STORAGE_KEY);
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
+        localStorage.removeItem(FORCE_PASSWORD_CHANGE_KEY);
       }
     };
 
@@ -124,6 +210,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const role = normalizeRole(apiUser.rol || apiUser.role);
+      let requiresChange =
+        shouldForcePasswordChange(res.data as unknown as Record<string, unknown>)
+        || shouldForcePasswordChange(apiUser as unknown as Record<string, unknown>)
+        || hasPasswordChangeRequirement(res)
+        || hasPasswordChangeRequirement(res.data)
+        || hasPasswordChangeRequirement(apiUser);
 
       if (role === "paciente") {
         return { success: false, error: "Esta plataforma web es solo para administradores y nutricionistas." };
@@ -144,11 +236,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
 
       setUser(nextUser);
+      setRequiresPasswordChange(requiresChange);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
       localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      localStorage.setItem(FORCE_PASSWORD_CHANGE_KEY, String(requiresChange));
 
-      return { success: true, role };
+      // Some backends only expose this flag in /auth/me, not in /auth/login.
+      try {
+        const me = await apiRequest<MeResponse>("/api/auth/me", { method: "GET", accessToken });
+        const meRequiresChange =
+          shouldForcePasswordChange(me.data as unknown as Record<string, unknown>)
+          || hasPasswordChangeRequirement(me)
+          || hasPasswordChangeRequirement(me.data);
+        if (meRequiresChange !== requiresChange) {
+          requiresChange = meRequiresChange;
+          setRequiresPasswordChange(meRequiresChange);
+          localStorage.setItem(FORCE_PASSWORD_CHANGE_KEY, String(meRequiresChange));
+        }
+      } catch {
+        // Keep login successful even if /me verification fails.
+      }
+
+      return { success: true, role, requiresPasswordChange: requiresChange };
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.status === 401) {
@@ -177,13 +287,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setUser(null);
+    setRequiresPasswordChange(false);
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(FORCE_PASSWORD_CHANGE_KEY);
+  }, []);
+
+  const clearPasswordChangeRequirement = useCallback(() => {
+    setRequiresPasswordChange(false);
+    localStorage.setItem(FORCE_PASSWORD_CHANGE_KEY, "false");
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, requiresPasswordChange, login, logout, clearPasswordChangeRequirement }}>
       {children}
     </AuthContext.Provider>
   );
