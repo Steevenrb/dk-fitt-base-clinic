@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,22 +19,36 @@ import GestionUsuarios from "./pages/admin/GestionUsuarios.tsx";
 import EstadisticasSistema from "./pages/admin/EstadisticasSistema.tsx";
 import HistorialActividad from "./pages/admin/HistorialActividad.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import ChangePasswordRequired from "./pages/ChangePasswordRequired.tsx";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: "admin" | "nutricionista" }) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, requiresPasswordChange } = useAuth();
+  const location = useLocation();
+
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (requiresPasswordChange && location.pathname !== "/cambiar-contrasena") {
+    return <Navigate to="/cambiar-contrasena" replace />;
+  }
   if (role && user?.role !== role) return <Navigate to={user?.role === "admin" ? "/admin" : "/"} replace />;
   return <>{children}</>;
 }
 
 function AppRoutes() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, requiresPasswordChange } = useAuth();
 
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to={user?.role === "admin" ? "/admin" : "/"} replace /> : <Login />} />
+      <Route
+        path="/login"
+        element={
+          isAuthenticated
+            ? <Navigate to={requiresPasswordChange ? "/cambiar-contrasena" : (user?.role === "admin" ? "/admin" : "/")} replace />
+            : <Login />
+        }
+      />
+      <Route path="/cambiar-contrasena" element={<ProtectedRoute><ChangePasswordRequired /></ProtectedRoute>} />
 
       {/* Nutricionista routes */}
       <Route path="/" element={<ProtectedRoute role="nutricionista"><Index /></ProtectedRoute>} />

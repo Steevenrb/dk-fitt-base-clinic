@@ -32,6 +32,10 @@ export default function Login() {
     setLoading(false);
 
     if (result.success) {
+      if (result.requiresPasswordChange) {
+        navigate("/cambiar-contrasena");
+        return;
+      }
       if (result.role === "admin") navigate("/admin");
       else navigate("/");
     } else {
