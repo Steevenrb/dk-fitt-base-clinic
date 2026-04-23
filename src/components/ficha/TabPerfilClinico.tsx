@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { apiRequest } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ApiError, apiRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { User, Activity, HeartPulse, AlertTriangle, Apple } from "lucide-react";
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const PROFILE_ENDPOINTS = ["/api/patient-profile", "/patient-profile"];
 const PATIENT_DETAIL_ENDPOINTS = ["/api/patients", "/patients"];
+const DASHBOARD_PATIENT_ENDPOINTS = ["/api/dashboard/patient", "/dashboard/patient"];
+const CLINICAL_EVALUATION_ENDPOINTS = ["/api/clinical-evaluations", "/clinical-evaluations"];
 
 type ApiCondition = {
   id_condicion?: number;
@@ -54,6 +58,8 @@ type ProfileApiData = {
 };
 
 type PatientDetailApiData = {
+  id_paciente?: number;
+  id_perfil?: number;
   id_usuario?: number;
   nombre_completo?: string;
   nombres?: string;
@@ -73,10 +79,26 @@ type ApiResponse<T> = {
   data?: T;
 };
 
+type DashboardPatientProfile = {
+  nombres?: string;
+  apellidos?: string;
+  correo_institucional?: string;
+  edad?: number;
+  fecha_nacimiento?: string;
+  sexo?: string;
+  nivel_actividad_fisica?: string;
+  objetivo?: string;
+};
+
+type DashboardPatientApiData = {
+  perfil?: DashboardPatientProfile;
+};
+
 type ClinicalProfileView = {
+  profileId: number | null;
   fullName: string;
   birthDate: string;
-  phone: string;
+  age: string;
   sex: string;
   email: string;
   activityLevelKey: string;
@@ -158,6 +180,29 @@ function formatSex(value?: string): string {
   if (raw === "M") return "Masculino";
   if (raw === "O") return "Otro";
   return value || "---";
+}
+
+function formatAgeFromBirthDate(value?: string): string {
+  if (!value) return "---";
+  const birth = new Date(value);
+  if (Number.isNaN(birth.getTime())) return "---";
+
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDelta = today.getMonth() - birth.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && today.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+
+  if (!Number.isFinite(age) || age < 0) return "---";
+  return `${age} anos`;
+}
+
+function formatAge(value?: number, fallbackBirthDate?: string): string {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return `${value} anos`;
+  }
+  return formatAgeFromBirthDate(fallbackBirthDate);
 }
 
 function normalizeActivityKey(value?: string): string {
@@ -260,7 +305,88 @@ async function requestPatientDetailWithFallback(patientId: number, token: string
   return null;
 }
 
-function toViewModel(profile?: ProfileApiData, detail?: PatientDetailApiData): ClinicalProfileView {
+async function requestDashboardPatientByIdWithFallback(id: number, token: string): Promise<ApiResponse<DashboardPatientApiData> | null> {
+  let lastError: unknown;
+  for (const base of DASHBOARD_PATIENT_ENDPOINTS) {
+    try {
+      return await apiRequest<ApiResponse<DashboardPatientApiData>>(`${base}/${id}`, {
+        method: "GET",
+        accessToken: token,
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) {
+    return null;
+  }
+
+  return null;
+}
+
+function normalizeComparable(value?: string): string {
+  return normalizeText(value || "");
+}
+
+function isSamePatient(
+  detail?: PatientDetailApiData,
+  profile?: ProfileApiData,
+  dashboardPerfil?: DashboardPatientProfile,
+): boolean {
+  if (!dashboardPerfil) return false;
+
+  const dashboardEmail = normalizeComparable(dashboardPerfil.correo_institucional);
+  const detailEmail = normalizeComparable(detail?.correo_institucional || detail?.correo || detail?.email);
+  const profileEmail = normalizeComparable(profile?.correo_institucional || profile?.correo || profile?.email);
+
+  if (dashboardEmail && (dashboardEmail === detailEmail || dashboardEmail === profileEmail)) {
+    return true;
+  }
+
+  const dashboardName = normalizeComparable(`${dashboardPerfil.nombres || ""} ${dashboardPerfil.apellidos || ""}`.trim());
+  const detailName = normalizeComparable(detail?.nombre_completo || `${detail?.nombres || ""} ${detail?.apellidos || ""}`.trim());
+  const profileName = normalizeComparable(profile?.nombre_completo || `${profile?.nombres || ""} ${profile?.apellidos || ""}`.trim());
+
+  if (dashboardName && (dashboardName === detailName || dashboardName === profileName)) {
+    return true;
+  }
+
+  return false;
+}
+
+async function requestDashboardPatientBestMatch(
+  routePatientId: number,
+  detail: PatientDetailApiData | undefined,
+  profile: ProfileApiData | undefined,
+  token: string,
+): Promise<DashboardPatientProfile | undefined> {
+  const candidateIds = [
+    detail?.id_paciente,
+    detail?.id_perfil,
+    detail?.id_usuario,
+    routePatientId,
+  ]
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0);
+
+  const uniqueCandidateIds = [...new Set(candidateIds)];
+
+  for (const candidateId of uniqueCandidateIds) {
+    const dashboardRes = await requestDashboardPatientByIdWithFallback(candidateId, token);
+    const dashboardPerfil = dashboardRes?.data?.perfil;
+    if (isSamePatient(detail, profile, dashboardPerfil)) {
+      return dashboardPerfil;
+    }
+  }
+
+  return undefined;
+}
+
+function toViewModel(profile?: ProfileApiData, detail?: PatientDetailApiData, dashboardPerfil?: DashboardPatientProfile): ClinicalProfileView {
+  const canUseDashboardPerfil = isSamePatient(detail, profile, dashboardPerfil);
+  const birthDateRaw = canUseDashboardPerfil
+    ? (dashboardPerfil?.fecha_nacimiento || detail?.fecha_nacimiento || profile?.fecha_nacimiento)
+    : (detail?.fecha_nacimiento || profile?.fecha_nacimiento);
   const fullName =
     detail?.nombre_completo
     || profile?.nombre_completo
@@ -276,25 +402,208 @@ function toViewModel(profile?: ProfileApiData, detail?: PatientDetailApiData): C
     .filter((v): v is string => Boolean(v));
 
   return {
+    profileId: typeof profile?.id_perfil === "number" ? profile.id_perfil : null,
     fullName,
-    birthDate: formatDate(detail?.fecha_nacimiento || profile?.fecha_nacimiento),
-    phone: detail?.telefono || detail?.telefono_contacto || profile?.telefono || profile?.telefono_contacto || "---",
-    sex: formatSex(detail?.sexo || profile?.sexo),
-    email: detail?.correo_institucional || detail?.correo || detail?.email || profile?.correo_institucional || profile?.correo || profile?.email || "---",
-    activityLevelKey: normalizeActivityKey(profile?.nivel_actividad_fisica || detail?.nivel_actividad_fisica),
+    birthDate: formatDate(birthDateRaw),
+    age: canUseDashboardPerfil ? formatAge(dashboardPerfil?.edad, birthDateRaw) : formatAgeFromBirthDate(birthDateRaw),
+    sex: formatSex(canUseDashboardPerfil ? (dashboardPerfil?.sexo || detail?.sexo || profile?.sexo) : (detail?.sexo || profile?.sexo)),
+    email: detail?.correo_institucional || detail?.correo || detail?.email || profile?.correo_institucional || profile?.correo || profile?.email || dashboardPerfil?.correo_institucional || "---",
+    activityLevelKey: normalizeActivityKey(
+      canUseDashboardPerfil
+        ? (dashboardPerfil?.nivel_actividad_fisica || profile?.nivel_actividad_fisica || detail?.nivel_actividad_fisica)
+        : (profile?.nivel_actividad_fisica || detail?.nivel_actividad_fisica),
+    ),
     sports,
     medicalConditions: profile?.condiciones || [],
-    medicalObservation: profile?.objetivo || "---",
+    medicalObservation: (canUseDashboardPerfil ? dashboardPerfil?.objetivo : undefined) || profile?.objetivo || "---",
     allergiesRaw: profile?.alergias_intolerancias || "---",
     preferredFoods,
     dislikesOrRestrictions: profile?.restricciones_alimenticias || "---",
   };
 }
 
+type EvaluationFormState = {
+  fecha_evaluacion: string;
+  peso_kg: string;
+  altura_cm: string;
+  porcentaje_grasa: string;
+  masa_muscular_kg: string;
+  agua_corporal_pct: string;
+  grasa_visceral: string;
+  masa_osea_kg: string;
+};
+
+type CreateEvaluationPayload = {
+  id_perfil: number;
+  peso_kg: number;
+  altura_cm: number;
+  porcentaje_grasa: number;
+  masa_muscular_kg: number;
+  agua_corporal_pct: number;
+  grasa_visceral: number;
+  masa_osea_kg: number;
+  fecha_evaluacion: string;
+};
+
+type CalculatedMetricsView = {
+  imc: string;
+  tmb: string;
+  get: string;
+  calorias: string;
+  edadMetabolica: string;
+};
+
+function defaultCalculatedMetrics(): CalculatedMetricsView {
+  return {
+    imc: "---",
+    tmb: "---",
+    get: "---",
+    calorias: "---",
+    edadMetabolica: "---",
+  };
+}
+
+function toNumberLabel(value: unknown, suffix = ""): string {
+  if (value === null || value === undefined || value === "") return "---";
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return String(value);
+  const fixed = Number.isInteger(parsed) ? parsed.toString() : parsed.toFixed(2);
+  return `${fixed}${suffix}`;
+}
+
+function pickValueByKeys(source: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    const value = source[key];
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
+}
+
+function parseAgeLabel(ageLabel: string): number | undefined {
+  const parsed = Number((ageLabel || "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function objectiveAdjustmentFactor(objective: string): number {
+  const raw = normalizeText(objective || "");
+  if (!raw) return 0;
+  if (raw.includes("reduc") || raw.includes("bajar") || raw.includes("perder")) return -0.15;
+  if (raw.includes("aument") || raw.includes("ganar") || raw.includes("subir")) return 0.1;
+  return 0;
+}
+
+function activityFactor(activityKey: string): number {
+  if (activityKey === "alto") return 1.725;
+  if (activityKey === "medio") return 1.55;
+  if (activityKey === "bajo") return 1.375;
+  return 1.2;
+}
+
+function estimateMetabolicAge(chronologicalAge: number, bmi: number, bodyFatPct: number): number {
+  const bodyFatReference = 24;
+  const bmiReference = 22;
+  const extraFromFat = (bodyFatPct - bodyFatReference) * 0.45;
+  const extraFromBmi = (bmi - bmiReference) * 0.6;
+  const estimate = chronologicalAge + extraFromFat + extraFromBmi;
+  if (!Number.isFinite(estimate)) return chronologicalAge;
+  return Math.max(12, Math.round(estimate));
+}
+
+function mapCalculatedMetricsFromResponse(rawResponse: unknown): CalculatedMetricsView {
+  if (!rawResponse || typeof rawResponse !== "object") return defaultCalculatedMetrics();
+
+  const root = rawResponse as Record<string, unknown>;
+  const baseData = (root.data && typeof root.data === "object")
+    ? (root.data as Record<string, unknown>)
+    : root;
+
+  const nestedData = (baseData.data && typeof baseData.data === "object")
+    ? (baseData.data as Record<string, unknown>)
+    : null;
+
+  const evaluationData = (baseData.evaluacion && typeof baseData.evaluacion === "object")
+    ? (baseData.evaluacion as Record<string, unknown>)
+    : null;
+
+  const data = evaluationData || nestedData || baseData;
+
+  const otros = (data.otros_indicadores && typeof data.otros_indicadores === "object")
+    ? (data.otros_indicadores as Record<string, unknown>)
+    : {};
+
+  const imcRaw = pickValueByKeys(data, ["imc", "indice_masa_corporal"]);
+  const tmbRaw = pickValueByKeys(data, ["tmb_kcal", "tmb", "tasa_metabolica_basal", "tasa_metabolica_basal_kcal"]);
+  const getRaw = pickValueByKeys(data, [
+    "get_kcal",
+    "get",
+    "get_calculado",
+    "gasto_energetico_total",
+    "gasto_energetico_total_kcal",
+    "gasto_energetico_total_calculado",
+    "gasto_energetico_diario",
+  ]) ?? pickValueByKeys(otros, ["get_kcal", "get", "gasto_energetico_total", "gasto_energetico_total_kcal"]);
+  const caloriesRaw = pickValueByKeys(data, [
+    "calorias_diarias_calculadas",
+    "calorias_diarias_recomendadas",
+    "calorias_recomendadas",
+    "calorias_objetivo",
+    "energia_recomendada_kcal",
+  ]);
+  const metabolicAgeRaw = pickValueByKeys(otros, ["edad_metabolica", "edad_metabolica_anos", "metabolic_age"])
+    ?? pickValueByKeys(data, ["edad_metabolica", "edad_metabolica_anos", "metabolic_age"]);
+
+  return {
+    imc: toNumberLabel(imcRaw),
+    tmb: toNumberLabel(tmbRaw, " kcal"),
+    get: toNumberLabel(getRaw, " kcal"),
+    calorias: toNumberLabel(caloriesRaw, " kcal"),
+    edadMetabolica: toNumberLabel(metabolicAgeRaw, " años"),
+  };
+}
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toOptionalNumber(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+async function requestCreateEvaluationWithFallback(payload: CreateEvaluationPayload, token: string): Promise<unknown> {
+  let lastError: unknown;
+  for (const base of CLINICAL_EVALUATION_ENDPOINTS) {
+    try {
+      return await apiRequest(`${base}`, {
+        method: "POST",
+        accessToken: token,
+        body: payload,
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 export function TabPerfilClinico({ patientId }: { patientId: number }) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<ClinicalProfileView>(toViewModel(undefined, undefined));
+  const [submittingEvaluation, setSubmittingEvaluation] = useState(false);
+  const [calculatedMetrics, setCalculatedMetrics] = useState<CalculatedMetricsView>(defaultCalculatedMetrics());
+  const [evaluationForm, setEvaluationForm] = useState<EvaluationFormState>({
+    fecha_evaluacion: todayIsoDate(),
+    peso_kg: "",
+    altura_cm: "",
+    porcentaje_grasa: "",
+    masa_muscular_kg: "",
+    agua_corporal_pct: "",
+    grasa_visceral: "",
+    masa_osea_kg: "",
+  });
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -316,7 +625,13 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
       try {
         const profileRes = await requestProfileWithFallback(patientId, token);
         const detailRes = await requestPatientDetailWithFallback(patientId, token);
-        setProfile(toViewModel(profileRes.data, detailRes?.data));
+        const dashboardPerfil = await requestDashboardPatientBestMatch(
+          patientId,
+          detailRes?.data,
+          profileRes.data,
+          token,
+        );
+        setProfile(toViewModel(profileRes.data, detailRes?.data, dashboardPerfil));
       } catch {
         setProfile(toViewModel(undefined, undefined));
         toast({
@@ -366,6 +681,169 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
 
   const foodsByCategory = useMemo(() => categorizeFoods(profile.preferredFoods), [profile.preferredFoods]);
 
+  const imcPreview = useMemo(() => {
+    const peso = toOptionalNumber(evaluationForm.peso_kg);
+    const altura = toOptionalNumber(evaluationForm.altura_cm);
+    if (!peso || !altura || altura <= 0) return "---";
+    const meters = altura / 100;
+    const imc = peso / (meters * meters);
+    return Number.isFinite(imc) ? imc.toFixed(2) : "---";
+  }, [evaluationForm.altura_cm, evaluationForm.peso_kg]);
+
+  const estimatedCalculatedMetrics = useMemo<CalculatedMetricsView>(() => {
+    const peso = toOptionalNumber(evaluationForm.peso_kg);
+    const alturaCm = toOptionalNumber(evaluationForm.altura_cm);
+    const grasaPct = toOptionalNumber(evaluationForm.porcentaje_grasa);
+    const age = parseAgeLabel(profile.age);
+
+    if (!peso || !alturaCm || !age || alturaCm <= 0) {
+      return defaultCalculatedMetrics();
+    }
+
+    const alturaM = alturaCm / 100;
+    const imc = peso / (alturaM * alturaM);
+
+    const sexNorm = normalizeText(profile.sex);
+    const isFemale = sexNorm.includes("femen");
+    const isMale = sexNorm.includes("mascul");
+    const sexConstant = isFemale ? -161 : isMale ? 5 : -78;
+    const tmb = (10 * peso) + (6.25 * alturaCm) - (5 * age) + sexConstant;
+    const get = tmb * activityFactor(profile.activityLevelKey);
+    const kcalObjective = get * (1 + objectiveAdjustmentFactor(profile.medicalObservation));
+    const metabolicAge = grasaPct !== undefined
+      ? estimateMetabolicAge(age, imc, grasaPct)
+      : undefined;
+
+    return {
+      imc: Number.isFinite(imc) ? `${imc.toFixed(2)} (estimado)` : "---",
+      tmb: Number.isFinite(tmb) ? `${Math.round(tmb)} kcal (estimado)` : "---",
+      get: Number.isFinite(get) ? `${Math.round(get)} kcal (estimado)` : "---",
+      calorias: Number.isFinite(kcalObjective) ? `${Math.round(kcalObjective)} kcal (estimado)` : "---",
+      edadMetabolica: metabolicAge !== undefined ? `${metabolicAge} años (estimado)` : "---",
+    };
+  }, [
+    evaluationForm.altura_cm,
+    evaluationForm.peso_kg,
+    evaluationForm.porcentaje_grasa,
+    profile.activityLevelKey,
+    profile.age,
+    profile.medicalObservation,
+    profile.sex,
+  ]);
+
+  const handleEvaluationFieldChange = (field: keyof EvaluationFormState, value: string) => {
+    setEvaluationForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveClinicalEvaluation = async () => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token) {
+      toast({ title: "Sesion no valida", description: "No se encontro token de acceso.", variant: "destructive" });
+      return;
+    }
+
+    const resolvedProfileId = profile.profileId ?? patientId;
+    if (!resolvedProfileId || Number.isNaN(resolvedProfileId)) {
+      toast({
+        title: "No se pudo registrar la evaluacion",
+        description: "No se encontro id_perfil del paciente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const fechaEvaluacion = evaluationForm.fecha_evaluacion.trim();
+    const peso = toOptionalNumber(evaluationForm.peso_kg);
+    const altura = toOptionalNumber(evaluationForm.altura_cm);
+    const porcentajeGrasa = toOptionalNumber(evaluationForm.porcentaje_grasa);
+    const masaMuscular = toOptionalNumber(evaluationForm.masa_muscular_kg);
+    const aguaCorporal = toOptionalNumber(evaluationForm.agua_corporal_pct);
+    const grasaVisceral = toOptionalNumber(evaluationForm.grasa_visceral);
+    const masaOsea = toOptionalNumber(evaluationForm.masa_osea_kg);
+
+    if (!fechaEvaluacion) {
+      toast({
+        title: "Datos incompletos",
+        description: "La fecha de evaluacion es obligatoria.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      peso === undefined
+      || altura === undefined
+      || porcentajeGrasa === undefined
+      || masaMuscular === undefined
+      || aguaCorporal === undefined
+      || grasaVisceral === undefined
+      || masaOsea === undefined
+    ) {
+      toast({
+        title: "Datos incompletos",
+        description: "Todos los datos medidos son obligatorios para registrar la evaluacion.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (peso <= 0 || altura <= 0 || porcentajeGrasa < 0 || masaMuscular < 0 || aguaCorporal < 0 || grasaVisceral < 0 || masaOsea < 0) {
+      toast({
+        title: "Datos incompletos",
+        description: "Verifica los valores: peso y altura > 0, y el resto >= 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload: CreateEvaluationPayload = {
+      id_perfil: resolvedProfileId,
+      peso_kg: peso,
+      altura_cm: altura,
+      porcentaje_grasa: porcentajeGrasa,
+      masa_muscular_kg: masaMuscular,
+      agua_corporal_pct: aguaCorporal,
+      grasa_visceral: grasaVisceral,
+      masa_osea_kg: masaOsea,
+      fecha_evaluacion: fechaEvaluacion,
+    };
+
+    setSubmittingEvaluation(true);
+    try {
+      const response = await requestCreateEvaluationWithFallback(payload, token);
+      setCalculatedMetrics(mapCalculatedMetricsFromResponse(response));
+      toast({
+        title: "Evaluacion registrada",
+        description: "La evaluacion clinica se guardo correctamente en el historial.",
+      });
+      setEvaluationForm((prev) => ({
+        ...prev,
+        fecha_evaluacion: todayIsoDate(),
+        peso_kg: "",
+        altura_cm: "",
+        porcentaje_grasa: "",
+        masa_muscular_kg: "",
+        agua_corporal_pct: "",
+        grasa_visceral: "",
+        masa_osea_kg: "",
+      }));
+    } catch (error) {
+      let message = "No se pudo guardar la evaluacion clinica.";
+      if (error instanceof ApiError) {
+        const payloadError = error.payload as { message?: string } | null;
+        message = payloadError?.message || error.message || message;
+      }
+
+      toast({
+        title: "Error al registrar evaluacion",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingEvaluation(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {loading && (
@@ -394,8 +872,8 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
                   <Info label="Nombre completo" value={profile.fullName} />
                   <Info label="Sexo" value={profile.sex} />
                   <Info label="Fecha de nacimiento" value={profile.birthDate} />
+                  <Info label="Edad" value={profile.age} />
                   <Info label="Correo electronico" value={profile.email} />
-                  <Info label="Telefono" value={profile.phone} />
                 </div>
               </div>
             </CardContent>
@@ -565,6 +1043,98 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="border-border">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-primary" /> Registro de Evaluacion Clinica
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Fecha de evaluacion *</label>
+                    <Input
+                      type="date"
+                      value={evaluationForm.fecha_evaluacion}
+                      onChange={(e) => handleEvaluationFieldChange("fecha_evaluacion", e.target.value)}
+                    />
+                  </div>
+                  <MetricInput
+                    label="Peso (kg) *"
+                    value={evaluationForm.peso_kg}
+                    onChange={(value) => handleEvaluationFieldChange("peso_kg", value)}
+                    step="0.1"
+                    min="0"
+                  />
+                  <MetricInput
+                    label="Altura (cm) *"
+                    value={evaluationForm.altura_cm}
+                    onChange={(value) => handleEvaluationFieldChange("altura_cm", value)}
+                    step="0.1"
+                    min="0"
+                  />
+                  <MetricInput
+                    label="Porcentaje grasa (%) *"
+                    value={evaluationForm.porcentaje_grasa}
+                    onChange={(value) => handleEvaluationFieldChange("porcentaje_grasa", value)}
+                    step="0.1"
+                    min="0"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <MetricInput
+                    label="Masa muscular (kg) *"
+                    value={evaluationForm.masa_muscular_kg}
+                    onChange={(value) => handleEvaluationFieldChange("masa_muscular_kg", value)}
+                    step="0.1"
+                    min="0"
+                  />
+                  <MetricInput
+                    label="Agua corporal (%) *"
+                    value={evaluationForm.agua_corporal_pct}
+                    onChange={(value) => handleEvaluationFieldChange("agua_corporal_pct", value)}
+                    step="0.1"
+                    min="0"
+                  />
+                  <MetricInput
+                    label="Grasa visceral *"
+                    value={evaluationForm.grasa_visceral}
+                    onChange={(value) => handleEvaluationFieldChange("grasa_visceral", value)}
+                    step="0.1"
+                    min="0"
+                  />
+                  <MetricInput
+                    label="Masa osea (kg) *"
+                    value={evaluationForm.masa_osea_kg}
+                    onChange={(value) => handleEvaluationFieldChange("masa_osea_kg", value)}
+                    step="0.1"
+                    min="0"
+                  />
+                </div>
+
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-foreground">Datos calculados</p>
+                  <CalculatedInfo label="Indice de Masa Corporal (IMC)" value={calculatedMetrics.imc !== "---" ? calculatedMetrics.imc : estimatedCalculatedMetrics.imc} />
+                  <CalculatedInfo label="Tasa Metabólica Basal (TMB)" value={calculatedMetrics.tmb !== "---" ? calculatedMetrics.tmb : estimatedCalculatedMetrics.tmb} />
+                  <CalculatedInfo label="Gasto Energetico Total (GET)" value={calculatedMetrics.get !== "---" ? calculatedMetrics.get : estimatedCalculatedMetrics.get} />
+                  <CalculatedInfo label="Calorias Diarias Recomendadas" value={calculatedMetrics.calorias !== "---" ? calculatedMetrics.calorias : estimatedCalculatedMetrics.calorias} />
+                  <CalculatedInfo label="Edad Metabolica" value={calculatedMetrics.edadMetabolica !== "---" ? calculatedMetrics.edadMetabolica : estimatedCalculatedMetrics.edadMetabolica} />
+                  <p className="text-[11px] text-muted-foreground pt-1">
+                    Estos valores se calculan y guardan al registrar la evaluacion.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button type="button" onClick={() => void handleSaveClinicalEvaluation()} disabled={submittingEvaluation}>
+                  {submittingEvaluation ? "Guardando..." : "Guardar evaluacion"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>
@@ -576,6 +1146,36 @@ function Info({ label, value }: { label: string; value: string }) {
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
       <p className="text-sm text-foreground">{value || "---"}</p>
+    </div>
+  );
+}
+
+function MetricInput({
+  label,
+  value,
+  onChange,
+  step,
+  min,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  step: string;
+  min: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <Input type="number" inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} step={step} min={min} />
+    </div>
+  );
+}
+
+function CalculatedInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-card px-2.5 py-2">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium text-foreground">{value || "---"}</p>
     </div>
   );
 }

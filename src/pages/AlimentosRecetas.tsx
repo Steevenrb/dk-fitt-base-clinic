@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, Apple, BookOpen, ChefHat } from "lucide-react";
+import { Plus, Apple, BookOpen, ChefHat } from "lucide-react";
 
 import { Alimento, Receta, alimentosDB, recetasEjemplo } from "@/components/alimentos/alimentosData";
 import { TabAlimentos } from "@/components/alimentos/TabAlimentos";
@@ -14,6 +14,7 @@ const AlimentosRecetas = () => {
   const [base, setBase] = useState<Alimento[]>(alimentosDB.slice(0, 12));
   const [recetas, setRecetas] = useState<Receta[]>(recetasEjemplo);
   const [editingRecipe, setEditingRecipe] = useState<Receta | null>(null);
+  const [openCreateFoodSignal, setOpenCreateFoodSignal] = useState(0);
 
   const handleUseInRecipe = useCallback((a: Alimento) => {
     setActiveTab("constructor");
@@ -48,11 +49,13 @@ const AlimentosRecetas = () => {
             <p className="text-muted-foreground text-sm mt-1">Composición nutricional y creación de recetas personalizadas</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setActiveTab("alimentos")}>
-              <Search className="h-4 w-4 mr-2" /> Buscar alimento
-            </Button>
-            <Button onClick={handleNewRecipe}>
-              <Plus className="h-4 w-4 mr-2" /> Crear receta
+            <Button
+              onClick={() => {
+                setActiveTab("alimentos");
+                setOpenCreateFoodSignal((prev) => prev + 1);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" /> Registrar un nuevo alimento
             </Button>
           </div>
         </div>
@@ -66,7 +69,12 @@ const AlimentosRecetas = () => {
           </TabsList>
 
           <TabsContent value="alimentos" className="mt-4">
-            <TabAlimentos base={base} setBase={setBase} onUseInRecipe={handleUseInRecipe} />
+            <TabAlimentos
+              base={base}
+              setBase={setBase}
+              onUseInRecipe={handleUseInRecipe}
+              openCreateSignal={openCreateFoodSignal}
+            />
           </TabsContent>
 
           <TabsContent value="recetas" className="mt-4">
