@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
+import GridMotion from "@/components/GridMotion";
+import Particles from "@/components/Particles";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,6 +20,41 @@ export default function Login() {
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  // Centralized background config: edit images/colors here
+  const loginBackgroundConfig = {
+    left: {
+      // Add or remove image paths (relative to /public). They will be repeated to fill the grid.
+      items: [
+        "/simple fish.jpg",
+        "/fruits2.jpg",
+        "/fruit.jpg",
+        "/carnes.jpg",
+        "/vegetables.jpg"
+      ],
+      gradientColor: "#000000"
+    },
+    particles: {
+      particleColors: ["#f9cb22"],
+      particleCount: 250,
+      particleSpread: 20,
+      speed: 0.1,
+      particleBaseSize: 250,
+      moveParticlesOnHover: false,
+      particleHoverFactor: 0.8,
+      alphaParticles: true,
+      disableRotation: false
+    }
+  } as const;
+
+  const leftPanelItems = (() => {
+    const src = Array.isArray(loginBackgroundConfig.left.items) && loginBackgroundConfig.left.items.length > 0
+      ? loginBackgroundConfig.left.items
+      : ["/fondo_food.jpg"];
+    const total = 28;
+    const out: string[] = [];
+    for (let i = 0; i < total; i++) out.push(src[i % src.length]);
+    return out;
+  })();
 
   const handleLogin = async () => {
     const errs: { email?: string; password?: string } = {};
@@ -44,55 +81,67 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-white">
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-cover bg-center opacity-60" style={{ backgroundImage: "url('/fondo_food.jpg')" }} />
-        <div className="absolute inset-0 bg-black/50" />
-        <div className="relative z-10 flex flex-col items-center justify-center gap-4 text-center">
-          <img src="/logo_DKFitt.png" alt="DK Fitt" className="h-56 w-56 object-contain drop-shadow-2xl" />
-          <p className="text-xl font-semibold text-white drop-shadow-md">La Salud es Vida</p>
+      <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
+        <div className="absolute inset-0">
+          <GridMotion items={leftPanelItems} gradientColor="#000000" />
         </div>
+        <div className="absolute inset-0 f5ebcf/30" />
       </div>
 
       {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md space-y-6">
-          {/* Mobile logo */}
-          <div className="flex lg:hidden items-center justify-center mb-4">
-            <img src="/logo_DKFitt.png" alt="DK Fitt" className="h-14 w-14 object-contain" />
+      <div className="flex-1 relative flex items-center justify-center p-6 sm:p-12 overflow-hidden">
+          <div className="absolute inset-0 z-0" style={{ backgroundColor: "#f5ebcf" }} />
+          <div className="absolute inset-0 z-10 pointer-events-none">
+            <Particles
+              particleColors={loginBackgroundConfig.particles.particleColors}
+              particleCount={loginBackgroundConfig.particles.particleCount}
+              particleSpread={loginBackgroundConfig.particles.particleSpread}
+              speed={loginBackgroundConfig.particles.speed}
+              particleBaseSize={loginBackgroundConfig.particles.particleBaseSize}
+              moveParticlesOnHover={loginBackgroundConfig.particles.moveParticlesOnHover}
+              particleHoverFactor={loginBackgroundConfig.particles.particleHoverFactor}
+              alphaParticles={loginBackgroundConfig.particles.alphaParticles}
+              disableRotation={loginBackgroundConfig.particles.disableRotation}
+            />
           </div>
 
-          <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="relative z-20 w-full max-w-md space-y-6">
+          <div className="flex items-center justify-center mb-6">
+            <img src="/logo_DKFitt.png" alt="DK Fitt" className="h-40 w-40 object-contain drop-shadow-2xl" />
+          </div>
+
+          <div className="space-y-6 animate-in fade-in duration-300 backdrop-blur-sm rounded-2xl border border-slate-200 shadow-2xl p-6 sm:p-8" style={{ backgroundColor: "#f8f6f1" }}>
             <div className="text-center space-y-1">
-              <h2 className="text-2xl font-bold text-foreground">Iniciar sesión</h2>
-              <p className="text-sm text-muted-foreground">Accede a tu plataforma clínica</p>
+              <h2 className="text-2xl font-bold text-slate-900">Iniciar sesión</h2>
+              <p className="text-sm text-slate-600">Accede a tu plataforma clínica</p>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Correo electrónico</Label>
+                <Label className="text-slate-700">Correo electrónico</Label>
                 <Input
                   placeholder="correo@dkfitt.com"
                   value={loginEmail}
                   onChange={e => { setLoginEmail(e.target.value); setLoginErrors(p => ({ ...p, email: undefined })); }}
-                  className={loginErrors.email ? "border-destructive" : ""}
+                  className={loginErrors.email ? "border-destructive bg-white" : "bg-white border-slate-300"}
                 />
                 {loginErrors.email && <p className="text-xs text-destructive">{loginErrors.email}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label>Contraseña</Label>
+                <Label className="text-slate-700">Contraseña</Label>
                 <div className="relative">
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={loginPassword}
                     onChange={e => { setLoginPassword(e.target.value); setLoginErrors(p => ({ ...p, password: undefined })); }}
-                    className={loginErrors.password ? "border-destructive pr-10" : "pr-10"}
+                    className={loginErrors.password ? "border-destructive pr-10 bg-white" : "pr-10 bg-white border-slate-300"}
                     onKeyDown={e => e.key === "Enter" && handleLogin()}
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800">
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
@@ -102,9 +151,9 @@ export default function Login() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Checkbox id="remember" />
-                  <Label htmlFor="remember" className="text-sm cursor-pointer">Recordarme</Label>
+                  <Label htmlFor="remember" className="text-sm cursor-pointer text-slate-700">Recordarme</Label>
                 </div>
-                <button className="text-xs text-primary hover:underline">¿Olvidaste tu contraseña?</button>
+                <button className="text-xs text-emerald-700 hover:underline">¿Olvidaste tu contraseña?</button>
               </div>
 
               {loginError && (
@@ -113,8 +162,8 @@ export default function Login() {
                 </div>
               )}
 
-              <Button onClick={handleLogin} disabled={loading} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11">
-                {loading ? <span className="animate-spin h-4 w-4 border-2 border-primary-foreground border-t-transparent rounded-full" /> : <><LogIn className="h-4 w-4 mr-2" />Iniciar sesión</>}
+              <Button onClick={handleLogin} disabled={loading} className="w-full bg-[#e5b106] text-black hover:bg-[#cc8c02] h-11">
+                {loading ? <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <><LogIn className="h-4 w-4 mr-2" />Iniciar sesión</>}
               </Button>
             </div>
           </div>
