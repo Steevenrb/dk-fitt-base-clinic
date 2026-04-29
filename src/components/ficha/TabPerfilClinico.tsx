@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -402,7 +402,12 @@ function toViewModel(profile?: ProfileApiData, detail?: PatientDetailApiData, da
     .filter((v): v is string => Boolean(v));
 
   return {
-    profileId: typeof profile?.id_perfil === "number" ? profile.id_perfil : null,
+    profileId:
+      typeof profile?.id_perfil === "number"
+        ? profile.id_perfil
+        : typeof detail?.id_perfil === "number"
+          ? detail.id_perfil
+          : null,
     fullName,
     birthDate: formatDate(birthDateRaw),
     age: canUseDashboardPerfil ? formatAge(dashboardPerfil?.edad, birthDateRaw) : formatAgeFromBirthDate(birthDateRaw),
@@ -446,11 +451,11 @@ type CreateEvaluationPayload = {
 };
 
 type CalculatedMetricsView = {
-  imc: string;
-  tmb: string;
-  get: string;
-  calorias: string;
-  edadMetabolica: string;
+  imc: ReactNode;
+  tmb: ReactNode;
+  get: ReactNode;
+  calorias: ReactNode;
+  edadMetabolica: ReactNode;
 };
 
 function defaultCalculatedMetrics(): CalculatedMetricsView {
@@ -509,6 +514,24 @@ function estimateMetabolicAge(chronologicalAge: number, bmi: number, bodyFatPct:
   return Math.max(12, Math.round(estimate));
 }
 
+function classifyImc(value: number): { label: string; className: string } {
+  if (value < 18.5) return { label: "BAJO PESO", className: "text-sky-500" };
+  if (value < 25) return { label: "NORMAL", className: "text-emerald-500" };
+  if (value < 30) return { label: "SOBREPESO", className: "text-amber-500" };
+  if (value < 35) return { label: "OBESIDAD 1", className: "text-orange-500" };
+  if (value < 40) return { label: "OBESIDAD 2", className: "text-rose-500" };
+  return { label: "OBESIDAD 3", className: "text-red-600" };
+}
+
+function formatImcLabel(value: number): ReactNode {
+  const { label, className } = classifyImc(value);
+  return (
+    <span className="text-foreground">
+      {value.toFixed(2)} <span className={className}>{label}</span>
+    </span>
+  );
+}
+
 function mapCalculatedMetricsFromResponse(rawResponse: unknown): CalculatedMetricsView {
   if (!rawResponse || typeof rawResponse !== "object") return defaultCalculatedMetrics();
 
@@ -532,6 +555,7 @@ function mapCalculatedMetricsFromResponse(rawResponse: unknown): CalculatedMetri
     : {};
 
   const imcRaw = pickValueByKeys(data, ["imc", "indice_masa_corporal"]);
+  const imcParsed = typeof imcRaw === "number" ? imcRaw : typeof imcRaw === "string" ? Number(imcRaw) : NaN;
   const tmbRaw = pickValueByKeys(data, ["tmb_kcal", "tmb", "tasa_metabolica_basal", "tasa_metabolica_basal_kcal"]);
   const getRaw = pickValueByKeys(data, [
     "get_kcal",
@@ -553,7 +577,7 @@ function mapCalculatedMetricsFromResponse(rawResponse: unknown): CalculatedMetri
     ?? pickValueByKeys(data, ["edad_metabolica", "edad_metabolica_anos", "metabolic_age"]);
 
   return {
-    imc: toNumberLabel(imcRaw),
+    imc: Number.isFinite(imcParsed) ? formatImcLabel(imcParsed) : toNumberLabel(imcRaw),
     tmb: toNumberLabel(tmbRaw, " kcal"),
     get: toNumberLabel(getRaw, " kcal"),
     calorias: toNumberLabel(caloriesRaw, " kcal"),
@@ -715,10 +739,10 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
       : undefined;
 
     return {
-      imc: Number.isFinite(imc) ? `${imc.toFixed(2)} (estimado)` : "---",
-      tmb: Number.isFinite(tmb) ? `${Math.round(tmb)} kcal (estimado)` : "---",
-      get: Number.isFinite(get) ? `${Math.round(get)} kcal (estimado)` : "---",
-      calorias: Number.isFinite(kcalObjective) ? `${Math.round(kcalObjective)} kcal (estimado)` : "---",
+      imc: Number.isFinite(imc) ? formatImcLabel(imc) : "---",
+      tmb: Number.isFinite(tmb) ? `${Math.round(tmb)} kcal` : "---",
+      get: Number.isFinite(get) ? `${Math.round(get)} kcal` : "---",
+      calorias: Number.isFinite(kcalObjective) ? `${Math.round(kcalObjective)} kcal` : "---",
       edadMetabolica: metabolicAge !== undefined ? `${metabolicAge} años (estimado)` : "---",
     };
   }, [
@@ -742,7 +766,7 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
       return;
     }
 
-    const resolvedProfileId = profile.profileId ?? patientId;
+    const resolvedProfileId = profile.profileId;
     if (!resolvedProfileId || Number.isNaN(resolvedProfileId)) {
       toast({
         title: "No se pudo registrar la evaluacion",
@@ -812,6 +836,9 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
     try {
       const response = await requestCreateEvaluationWithFallback(payload, token);
       setCalculatedMetrics(mapCalculatedMetricsFromResponse(response));
+      window.dispatchEvent(new CustomEvent("dkfitt-patient-data-updated", {
+        detail: { patientId, source: "clinical-evaluation" },
+      }));
       toast({
         title: "Evaluacion registrada",
         description: "La evaluacion clinica se guardo correctamente en el historial.",
@@ -1171,7 +1198,7 @@ function MetricInput({
   );
 }
 
-function CalculatedInfo({ label, value }: { label: string; value: string }) {
+function CalculatedInfo({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-md border border-border bg-card px-2.5 py-2">
       <p className="text-[11px] text-muted-foreground">{label}</p>

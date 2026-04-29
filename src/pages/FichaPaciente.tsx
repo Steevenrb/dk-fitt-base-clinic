@@ -26,6 +26,7 @@ type PatientHeaderView = {
   diagnosis: string;
   age: string;
   startDate: string;
+  profileId: number | null;
 };
 
 function normalizeStatusLabel(value?: string): string {
@@ -90,8 +91,10 @@ function mapPatientHeader(item: Record<string, unknown>): PatientHeaderView {
   const diagnosis = String(item.diagnostico ?? item.objetivo ?? "").trim();
   const age = calcAgeLabel(String(item.fecha_nacimiento ?? ""));
   const startDate = formatStartDate(String(item.fecha_inicio_plan ?? item.fecha_inicio ?? item.inicio_plan ?? ""));
+  const profileIdRaw = item.id_perfil ?? item.perfil_id ?? item.profile_id;
+  const profileId = typeof profileIdRaw === "number" && Number.isFinite(profileIdRaw) ? profileIdRaw : null;
 
-  return { name, status, adherence, diagnosis, age, startDate };
+  return { name, status, adherence, diagnosis, age, startDate, profileId };
 }
 
 const FichaPaciente = () => {
@@ -107,6 +110,7 @@ const FichaPaciente = () => {
     diagnosis: "",
     age: "",
     startDate: "",
+    profileId: null,
   });
 
   useEffect(() => {
@@ -128,7 +132,7 @@ const FichaPaciente = () => {
         const raw = await requestPatientWithFallback(patientId, token);
         setHeader(mapPatientHeader(raw));
       } catch {
-        setHeader({ name: "", status: "", adherence: "", diagnosis: "", age: "", startDate: "" });
+        setHeader({ name: "", status: "", adherence: "", diagnosis: "", age: "", startDate: "", profileId: null });
         toast({ title: "No se pudo cargar ficha", description: "Verifica endpoint GET /patients/{id}.", variant: "destructive" });
       } finally {
         setLoadingHeader(false);
@@ -183,7 +187,7 @@ const FichaPaciente = () => {
             <TabsTrigger value="citas" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Citas</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="resumen"><TabResumen /></TabsContent>
+          <TabsContent value="resumen"><TabResumen patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="perfil"><TabPerfilClinico patientId={patientId} /></TabsContent>
           <TabsContent value="evaluaciones"><TabEvaluaciones /></TabsContent>
           <TabsContent value="plan"><TabPlan /></TabsContent>
