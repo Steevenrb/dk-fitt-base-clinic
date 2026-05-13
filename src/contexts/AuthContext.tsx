@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from "react";
 import { apiRequest, ApiError } from "@/lib/api";
 
 export type UserRole = "admin" | "nutricionista" | "paciente" | null;
@@ -28,6 +28,9 @@ const AUTH_STORAGE_KEY = "dkfitt-auth";
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const REFRESH_TOKEN_KEY = "dkfitt-refresh-token";
 const FORCE_PASSWORD_CHANGE_KEY = "dkfitt-force-password-change";
+const ACTIVITY_KEY = "dkfitt-last-activity";
+const SESSION_EXPIRED_KEY = "dkfitt-session-expired";
+const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
 
 interface LoginResponse {
   success: boolean;
@@ -154,6 +157,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [requiresPasswordChange, setRequiresPasswordChange] = useState<boolean>(() => {
     return localStorage.getItem(FORCE_PASSWORD_CHANGE_KEY) === "true";
   });
+  const lastActivityRef = useRef<number>(Date.now());
+  const activityTimeoutRef = useRef<number | undefined>(undefined);
+
+  const clearSession = useCallback(() => {
+    setUser(null);
+    setRequiresPasswordChange(false);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(FORCE_PASSWORD_CHANGE_KEY);
+  }, []);
+
+  const forceLogout = useCallback(() => {
+    localStorage.setItem(SESSION_EXPIRED_KEY, "inactive");
+    clearSession();
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.assign("/login?reason=inactive");
+    }
+  }, [clearSession]);
 
   useEffect(() => {
     const hydrateSession = async () => {
@@ -179,17 +201,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextUser));
         localStorage.setItem(FORCE_PASSWORD_CHANGE_KEY, String(requiresChange));
       } catch {
-        setUser(null);
-        setRequiresPasswordChange(false);
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-        localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
-        localStorage.removeItem(FORCE_PASSWORD_CHANGE_KEY);
+        clearSession();
       }
     };
 
     void hydrateSession();
-  }, []);
+  }, [clearSession]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
@@ -286,13 +303,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     }
 
-    setUser(null);
-    setRequiresPasswordChange(false);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(FORCE_PASSWORD_CHANGE_KEY);
-  }, []);
+    clearSession();
+  }, [clearSession]);
+
+  useEffect(() => {
+    const handleExpired = () => {
+      clearSession();
+    };
+
+    window.addEventListener("dkfitt-auth-expired", handleExpired as EventListener);
+    return () => window.removeEventListener("dkfitt-auth-expired", handleExpired as EventListener);
+  }, [clearSession]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+
+    const markActivity = () => {
+      const now = Date.now();
+      lastActivityRef.current = now;
+      localStorage.setItem(ACTIVITY_KEY, String(now));
+      if (activityTimeoutRef.current) {
+        window.clearTimeout(activityTimeoutRef.current);
+      }
+      activityTimeoutRef.current = window.setTimeout(() => {
+        forceLogout();
+      }, INACTIVITY_LIMIT_MS);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === ACTIVITY_KEY && event.newValue) {
+        const parsed = Number(event.newValue);
+        if (Number.isFinite(parsed) && parsed > lastActivityRef.current) {
+          lastActivityRef.current = parsed;
+        }
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      const last = lastActivityRef.current;
+      if (Date.now() - last >= INACTIVITY_LIMIT_MS) {
+        forceLogout();
+      }
+    }, 30_000);
+
+    const activityEvents: Array<keyof DocumentEventMap> = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "touchstart",
+      "touchmove",
+      "wheel",
+      "pointerdown",
+      "pointermove",
+      "scroll",
+      "visibilitychange",
+    ];
+
+    activityEvents.forEach((evt) => document.addEventListener(evt, markActivity, { passive: true }));
+    window.addEventListener("focus", markActivity, { passive: true });
+    window.addEventListener("storage", handleStorage);
+    markActivity();
+
+    return () => {
+      activityEvents.forEach((evt) => document.removeEventListener(evt, markActivity));
+      window.removeEventListener("focus", markActivity);
+      window.removeEventListener("storage", handleStorage);
+      window.clearInterval(intervalId);
+      if (activityTimeoutRef.current) {
+        window.clearTimeout(activityTimeoutRef.current);
+      }
+    };
+  }, [user, forceLogout]);
 
   const clearPasswordChangeRequirement = useCallback(() => {
     setRequiresPasswordChange(false);

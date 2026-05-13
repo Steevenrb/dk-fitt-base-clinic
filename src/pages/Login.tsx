@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,26 @@ export default function Login() {
     "/carnes.jpg",
     "/vegetables.jpg"
   ];
+
+  useEffect(() => {
+    const expired = localStorage.getItem("dkfitt-session-expired");
+    const params = new URLSearchParams(window.location.search);
+    const reason = params.get("reason");
+    const resolvedReason = reason || expired;
+    if (resolvedReason === "inactive" || resolvedReason === "token") {
+      localStorage.removeItem("dkfitt-session-expired");
+      setLoginError(
+        resolvedReason === "inactive"
+          ? "La sesion se cerro por inactividad. Inicia sesion nuevamente."
+          : "La sesion expiro. Inicia sesion nuevamente."
+      );
+      if (reason) {
+        params.delete("reason");
+        const next = params.toString();
+        window.history.replaceState({}, "", next ? `${window.location.pathname}?${next}` : window.location.pathname);
+      }
+    }
+  }, []);
 
   const handleLogin = async () => {
     const errs: { email?: string; password?: string } = {};

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,65 +11,242 @@ import { PieChart, Pie, Cell } from "recharts";
 import { Search, Plus, X, Save, RotateCcw, Eye, UtensilsCrossed } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { apiRequest, ApiError } from "@/lib/api";
 import {
-  Alimento, Ingrediente, Receta, alimentosDB, unidades, aptitudLabels,
+  Alimento, Ingrediente, Receta, unidades, aptitudLabels,
   calcTotales, calcMacroData, calcIngredienteCal, chartConfig, recetaCatColors,
 } from "./alimentosData";
 
 interface TabConstructorProps {
-  base: Alimento[];
   onSaveRecipe: (r: Receta) => void;
   editingRecipe?: Receta | null;
   onClearEdit?: () => void;
+  onSavedBackend?: () => void;
 }
 
-const categoriasReceta = ["Desayuno", "Almuerzo", "Cena", "Snack", "Bebida"];
+type CategoriaDetalle = "proteinas" | "carbohidratos" | "grasas" | "lacteos" | "frutas" | "vegetales" | "otros";
+
+type AlimentoDetalle = {
+  id_alimento_detalle: number;
+  id_alimento?: number | null;
+  nombre: string;
+  categoria: CategoriaDetalle;
+  calorias: number;
+  proteinas: number;
+  grasas: number;
+  carbohidratos: number;
+  fibra: number;
+  azucares?: number;
+  sodio?: number;
+};
+
+type TiempoComida = {
+  id?: number;
+  id_tiempo_comida?: number;
+  nombre?: string;
+  tiempo_comida_nombre?: string;
+};
+
+type ApiListResponse<T> = {
+  success?: boolean;
+  data?: T[];
+  items?: T[];
+  results?: T[];
+};
+
+const DETALLE_ENDPOINTS = ["/api/alimentos-detalle", "/alimentos-detalle"];
+const TIEMPOS_ENDPOINTS = ["/tiempos-comida"];
+const APTITUDES_ENDPOINTS = ["/aptitudes-clinicas"];
+const PAGE_SIZE = 50;
+
+const extractList = <T,>(payload: ApiListResponse<T> | T[]): T[] => {
+  if (Array.isArray(payload)) return payload;
+  return payload.data || payload.items || payload.results || [];
+};
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof ApiError) {
+    const payload = error.payload as { message?: string; error?: { message?: string } } | null;
+    return payload?.error?.message || payload?.message || error.message || fallback;
+  }
+  if (error instanceof Error) return error.message || fallback;
+  return fallback;
+};
+
+type PagedResult<T> = {
+  rows: T[];
+  page: number;
+  totalPages: number;
+};
+
+const getDetallePage = async (token: string, page: number, limit: number): Promise<PagedResult<AlimentoDetalle>> => {
+  const res = await requestFirstOk<ApiListResponse<AlimentoDetalle> | AlimentoDetalle[]>(
+    DETALLE_ENDPOINTS.map((base) => `${base}?page=${page}&limit=${limit}`),
+    { method: "GET", accessToken: token },
+  );
+
+  const rows = extractList(res);
+  if (Array.isArray(res)) {
+    const totalPages = Math.max(1, Math.ceil(rows.length / limit));
+    const start = (page - 1) * limit;
+    return { rows: rows.slice(start, start + limit), page, totalPages };
+  }
+
+  const totalPages = typeof res.meta?.total_pages === "number" ? res.meta.total_pages : 1;
+  return { rows, page, totalPages };
+};
+
+const normalizeText = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+const requestFirstOk = async <T,>(endpoints: string[], options: Parameters<typeof apiRequest>[1]) => {
+  let lastError: unknown;
+  for (const endpoint of endpoints) {
+    try {
+      return await apiRequest<T>(endpoint, options);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+};
+
+const categoryToLegacy = (cat: CategoriaDetalle): Alimento["categoria"] => {
+  if (cat === "proteinas") return "Proteína";
+  if (cat === "carbohidratos") return "Cereal";
+  if (cat === "grasas") return "Grasa";
+  if (cat === "lacteos") return "Lácteo";
+  if (cat === "frutas") return "Fruta";
+  if (cat === "vegetales") return "Vegetal";
+  return "Otro";
+};
+
+const toAlimento = (item: AlimentoDetalle): Alimento => ({
+  id: String(item.id_alimento_detalle),
+  idAlimento: item.id_alimento ?? null,
+  nombre: item.nombre,
+  calorias: item.calorias ?? 0,
+  proteinas: item.proteinas ?? 0,
+  carbohidratos: item.carbohidratos ?? 0,
+  grasas: item.grasas ?? 0,
+  grasasSaturadas: 0,
+  azucares: item.azucares ?? 0,
+  fibra: item.fibra ?? 0,
+  sodio: item.sodio ?? 0,
+  categoria: categoryToLegacy(item.categoria),
+});
 
 const defaultAptitud = (): Record<string, boolean> => ({
   general: true, diabeticos: true, hipertensos: true, celiacos: true,
   lactosa: true, vegetarianos: false, veganos: false, renal: true,
 });
 
-export function TabConstructor({ base, onSaveRecipe, editingRecipe, onClearEdit }: TabConstructorProps) {
+const aptitudCodigoByUiKey: Record<string, string> = {
+  general: "general",
+  diabeticos: "diabetes",
+  hipertensos: "hipertension",
+  celiacos: "celiaco",
+  lactosa: "lactosa",
+  vegetarianos: "vegetariano",
+  veganos: "vegano",
+  renal: "renal",
+};
+
+export function TabConstructor({ onSaveRecipe, editingRecipe, onClearEdit, onSavedBackend }: TabConstructorProps) {
   const [nombre, setNombre] = useState(editingRecipe?.nombre || "");
-  const [categoria, setCategoria] = useState<string>(editingRecipe?.categoria || "Almuerzo");
-  const [porciones, setPorciones] = useState(editingRecipe?.porciones || 2);
+  const [tiempoComidaId, setTiempoComidaId] = useState(
+    editingRecipe?.id_tiempo_comida ? String(editingRecipe.id_tiempo_comida) : "",
+  );
   const [tiempoPrep, setTiempoPrep] = useState(editingRecipe?.tiempoPrep || 20);
-  const [pasos, setPasos] = useState(editingRecipe?.pasos.join("\n") || "");
+  const [pasos, setPasos] = useState<string[]>(editingRecipe?.pasos?.length ? editingRecipe.pasos : [""]);
   const [ingredientes, setIngredientes] = useState<Ingrediente[]>(editingRecipe?.ingredientes || []);
   const [aptitud, setAptitud] = useState<Record<string, boolean>>(editingRecipe?.aptitud || defaultAptitud());
   const [notaClinica, setNotaClinica] = useState(editingRecipe?.notaClinica || "");
   const [busquedaIng, setBusquedaIng] = useState("");
   const [showIngSearch, setShowIngSearch] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [alimentosCatalog, setAlimentosCatalog] = useState<Alimento[]>([]);
+  const [tiemposComida, setTiemposComida] = useState<TiempoComida[]>([]);
+  const [aptitudesCatalogo, setAptitudesCatalogo] = useState<Array<{ id_aptitud: number; codigo?: string; nombre: string }>>([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   // Use editingRecipe when it changes
   useMemo(() => {
     if (editingRecipe) {
       setNombre(editingRecipe.nombre);
-      setCategoria(editingRecipe.categoria);
-      setPorciones(editingRecipe.porciones);
+      setTiempoComidaId(editingRecipe.id_tiempo_comida ? String(editingRecipe.id_tiempo_comida) : "");
       setTiempoPrep(editingRecipe.tiempoPrep);
-      setPasos(editingRecipe.pasos.join("\n"));
+      setPasos(editingRecipe.pasos?.length ? editingRecipe.pasos : [""]);
       setIngredientes([...editingRecipe.ingredientes]);
       setAptitud({ ...editingRecipe.aptitud });
       setNotaClinica(editingRecipe.notaClinica);
     }
   }, [editingRecipe?.id]);
 
-  const allAlimentos = [...new Map([...base, ...alimentosDB].map(a => [a.id, a])).values()];
+  useEffect(() => {
+    const token = localStorage.getItem("dkfitt-access-token");
+    if (!token) return;
+    let isMounted = true;
+    const loadCatalog = async () => {
+      setLoadingCatalog(true);
+      setCatalogError(null);
+      try {
+        const alimentosRows: AlimentoDetalle[] = [];
+        let page = 1;
+        let totalPages = 1;
+        while (page <= totalPages) {
+          const pageRes = await getDetallePage(token, page, PAGE_SIZE);
+          alimentosRows.push(...pageRes.rows);
+          totalPages = pageRes.totalPages || 1;
+          if (pageRes.rows.length === 0) break;
+          page += 1;
+        }
+
+        const tiemposRes = await requestFirstOk<ApiListResponse<TiempoComida> | TiempoComida[]>(
+          TIEMPOS_ENDPOINTS,
+          { method: "GET", accessToken: token },
+        );
+        const aptitudesRes = await requestFirstOk<ApiListResponse<{ id_aptitud: number; codigo?: string; nombre: string }> | { id_aptitud: number; codigo?: string; nombre: string }[]>(
+          APTITUDES_ENDPOINTS,
+          { method: "GET", accessToken: token },
+        );
+        if (!isMounted) return;
+        const alimentosApi = alimentosRows.map(toAlimento);
+        setAlimentosCatalog(alimentosApi);
+        setTiemposComida(extractList(tiemposRes));
+        setAptitudesCatalogo(extractList(aptitudesRes));
+      } catch (error) {
+        const message = getApiErrorMessage(error, "No se pudo cargar el catalogo de alimentos.");
+        setCatalogError(message);
+        toast.error("No se pudo cargar el catalogo de alimentos");
+      } finally {
+        if (isMounted) setLoadingCatalog(false);
+      }
+    };
+    void loadCatalog();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const allAlimentos = alimentosCatalog;
+
+  const tiempoSeleccionado = useMemo(() => {
+    const id = Number(tiempoComidaId);
+    if (!Number.isFinite(id)) return null;
+    return tiemposComida.find((t) => (t.id ?? t.id_tiempo_comida) === id) || null;
+  }, [tiempoComidaId, tiemposComida]);
+
+  const tiempoComidaNombre = (tiempoSeleccionado?.nombre || tiempoSeleccionado?.tiempo_comida_nombre || "").trim();
   const resultadosIng = busquedaIng.length >= 2
-    ? allAlimentos.filter(a => a.nombre.toLowerCase().includes(busquedaIng.toLowerCase()))
+    ? allAlimentos.filter(a => normalizeText(a.nombre).includes(normalizeText(busquedaIng)))
     : [];
 
   const totales = useMemo(() => calcTotales(ingredientes), [ingredientes]);
-  const porPorcion = useMemo(() => ({
-    calorias: totales.calorias / porciones,
-    proteinas: totales.proteinas / porciones,
-    carbohidratos: totales.carbohidratos / porciones,
-    grasas: totales.grasas / porciones,
-    fibra: totales.fibra / porciones,
-  }), [totales, porciones]);
   const macroData = useMemo(() => calcMacroData(totales), [totales]);
 
   const addIngrediente = (a: Alimento) => {
@@ -93,31 +270,79 @@ export function TabConstructor({ base, onSaveRecipe, editingRecipe, onClearEdit 
   const removeIngrediente = (idx: number) => setIngredientes(prev => prev.filter((_, i) => i !== idx));
 
   const limpiar = () => {
-    setNombre(""); setCategoria("Almuerzo"); setPorciones(2); setTiempoPrep(20);
-    setPasos(""); setIngredientes([]); setAptitud(defaultAptitud()); setNotaClinica("");
+    setNombre("");
+    setTiempoComidaId("");
+    setTiempoPrep(20);
+    setPasos([""]);
+    setIngredientes([]);
+    setAptitud(defaultAptitud());
+    setNotaClinica("");
     onClearEdit?.();
   };
 
-  const guardar = () => {
+  const guardar = async () => {
     if (!nombre.trim()) { toast.error("Ingresa un nombre para la receta"); return; }
+    if (!tiempoComidaId) { toast.error("Selecciona un tiempo de comida"); return; }
     if (ingredientes.length === 0) { toast.error("Agrega al menos un ingrediente"); return; }
-    const receta: Receta = {
+    const pasosList = pasos.map((p) => p.trim()).filter(Boolean);
+    const token = localStorage.getItem("dkfitt-access-token");
+    if (!token) { toast.error("Sesion no valida"); return; }
+
+    const ingredientesPayload = ingredientes
+      .map((ing) => ({
+        id_alimento_detalle: Number(ing.alimento.id),
+        cantidad_g: Math.round(ing.cantidad * ing.factorGramos),
+      }))
+      .filter((ing) => Number.isFinite(ing.id_alimento_detalle) && ing.id_alimento_detalle > 0 && ing.cantidad_g > 0);
+
+    if (ingredientesPayload.length === 0) {
+      toast.error("No hay ingredientes validos");
+      return;
+    }
+
+    const aptitudesSeleccionadas = Object.entries(aptitud)
+      .filter(([, enabled]) => enabled)
+      .map(([key]) => aptitudCodigoByUiKey[key] || key);
+    const aptitudesPayload = aptitudesCatalogo
+      .filter((apt) => aptitudesSeleccionadas.includes(apt.codigo || ""))
+      .map((apt) => apt.id_aptitud);
+
+    const payload = {
+      nombre: nombre.trim(),
+      descripcion: notaClinica.trim() || "",
+      modo_preparacion: pasosList.join("\n"),
+      tiempo_preparacion_min: tiempoPrep,
+      id_tiempo_comida: Number(tiempoComidaId),
+      aptitudes: aptitudesPayload,
+      ingredientes: ingredientesPayload,
+    };
+
+    const recetaLocal: Receta = {
       id: editingRecipe?.id || `r${Date.now()}`,
       nombre,
-      categoria: categoria as Receta["categoria"],
-      porciones,
+      categoria: (tiempoComidaNombre || "Desayuno") as Receta["categoria"],
+      porciones: 1,
       tiempoPrep,
       ingredientes,
-      pasos: pasos.split("\n").filter(p => p.trim()),
+      pasos: pasosList,
       aptitud,
       notaClinica,
+      id_tiempo_comida: tiempoComidaId ? Number(tiempoComidaId) : undefined,
     };
-    onSaveRecipe(receta);
-    toast.success(editingRecipe ? "Receta actualizada" : `Receta "${nombre}" guardada`);
-    if (!editingRecipe) limpiar();
+
+    try {
+      await apiRequest("/dishes", { method: "POST", accessToken: token, body: payload });
+
+      onSaveRecipe(recetaLocal);
+      toast.success(editingRecipe ? "Receta actualizada" : `Receta "${nombre}" guardada`);
+      onSavedBackend?.();
+      if (!editingRecipe) limpiar();
+    } catch (error) {
+      const message = getApiErrorMessage(error, "No se pudo guardar la receta");
+      toast.error(message);
+    }
   };
 
-  const goalMet = porPorcion.calorias >= 300 && porPorcion.calorias <= 700;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -141,25 +366,27 @@ export function TabConstructor({ base, onSaveRecipe, editingRecipe, onClearEdit 
                 <Input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej: Bowl de proteínas" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Categoría</label>
-                <Select value={categoria} onValueChange={setCategoria}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{categoriasReceta.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                <label className="text-xs text-muted-foreground">Tiempo de Comida</label>
+                <Select value={tiempoComidaId} onValueChange={setTiempoComidaId}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                  <SelectContent>
+                    {tiemposComida.map((t) => {
+                      const id = t.id ?? t.id_tiempo_comida;
+                      const label = t.nombre || t.tiempo_comida_nombre || "";
+                      if (!id || !label) return null;
+                      return (
+                        <SelectItem key={`tiempo-${id}`} value={String(id)}>
+                          {label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Porciones</label>
-                <Input type="number" min={1} value={porciones} onChange={e => setPorciones(Math.max(1, Number(e.target.value)))} />
               </div>
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Tiempo de preparación (min)</label>
                 <Input type="number" min={1} value={tiempoPrep} onChange={e => setTiempoPrep(Math.max(1, Number(e.target.value)))} />
               </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Instrucciones de preparación (un paso por línea)</label>
-              <Textarea rows={4} value={pasos} onChange={e => setPasos(e.target.value)} placeholder="1. Cocinar el pollo...&#10;2. Preparar el arroz..." />
             </div>
           </CardContent>
         </Card>
@@ -196,6 +423,7 @@ export function TabConstructor({ base, onSaveRecipe, editingRecipe, onClearEdit 
                     value={busquedaIng}
                     onChange={e => { setBusquedaIng(e.target.value); setShowIngSearch(true); }}
                     onFocus={() => setShowIngSearch(true)}
+                    disabled={loadingCatalog || allAlimentos.length === 0}
                   />
                 </div>
               </div>
@@ -209,7 +437,58 @@ export function TabConstructor({ base, onSaveRecipe, editingRecipe, onClearEdit 
                   ))}
                 </div>
               )}
+              {showIngSearch && !loadingCatalog && resultadosIng.length === 0 && busquedaIng.length >= 2 && (
+                <div className="absolute z-10 w-full mt-1 border border-border rounded-md bg-popover shadow-lg p-3 text-xs text-muted-foreground">
+                  No se encontraron alimentos en el catalogo.
+                </div>
+              )}
+              {loadingCatalog && (
+                <div className="mt-2 text-xs text-muted-foreground">Cargando alimentos del catalogo...</div>
+              )}
+              {catalogError && (
+                <div className="mt-2 text-xs text-red-600">{catalogError}</div>
+              )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Preparación</CardTitle>
+            <CardDescription>Agrega los pasos de preparación en orden</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              {pasos.map((paso, idx) => (
+                <div key={`paso-${idx}`} className="flex items-start gap-2">
+                  <div className="pt-2 text-xs text-muted-foreground w-5">{idx + 1}.</div>
+                  <Input
+                    value={paso}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setPasos((prev) => prev.map((p, i) => (i === idx ? value : p)));
+                    }}
+                    placeholder="Ej: Lavar arroz"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-9 w-9 text-muted-foreground"
+                    onClick={() => setPasos((prev) => prev.filter((_, i) => i !== idx))}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPasos((prev) => [...prev, ""])}
+            >
+              <Plus className="h-4 w-4 mr-2" /> Agregar nuevo paso
+            </Button>
           </CardContent>
         </Card>
 
@@ -251,7 +530,9 @@ export function TabConstructor({ base, onSaveRecipe, editingRecipe, onClearEdit 
         <Card className="border-border bg-card sticky top-6">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Resumen en Tiempo Real</CardTitle>
-            <CardDescription>{nombre || "Sin nombre"} · {porciones} porción(es)</CardDescription>
+            <CardDescription>
+              {nombre || "Sin nombre"}{tiempoComidaNombre ? ` · ${tiempoComidaNombre}` : ""}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Big calorie number */}
@@ -302,31 +583,7 @@ export function TabConstructor({ base, onSaveRecipe, editingRecipe, onClearEdit 
                   ))}
                 </div>
               </div>
-              <div className="border-t border-border pt-2">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Por porción ({porciones})</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  {[
-                    ["Calorías", `${Math.round(porPorcion.calorias)} kcal`],
-                    ["Proteínas", `${porPorcion.proteinas.toFixed(1)}g`],
-                    ["Carbohidratos", `${porPorcion.carbohidratos.toFixed(1)}g`],
-                    ["Grasas", `${porPorcion.grasas.toFixed(1)}g`],
-                    ["Fibra", `${porPorcion.fibra.toFixed(1)}g`],
-                  ].map(([label, val]) => (
-                    <div key={label} className="flex justify-between">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-medium text-foreground">{val}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
-
-            {/* Goal indicator */}
-            {ingredientes.length > 0 && (
-              <div className={`p-2.5 rounded-md text-xs flex items-center gap-2 ${goalMet ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-accent/10 border border-accent/20 text-accent"}`}>
-                {goalMet ? "✓ Dentro del rango calórico estándar por porción (300-700 kcal)" : "⚠ Fuera del rango calórico estándar por porción (300-700 kcal)"}
-              </div>
-            )}
 
             {/* Ingredient list */}
             {ingredientes.length > 0 && (
@@ -358,10 +615,11 @@ export function TabConstructor({ base, onSaveRecipe, editingRecipe, onClearEdit 
               <div className="p-4 space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-semibold text-sm text-foreground">{nombre || "Sin nombre"}</h3>
-                  <Badge variant="outline" className={`text-[10px] shrink-0 ${recetaCatColors[categoria] || ""}`}>{categoria}</Badge>
+                  <Badge variant="outline" className={`text-[10px] shrink-0 ${recetaCatColors[tiempoComidaNombre] || ""}`}>
+                    {tiempoComidaNombre || "Sin tiempo"}
+                  </Badge>
                 </div>
                 <div className="text-lg font-bold text-primary">{Math.round(totales.calorias)} kcal</div>
-                <div className="text-[11px] text-muted-foreground">Por porción: {Math.round(porPorcion.calorias)} kcal</div>
                 <div className="flex gap-1.5">
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">P {totales.proteinas.toFixed(0)}g</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">C {totales.carbohidratos.toFixed(0)}g</span>

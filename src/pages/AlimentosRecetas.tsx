@@ -15,6 +15,7 @@ const AlimentosRecetas = () => {
   const [recetas, setRecetas] = useState<Receta[]>(recetasEjemplo);
   const [editingRecipe, setEditingRecipe] = useState<Receta | null>(null);
   const [openCreateFoodSignal, setOpenCreateFoodSignal] = useState(0);
+  const [recetasRefreshSignal, setRecetasRefreshSignal] = useState(0);
 
   const handleUseInRecipe = useCallback((a: Alimento) => {
     setActiveTab("constructor");
@@ -29,16 +30,6 @@ const AlimentosRecetas = () => {
     setEditingRecipe(null);
   }, []);
 
-  const handleEditRecipe = useCallback((r: Receta) => {
-    setEditingRecipe(r);
-    setActiveTab("constructor");
-  }, []);
-
-  const handleNewRecipe = useCallback(() => {
-    setEditingRecipe(null);
-    setActiveTab("constructor");
-  }, []);
-
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -48,16 +39,18 @@ const AlimentosRecetas = () => {
             <h1 className="text-2xl font-bold text-foreground">Gestión de Alimentos y Recetas</h1>
             <p className="text-muted-foreground text-sm mt-1">Composición nutricional y creación de recetas personalizadas</p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => {
-                setActiveTab("alimentos");
-                setOpenCreateFoodSignal((prev) => prev + 1);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" /> Registrar un nuevo alimento
-            </Button>
-          </div>
+          {activeTab === "alimentos" && (
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  setActiveTab("alimentos");
+                  setOpenCreateFoodSignal((prev) => prev + 1);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Registrar un nuevo alimento
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
@@ -78,11 +71,22 @@ const AlimentosRecetas = () => {
           </TabsContent>
 
           <TabsContent value="recetas" className="mt-4">
-            <TabRecetas recetas={recetas} setRecetas={setRecetas} onNewRecipe={handleNewRecipe} onEditRecipe={handleEditRecipe} />
+            <TabRecetas
+              onCreateManual={() => setActiveTab("constructor")}
+              refreshSignal={recetasRefreshSignal}
+            />
           </TabsContent>
 
           <TabsContent value="constructor" className="mt-4">
-            <TabConstructor base={base} onSaveRecipe={handleSaveRecipe} editingRecipe={editingRecipe} onClearEdit={() => setEditingRecipe(null)} />
+            <TabConstructor
+              onSaveRecipe={handleSaveRecipe}
+              editingRecipe={editingRecipe}
+              onClearEdit={() => setEditingRecipe(null)}
+              onSavedBackend={() => {
+                setActiveTab("recetas");
+                setRecetasRefreshSignal((prev) => prev + 1);
+              }}
+            />
           </TabsContent>
         </Tabs>
       </div>

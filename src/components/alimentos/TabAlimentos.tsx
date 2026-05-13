@@ -61,6 +61,7 @@ type ApiListResponse = {
 };
 
 const DETALLE_ENDPOINTS = ["/api/alimentos-detalle", "/alimentos-detalle"];
+const PAGE_SIZE = 50;
 const CATEGORY_OPTIONS: CategoriaDetalle[] = ["proteinas", "carbohidratos", "grasas", "lacteos", "frutas", "vegetales", "otros"];
 
 type DetailFormState = {
@@ -229,69 +230,44 @@ function extractRows(res: ApiListResponse | AlimentoDetalle[]): AlimentoDetalle[
           : [];
 }
 
-async function getDetalleList(token: string): Promise<AlimentoDetalle[]> {
+type PagedResult = {
+  rows: AlimentoDetalle[];
+  page: number;
+  total?: number;
+  totalPages?: number;
+};
+
+async function getDetallePage(token: string, page: number, limit: number): Promise<PagedResult> {
   let lastError: unknown;
   for (const base of DETALLE_ENDPOINTS) {
     try {
-      const firstRes = await apiRequest<ApiListResponse | AlimentoDetalle[]>(base, { method: "GET", accessToken: token });
-      const firstRows = extractRows(firstRes);
+      const pageRes = await apiRequest<ApiListResponse | AlimentoDetalle[]>(`${base}?page=${page}&limit=${limit}`, {
+        method: "GET",
+        accessToken: token,
+      });
+      const pageRows = extractRows(pageRes);
 
-      if (Array.isArray(firstRes)) {
-        return firstRows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
+      if (Array.isArray(pageRes)) {
+        const total = pageRows.length;
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+        const start = (page - 1) * limit;
+        return {
+          rows: pageRows.slice(start, start + limit).sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })),
+          page,
+          total,
+          totalPages,
+        };
       }
 
-      const merged = new Map<number, AlimentoDetalle>(firstRows.map((item) => [item.id_alimento_detalle, item]));
-      const totalPages = typeof firstRes.meta?.total_pages === "number" ? firstRes.meta.total_pages : undefined;
-      const total = typeof firstRes.meta?.total === "number" ? firstRes.meta.total : undefined;
+      const totalPages = typeof pageRes.meta?.total_pages === "number" ? pageRes.meta.total_pages : undefined;
+      const total = typeof pageRes.meta?.total === "number" ? pageRes.meta.total : undefined;
 
-      if (totalPages && totalPages > 1) {
-        for (let page = 2; page <= totalPages; page += 1) {
-          try {
-            const pageRes = await apiRequest<ApiListResponse | AlimentoDetalle[]>(`${base}?page=${page}`, {
-              method: "GET",
-              accessToken: token,
-            });
-            const pageRows = extractRows(pageRes);
-            if (pageRows.length === 0) break;
-            pageRows.forEach((item) => merged.set(item.id_alimento_detalle, item));
-          } catch {
-            break;
-          }
-        }
-      } else {
-        let page = 2;
-        let staleIterations = 0;
-        while (page <= 500) {
-          if (total !== undefined && merged.size >= total) break;
-
-          try {
-            const pageRes = await apiRequest<ApiListResponse | AlimentoDetalle[]>(`${base}?page=${page}`, {
-              method: "GET",
-              accessToken: token,
-            });
-
-            const pageRows = extractRows(pageRes);
-            if (pageRows.length === 0) break;
-
-            const before = merged.size;
-            pageRows.forEach((item) => merged.set(item.id_alimento_detalle, item));
-            const after = merged.size;
-
-            if (after === before) {
-              staleIterations += 1;
-              if (staleIterations >= 2) break;
-            } else {
-              staleIterations = 0;
-            }
-          } catch {
-            break;
-          }
-
-          page += 1;
-        }
-      }
-
-      return [...merged.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
+      return {
+        rows: pageRows.sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })),
+        page,
+        total,
+        totalPages,
+      };
     } catch (err) {
       lastError = err;
     }
@@ -359,6 +335,9 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalItems, setTotalItems] = useState<number | null>(null);
+  const [totalPages, setTotalPages] = useState<number | null>(null);
 
   const [filtroNombre, setFiltroNombre] = useState("");
   const [filtroCategoria, setFiltroCategoria] = useState<"todas" | CategoriaDetalle>("todas");
@@ -372,7 +351,7 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<AlimentoDetalle | null>(null);
 
-  const loadRows = async () => {
+  const loadRows = async (targetPage = page) => {
     const token = localStorage.getItem("dkfitt-access-token");
     if (!token) {
       toast.error("Sesion no valida");
@@ -381,9 +360,11 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
 
     setLoading(true);
     try {
-      const fetched = await getDetalleList(token);
-      setRows(fetched);
-      setBase(syncBaseFromDetalle(fetched));
+      const fetched = await getDetallePage(token, targetPage, PAGE_SIZE);
+      setRows(fetched.rows);
+      setBase(syncBaseFromDetalle(fetched.rows));
+      setTotalItems(typeof fetched.total === "number" ? fetched.total : null);
+      setTotalPages(typeof fetched.totalPages === "number" ? fetched.totalPages : null);
     } catch {
       toast.error("No se pudo cargar alimentos_detalle");
     } finally {
@@ -392,13 +373,17 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
   };
 
   useEffect(() => {
-    void loadRows();
-  }, []);
+    void loadRows(page);
+  }, [page]);
 
   useEffect(() => {
-    if (openCreateSignal === undefined) return;
+    if (openCreateSignal === undefined || openCreateSignal === 0) return;
     setCreateOpen(true);
   }, [openCreateSignal]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filtroNombre, filtroCategoria]);
 
   const filteredRows = useMemo(() => {
     const byFilters = rows.filter((r) => {
@@ -497,7 +482,9 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base">Alimentos disponibles</CardTitle>
-              <CardDescription>{rows.length} alimentos en alimentos_detalle</CardDescription>
+              <CardDescription>
+                {typeof totalItems === "number" ? `${totalItems} alimentos` : `${rows.length} alimentos`}
+              </CardDescription>
             </div>
           </div>
           <div className="flex gap-2 mt-2">
@@ -585,6 +572,31 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
                 )}
               </TableBody>
             </Table>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-4">
+            <p className="text-xs text-muted-foreground">
+              Pagina {page}{totalPages ? ` de ${totalPages}` : ""}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={loading || (totalPages !== null && page >= totalPages)}
+                onClick={() => setPage((prev) => prev + 1)}
+              >
+                Siguiente
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -2,6 +2,7 @@
 
 export interface Alimento {
   id: string;
+  idAlimento?: number | null;
   nombre: string;
   calorias: number;
   proteinas: number;
@@ -21,10 +22,15 @@ export interface Ingrediente {
   factorGramos: number;
 }
 
+export interface PacienteAsignado {
+  id: string;
+  nombre: string;
+}
+
 export interface Receta {
   id: string;
   nombre: string;
-  categoria: "Desayuno" | "Almuerzo" | "Cena" | "Snack" | "Bebida";
+  categoria: "Desayuno" | "Refrigerio mañana" | "Almuerzo" | "Refrigerio tarde" | "Cena" | "Snack" | "Bebida";
   porciones: number;
   tiempoPrep: number;
   ingredientes: Ingrediente[];
@@ -32,6 +38,13 @@ export interface Receta {
   aptitud: Record<string, boolean>;
   notaClinica: string;
   imagen?: string;
+  // Campos nuevos para IA y seguimiento
+  generado_por_ia?: boolean;
+  id_tiempo_comida?: number;
+  created_at?: Date | string;
+  uso_count?: number;
+  pacientes_asignados?: PacienteAsignado[];
+  aptitud_clinica?: string;
 }
 
 export const unidades = [
@@ -54,10 +67,21 @@ export const catColors: Record<string, string> = {
 
 export const recetaCatColors: Record<string, string> = {
   Desayuno: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  "Refrigerio mañana": "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   Almuerzo: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  "Refrigerio tarde": "bg-sky-500/15 text-sky-400 border-sky-500/30",
   Cena: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
   Snack: "bg-pink-500/15 text-pink-400 border-pink-500/30",
   Bebida: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+};
+
+// Mapeo de tiempo de comida a iconos y colores para las tarjetas
+export const tiempoComidaConfig: Record<string, { icon: string; bgColor: string; iconColor: string }> = {
+  Desayuno: { icon: "Sun", bgColor: "bg-yellow-100 dark:bg-yellow-950/30", iconColor: "text-yellow-600 dark:text-yellow-400" },
+  "Media mañana": { icon: "Apple", bgColor: "bg-green-100 dark:bg-green-950/30", iconColor: "text-green-600 dark:text-green-400" },
+  Almuerzo: { icon: "UtensilsCrossed", bgColor: "bg-orange-100 dark:bg-orange-950/30", iconColor: "text-orange-600 dark:text-orange-400" },
+  "Media tarde": { icon: "Cookie", bgColor: "bg-blue-100 dark:bg-blue-950/30", iconColor: "text-blue-600 dark:text-blue-400" },
+  Cena: { icon: "Moon", bgColor: "bg-violet-100 dark:bg-violet-950/30", iconColor: "text-violet-600 dark:text-violet-400" },
 };
 
 export const aptitudLabels: Record<string, string> = {
@@ -157,6 +181,14 @@ export const recetasEjemplo: Receta[] = [
     ],
     aptitud: { general: true, diabeticos: true, hipertensos: true, celiacos: true, lactosa: true, vegetarianos: false, veganos: false, renal: true },
     notaClinica: "Receta alta en proteínas de calidad. Ideal para pacientes en fase de ganancia muscular o recuperación.",
+    generado_por_ia: false,
+    id_tiempo_comida: 2,
+    created_at: "2025-04-15",
+    uso_count: 3,
+    pacientes_asignados: [
+      { id: "p1", nombre: "María García" },
+      { id: "p3", nombre: "Juan López" },
+    ],
   },
   {
     id: "r2",
@@ -178,6 +210,15 @@ export const recetasEjemplo: Receta[] = [
     ],
     aptitud: { general: true, diabeticos: false, hipertensos: true, celiacos: false, lactosa: false, vegetarianos: true, veganos: false, renal: true },
     notaClinica: "Desayuno energético con fibra soluble. No apto para diabéticos sin ajuste de porción por alto índice glucémico de la avena con frutas.",
+    generado_por_ia: true,
+    id_tiempo_comida: 1,
+    created_at: "2025-04-20",
+    uso_count: 5,
+    pacientes_asignados: [
+      { id: "p2", nombre: "Carlos Rodríguez" },
+      { id: "p4", nombre: "Ana Martínez" },
+      { id: "p5", nombre: "Luis Pérez" },
+    ],
   },
   {
     id: "r3",
@@ -201,6 +242,13 @@ export const recetasEjemplo: Receta[] = [
     ],
     aptitud: { general: true, diabeticos: true, hipertensos: true, celiacos: true, lactosa: true, vegetarianos: true, veganos: true, renal: false },
     notaClinica: "Ensalada rica en grasas saludables y fibra. No recomendada para insuficiencia renal por alto contenido de potasio del aguacate y tomate.",
+    generado_por_ia: true,
+    id_tiempo_comida: 5,
+    created_at: "2025-04-18",
+    uso_count: 2,
+    pacientes_asignados: [
+      { id: "p6", nombre: "Elena Sánchez" },
+    ],
   },
   {
     id: "r4",
@@ -223,5 +271,10 @@ export const recetasEjemplo: Receta[] = [
     ],
     aptitud: { general: true, diabeticos: false, hipertensos: false, celiacos: true, lactosa: false, vegetarianos: true, veganos: false, renal: false },
     notaClinica: "Alto contenido de potasio y sodio por la mantequilla de maní. No recomendado para hipertensos ni pacientes renales sin supervisión.",
+    generado_por_ia: true,
+    id_tiempo_comida: 4,
+    created_at: "2025-04-22",
+    uso_count: 1,
+    pacientes_asignados: [],
   },
 ];
