@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,9 @@ interface Receta {
   descripcion: string | null;
   modo_preparacion: string;
   calorias_totales: number;
+  proteinas_totales?: number | null;
+  carbohidratos_totales?: number | null;
+  grasas_totales?: number | null;
   tiempo_preparacion_min: number | null;
   generado_por_ia: boolean;
   activo: boolean;
@@ -89,6 +92,13 @@ interface ApiListResponse<T> {
   data?: T[];
   items?: T[];
   results?: T[];
+  meta?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    total_pages?: number;
+    totalPages?: number;
+  };
 }
 
 type TiempoComida = {
@@ -231,6 +241,24 @@ const extractList = <T,>(payload: ApiListResponse<T> | T[]): T[] => {
   return payload.data || payload.items || payload.results || [];
 };
 
+const extractMeta = (payload: ApiListResponse<unknown> | unknown): {
+  page?: number;
+  limit?: number;
+  total?: number;
+  totalPages?: number;
+} => {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  const root = payload as ApiListResponse<unknown> & { data?: { meta?: ApiListResponse<unknown>['meta'] } };
+  const meta = root.meta || root.data?.meta;
+  if (!meta) return {};
+  return {
+    page: meta.page,
+    limit: meta.limit,
+    total: meta.total,
+    totalPages: meta.total_pages ?? meta.totalPages,
+  };
+};
+
 const extractItem = <T,>(payload: { data?: T } | T): T => {
   if (payload && typeof payload === "object" && "data" in payload && payload.data) {
     return payload.data;
@@ -281,6 +309,9 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
   const [loading, setLoading] = useState(false);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [loadingGenerar, setLoadingGenerar] = useState(false);
+  const [progreso, setProgreso] = useState(0);
+  const [mensajeProgreso, setMensajeProgreso] = useState("");
+  const progresoRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [errorGenerar, setErrorGenerar] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -292,6 +323,8 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
   const [busqueda, setBusqueda] = useState("");
   const [filtroTiempo, setFiltroTiempo] = useState<number | "todas">("todas");
   const [filtroOrigen, setFiltroOrigen] = useState<"todos" | "ia" | "manual">("todos");
+  const [pagina, setPagina] = useState(1);
+  const recetasPorPagina = 12;
 
   const [manualForm, setManualForm] = useState<ManualFormState>(emptyManualForm);
   const [generarForm, setGenerarForm] = useState<GenerarFormState>(emptyGenerarForm);
@@ -322,17 +355,47 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
     setLoading(true);
     setError(null);
     try {
-      const [recetasRes, tiemposRes] = await Promise.all([
-        requestFirstOk<ApiListResponse<Receta> | Receta[]>(
-          PLATOS_ENDPOINTS.map((base) => `${base}?activo=true`),
-          { method: "GET", accessToken: token },
-        ),
+      const fetchAllRecetas = async () => {
+        const limit = 50;
+        let page = 1;
+        let all: Receta[] = [];
+        let totalPages: number | undefined;
+
+        for (let i = 0; i < 50; i += 1) {
+          const recetasRes = await requestFirstOk<ApiListResponse<Receta> | Receta[]>(
+            PLATOS_ENDPOINTS.map((base) => {
+              const withActive = base.includes("?") ? `${base}&activo=true` : `${base}?activo=true`;
+              const separator = withActive.includes("?") ? "&" : "?";
+              return `${withActive}${separator}page=${page}&limit=${limit}`;
+            }),
+            { method: "GET", accessToken: token },
+          );
+
+          const list = extractList(recetasRes);
+          all = all.concat(list);
+
+          const meta = extractMeta(recetasRes);
+          if (meta.totalPages) {
+            totalPages = meta.totalPages;
+          }
+
+          if (totalPages && page >= totalPages) break;
+          if (!totalPages && list.length < limit) break;
+
+          page += 1;
+        }
+
+        return all;
+      };
+
+      const [recetasAll, tiemposRes] = await Promise.all([
+        fetchAllRecetas(),
         requestFirstOk<ApiListResponse<TiempoComida> | TiempoComida[]>(
           TIEMPOS_ENDPOINTS,
           { method: "GET", accessToken: token },
         ),
       ]);
-      setRecetas(extractList(recetasRes));
+      setRecetas(recetasAll);
       setTiemposComida(extractList(tiemposRes));
     } catch {
       setError("Error al cargar las recetas. Intenta de nuevo.");
@@ -373,6 +436,54 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
     return () => window.removeEventListener("keydown", handleEscape);
   }, [modalCrearManual, modalGenerarIA, modalDetalle]);
 
+  useEffect(() => {
+    return () => {
+      if (progresoRef.current) clearInterval(progresoRef.current);
+    };
+  }, []);
+
+  const iniciarProgreso = () => {
+    setProgreso(0);
+    const mensajes = [
+      "Analizando tu perfil...",
+      "Eligiendo ingredientes frescos...",
+      "Calculando valores nutricionales...",
+      "Escribiendo los pasos de preparacion...",
+      "Verificando aptitudes clinicas...",
+      "Casi listo...",
+    ];
+    let idx = 0;
+    setMensajeProgreso(mensajes[0]);
+
+    if (progresoRef.current) clearInterval(progresoRef.current);
+    progresoRef.current = setInterval(() => {
+      setProgreso((prev) => {
+        if (prev < 30) return prev + 3;
+        if (prev < 60) return prev + 2;
+        if (prev < 85) return prev + 0.5;
+        return prev;
+      });
+      idx = Math.min(idx + 1, mensajes.length - 1);
+      setMensajeProgreso(mensajes[idx]);
+    }, 800);
+  };
+
+  const finalizarProgreso = () => {
+    if (progresoRef.current) clearInterval(progresoRef.current);
+    setProgreso(100);
+    setMensajeProgreso("Receta lista!");
+    setTimeout(() => {
+      setProgreso(0);
+      setMensajeProgreso("");
+    }, 800);
+  };
+
+  const cancelarProgreso = () => {
+    if (progresoRef.current) clearInterval(progresoRef.current);
+    setProgreso(0);
+    setMensajeProgreso("");
+  };
+
   const recetasFiltradas = useMemo(() => {
     return recetas.filter((r) => {
       const matchBusqueda = r.nombre.toLowerCase().includes(busqueda.toLowerCase());
@@ -384,6 +495,19 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
       return matchBusqueda && matchTiempo && matchOrigen;
     });
   }, [recetas, busqueda, filtroTiempo, filtroOrigen]);
+
+  const totalPaginas = useMemo(() => {
+    return Math.max(1, Math.ceil(recetasFiltradas.length / recetasPorPagina));
+  }, [recetasFiltradas.length]);
+
+  const recetasPaginadas = useMemo(() => {
+    const start = (pagina - 1) * recetasPorPagina;
+    return recetasFiltradas.slice(start, start + recetasPorPagina);
+  }, [recetasFiltradas, pagina]);
+
+  useEffect(() => {
+    setPagina(1);
+  }, [busqueda, filtroTiempo, filtroOrigen, recetas.length]);
 
   const handleOpenDetalle = async (receta: Receta) => {
     const token = localStorage.getItem("dkfitt-access-token");
@@ -424,7 +548,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
   };
 
   const handleDeactivate = async (receta: Receta) => {
-    if (!window.confirm("¿Deseas desactivar esta receta?")) return;
+    if (!window.confirm("¿Deseas eliminar esta receta?")) return;
     const token = localStorage.getItem("dkfitt-access-token");
     if (!token) {
       toast.error("Sesion no valida");
@@ -434,14 +558,14 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
     try {
       await requestFirstOk(
         PLATOS_ENDPOINTS.map((base) => `${base}/${receta.id_plato}`),
-        { method: "PATCH", accessToken: token, body: { activo: false } },
+        { method: "DELETE", accessToken: token },
       );
       setRecetas((prev) => prev.filter((item) => item.id_plato !== receta.id_plato));
-      toast.success("Receta desactivada");
+      toast.success("Receta eliminada");
       setModalDetalle(false);
       setRecetaDetalle(null);
     } catch {
-      toast.error("No se pudo desactivar la receta");
+      toast.error("No se pudo eliminar la receta");
     }
   };
 
@@ -566,6 +690,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
 
     setLoadingGenerar(true);
     setErrorGenerar(null);
+    iniciarProgreso();
     try {
       const tiempo = tiemposNormalized.find((t) => t.id === Number(generarForm.id_tiempo_comida));
       const payload: GenerarRecetaPayload = {
@@ -580,6 +705,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
         GENERATE_ENDPOINTS,
         { method: "POST", accessToken: token, body: payload },
       );
+      finalizarProgreso();
       const generado = extractItem(res);
       const nuevaReceta: Receta = {
         id_plato: generado.id_plato,
@@ -601,6 +727,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
       void handleOpenDetalle(nuevaReceta);
       toast.success(generado.uso_gpt ? "Receta generada con IA" : "Receta encontrada en el catalogo");
     } catch (error) {
+      cancelarProgreso();
       setErrorGenerar(getApiErrorMessage(error, "No se pudo generar la receta. Intenta de nuevo."));
     } finally {
       setLoadingGenerar(false);
@@ -672,18 +799,17 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {loading && renderSkeletons()}
-        {!loading && recetasFiltradas.map((r) => {
+        {!loading && recetasPaginadas.map((r) => {
           const timeName = r.id_tiempo_comida ? tiemposMap[r.id_tiempo_comida] : "General";
           const normalized = normalizeTimeName(timeName);
           const timeConfig = timeIconMap[normalized] || timeIconMap.snack;
           const Icon = timeConfig.icon;
-          const hasMacroData = Boolean(r.ingredientes?.some((ing) =>
-            Number.isFinite(Number(ing.proteinas))
-            || Number.isFinite(Number(ing.carbohidratos))
-            || Number.isFinite(Number(ing.grasas))
-          ));
-          const macros = r.ingredientes && r.ingredientes.length > 0 && hasMacroData
-            ? calcularMacros(r.ingredientes)
+          const macros = r.proteinas_totales != null && r.carbohidratos_totales != null && r.grasas_totales != null
+            ? {
+              proteinas: r.proteinas_totales,
+              carbohidratos: r.carbohidratos_totales,
+              grasas: r.grasas_totales,
+            }
             : null;
           const isLoadingDetail = loadingDetalleId === r.id_plato;
           return (
@@ -720,13 +846,13 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
 
                   <div className="flex gap-1.5">
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground font-medium">
-                      P {macros ? `${macros.proteinas.toFixed(0)}g` : "—"}
+                      P {macros ? `${macros.proteinas.toFixed(1)}g` : "—"}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground font-medium">
-                      C {macros ? `${macros.carbohidratos.toFixed(0)}g` : "—"}
+                      C {macros ? `${macros.carbohidratos.toFixed(1)}g` : "—"}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground font-medium">
-                      G {macros ? `${macros.grasas.toFixed(0)}g` : "—"}
+                      G {macros ? `${macros.grasas.toFixed(1)}g` : "—"}
                     </span>
                   </div>
 
@@ -760,6 +886,32 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
           </div>
         )}
       </div>
+
+      {!loading && recetasFiltradas.length > 0 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-xs text-muted-foreground">
+            Pagina {pagina} de {totalPaginas} · {recetasFiltradas.length} recetas
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pagina <= 1}
+              onClick={() => setPagina((prev) => Math.max(1, prev - 1))}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pagina >= totalPaginas}
+              onClick={() => setPagina((prev) => Math.min(totalPaginas, prev + 1))}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Dialog open={modalDetalle} onOpenChange={(open) => {
         setModalDetalle(open);
@@ -858,121 +1010,155 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
           <DialogHeader>
             <DialogTitle>Generar receta con IA</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            {errorGenerar && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {errorGenerar}
-              </div>
-            )}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Tiempo de comida</label>
-              <Select value={generarForm.id_tiempo_comida} onValueChange={(value) => setGenerarForm((prev) => ({ ...prev, id_tiempo_comida: value }))}>
-                <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                <SelectContent>
-                  {tiemposNormalized.map((t) => (
-                    <SelectItem key={`ia-tiempo-${t.id}-${t.nombre}`} value={String(t.id)}>{t.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Calorías objetivo</label>
-              <Input
-                type="number"
-                placeholder="Entre 100 y 1500"
-                value={generarForm.calorias_objetivo}
-                onChange={(e) => setGenerarForm((prev) => ({ ...prev, calorias_objetivo: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Restricciones (opcional)</label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Ej: sin gluten"
-                  value={generarForm.restriccionInput}
-                  onChange={(e) => setGenerarForm((prev) => ({ ...prev, restriccionInput: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    e.preventDefault();
-                    const value = generarForm.restriccionInput.trim();
-                    if (!value) return;
-                    if (generarForm.restricciones.includes(value)) return;
-                    setGenerarForm((prev) => ({
-                      ...prev,
-                      restricciones: [...prev.restricciones, value],
-                      restriccionInput: "",
-                    }));
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const value = generarForm.restriccionInput.trim();
-                    if (!value) return;
-                    if (generarForm.restricciones.includes(value)) return;
-                    setGenerarForm((prev) => ({
-                      ...prev,
-                      restricciones: [...prev.restricciones, value],
-                      restriccionInput: "",
-                    }));
-                  }}
-                >
-                  Agregar
-                </Button>
-              </div>
-              {generarForm.restricciones.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {generarForm.restricciones.map((item) => (
-                    <Badge key={`restriccion-${item}`} variant="outline" className="flex items-center gap-1">
-                      {item}
-                      <button
-                        type="button"
-                        className="text-muted-foreground"
-                        onClick={() => setGenerarForm((prev) => ({
-                          ...prev,
-                          restricciones: prev.restricciones.filter((r) => r !== item),
-                        }))}
-                      >
-                        ×
-                      </button>
-                    </Badge>
-                  ))}
+          {loadingGenerar ? (
+            <div className="flex flex-col items-center justify-center py-12 px-6 gap-6">
+              <div className="text-6xl animate-bounce">🍽️</div>
+
+              <div className="w-full">
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    {mensajeProgreso}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    {Math.round(progreso)}%
+                  </span>
                 </div>
-              )}
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="h-3 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${progreso}%`,
+                      backgroundColor: "#F59E0B",
+                    }}
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-400 text-center">
+                Esto puede tomar hasta 20 segundos.
+                <br />
+                La IA está eligiendo los mejores ingredientes para ti.
+              </p>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Aptitud Clínica (opcional)</label>
-              <p className="text-xs text-muted-foreground">Selecciona para qué pacientes es apta esta receta</p>
-              <div className="grid grid-cols-2 gap-2">
-                {aptitudesCatalogo.map((apt) => (
-                  <label key={apt.id_aptitud} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={generarForm.aptitudes.includes(apt.id_aptitud)}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
+          ) : (
+            <>
+              <div className="space-y-4">
+                {errorGenerar && (
+                  <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {errorGenerar}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tiempo de comida</label>
+                  <Select value={generarForm.id_tiempo_comida} onValueChange={(value) => setGenerarForm((prev) => ({ ...prev, id_tiempo_comida: value }))}>
+                    <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
+                    <SelectContent>
+                      {tiemposNormalized.map((t) => (
+                        <SelectItem key={`ia-tiempo-${t.id}-${t.nombre}`} value={String(t.id)}>{t.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Calorías objetivo</label>
+                  <Input
+                    type="number"
+                    placeholder="Entre 100 y 2500"
+                    value={generarForm.calorias_objetivo}
+                    onChange={(e) => setGenerarForm((prev) => ({ ...prev, calorias_objetivo: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Restricciones (opcional)</label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Ej: sin gluten"
+                      value={generarForm.restriccionInput}
+                      onChange={(e) => setGenerarForm((prev) => ({ ...prev, restriccionInput: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        const value = generarForm.restriccionInput.trim();
+                        if (!value) return;
+                        if (generarForm.restricciones.includes(value)) return;
                         setGenerarForm((prev) => ({
                           ...prev,
-                          aptitudes: checked
-                            ? [...prev.aptitudes, apt.id_aptitud]
-                            : prev.aptitudes.filter((id) => id !== apt.id_aptitud),
+                          restricciones: [...prev.restricciones, value],
+                          restriccionInput: "",
                         }));
                       }}
                     />
-                    <span>{apt.nombre}</span>
-                  </label>
-                ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const value = generarForm.restriccionInput.trim();
+                        if (!value) return;
+                        if (generarForm.restricciones.includes(value)) return;
+                        setGenerarForm((prev) => ({
+                          ...prev,
+                          restricciones: [...prev.restricciones, value],
+                          restriccionInput: "",
+                        }));
+                      }}
+                    >
+                      Agregar
+                    </Button>
+                  </div>
+                  {generarForm.restricciones.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {generarForm.restricciones.map((item) => (
+                        <Badge key={`restriccion-${item}`} variant="outline" className="flex items-center gap-1">
+                          {item}
+                          <button
+                            type="button"
+                            className="text-muted-foreground"
+                            onClick={() => setGenerarForm((prev) => ({
+                              ...prev,
+                              restricciones: prev.restricciones.filter((r) => r !== item),
+                            }))}
+                          >
+                            ×
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Aptitud Clínica (opcional)</label>
+                  <p className="text-xs text-muted-foreground">Selecciona para qué pacientes es apta esta receta</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {aptitudesCatalogo.map((apt) => (
+                      <label key={apt.id_aptitud} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={generarForm.aptitudes.includes(apt.id_aptitud)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setGenerarForm((prev) => ({
+                              ...prev,
+                              aptitudes: checked
+                                ? [...prev.aptitudes, apt.id_aptitud]
+                                : prev.aptitudes.filter((id) => id !== apt.id_aptitud),
+                            }));
+                          }}
+                        />
+                        <span>{apt.nombre}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setModalGenerarIA(false)}>Cerrar</Button>
-            <Button onClick={handleGenerateIA} disabled={loadingGenerar}>
-              {loadingGenerar && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              {loadingGenerar ? "Generando con IA..." : "Generar con IA"}
-            </Button>
-          </DialogFooter>
+              <DialogFooter className="mt-4">
+                <Button variant="outline" onClick={() => setModalGenerarIA(false)}>Cerrar</Button>
+                <Button onClick={handleGenerateIA} disabled={loadingGenerar}>
+                  {loadingGenerar && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {loadingGenerar ? "Generando con IA..." : "Generar con IA"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
@@ -1051,7 +1237,6 @@ function RecetaDetailModal({
                 <div className="flex justify-between"><span className="text-muted-foreground">Carbohidratos</span><span className="text-foreground">{macros ? `${macros.carbohidratos}g` : "—"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Grasas</span><span className="text-foreground">{macros ? `${macros.grasas}g` : "—"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Fibra</span><span className="text-foreground">{macros ? `${macros.fibra}g` : "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Azúcares</span><span className="text-foreground">{macros ? "—" : "—"}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Sodio</span><span className="text-foreground">{macros ? `${macros.sodio}mg` : "—"}</span></div>
               </div>
             </div>
@@ -1140,7 +1325,7 @@ function RecetaDetailModal({
           {receta.generado_por_ia && (
             <Button variant="outline" onClick={onEdit}><Edit className="h-4 w-4 mr-2" /> Editar receta</Button>
           )}
-          <Button variant="outline" className="text-destructive" onClick={onDeactivate}><Trash2 className="h-4 w-4 mr-2" /> Desactivar receta</Button>
+          <Button variant="outline" className="text-destructive" onClick={onDeactivate}><Trash2 className="h-4 w-4 mr-2" /> Eliminar receta</Button>
         </div>
 
         <DialogFooter>

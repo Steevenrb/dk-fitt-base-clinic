@@ -237,11 +237,25 @@ type PagedResult = {
   totalPages?: number;
 };
 
-async function getDetallePage(token: string, page: number, limit: number): Promise<PagedResult> {
+type DetalleFilters = {
+  search?: string;
+  categoria?: CategoriaDetalle | "todas";
+};
+
+async function getDetallePage(token: string, page: number, limit: number, filters: DetalleFilters): Promise<PagedResult> {
   let lastError: unknown;
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+
+  const search = filters.search?.trim();
+  if (search) params.set("search", search);
+  if (filters.categoria && filters.categoria !== "todas") params.set("categoria", filters.categoria);
+
   for (const base of DETALLE_ENDPOINTS) {
     try {
-      const pageRes = await apiRequest<ApiListResponse | AlimentoDetalle[]>(`${base}?page=${page}&limit=${limit}`, {
+      const pageRes = await apiRequest<ApiListResponse | AlimentoDetalle[]>(`${base}?${params.toString()}`, {
         method: "GET",
         accessToken: token,
       });
@@ -360,7 +374,10 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
 
     setLoading(true);
     try {
-      const fetched = await getDetallePage(token, targetPage, PAGE_SIZE);
+      const fetched = await getDetallePage(token, targetPage, PAGE_SIZE, {
+        search: filtroNombre,
+        categoria: filtroCategoria,
+      });
       setRows(fetched.rows);
       setBase(syncBaseFromDetalle(fetched.rows));
       setTotalItems(typeof fetched.total === "number" ? fetched.total : null);
@@ -382,18 +399,12 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
   }, [openCreateSignal]);
 
   useEffect(() => {
+    if (page === 1) {
+      void loadRows(1);
+      return;
+    }
     setPage(1);
   }, [filtroNombre, filtroCategoria]);
-
-  const filteredRows = useMemo(() => {
-    const byFilters = rows.filter((r) => {
-      const nameOk = r.nombre.toLowerCase().includes(filtroNombre.toLowerCase());
-      const catOk = filtroCategoria === "todas" || r.categoria === filtroCategoria;
-      return nameOk && catOk;
-    });
-
-    return byFilters.sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
-  }, [rows, filtroCategoria, filtroNombre]);
 
   const updateFormField = (field: keyof DetailFormState, value: string, onEdit = false) => {
     if (onEdit) {
@@ -523,7 +534,7 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {!loading && filteredRows.map((a) => (
+                {!loading && rows.map((a) => (
                   <TableRow key={a.id_alimento_detalle} className="border-border hover:bg-muted/30">
                     <TableCell className="font-medium text-foreground">{a.nombre}</TableCell>
                     <TableCell className="text-right text-foreground">{a.calorias}</TableCell>
@@ -565,7 +576,7 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
                   </TableRow>
                 )}
 
-                {!loading && filteredRows.length === 0 && (
+                {!loading && rows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No se encontraron alimentos</TableCell>
                   </TableRow>

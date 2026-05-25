@@ -4,11 +4,10 @@ import { WeightChart } from "@/components/dashboard/WeightChart";
 import { CaloriesChart } from "@/components/dashboard/CaloriesChart";
 import { PatientsTable } from "@/components/dashboard/PatientsTable";
 import { AlertsPanel } from "@/components/dashboard/AlertsPanel";
-import { DashboardTopBarContent } from "@/components/dashboard/DashboardTopBarContent";
 
 const Index = () => {
   return (
-    <AppLayout topBarContent={<DashboardTopBarContent />}>
+    <AppLayout>
       <div className="space-y-6">
         <div>
           <h1 className="text-xl font-bold text-foreground">Dashboard</h1>

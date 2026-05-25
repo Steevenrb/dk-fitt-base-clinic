@@ -1,9 +1,8 @@
 import { ReactNode, useState } from "react";
-import { Bell, Sun, Moon, LogOut, User, Lock, Settings } from "lucide-react";
+import { Bell, LogOut, User, Lock, Settings } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -14,7 +13,6 @@ interface TopBarProps {
 }
 
 export function TopBar({ children }: TopBarProps) {
-  const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showLogout, setShowLogout] = useState(false);
@@ -33,10 +31,6 @@ export function TopBar({ children }: TopBarProps) {
         </div>
 
         <div className="flex items-center gap-3 shrink-0 ml-4">
-          <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground hover:text-foreground" title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}>
-            {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </Button>
-
           <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
             <Bell className="h-5 w-5" />
             <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">5</span>

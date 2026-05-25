@@ -12,6 +12,7 @@ const CLINICAL_EVALUATION_ENDPOINTS = [
   "/api/clinical-evaluation",
   "/clinical-evaluation",
 ];
+const WEIGHT_RECORDS_CHART_ENDPOINTS = ["/api/weight-records", "/weight-records"];
 
 type SummaryMetric = {
   label: string;
@@ -39,7 +40,16 @@ type BalanceView = {
 type SummaryView = {
   metrics: SummaryMetric[];
   chartData: ChartPoint[];
+  weightSummary: WeightSummary;
   balance: BalanceView;
+};
+
+type WeightSummary = {
+  totalRegistros: string;
+  pesoInicial: string;
+  pesoActual: string;
+  variacionTotal: string;
+  periodoDias: string;
 };
 
 const defaultSummary = (): SummaryView => ({
@@ -50,6 +60,13 @@ const defaultSummary = (): SummaryView => ({
     { label: "Adherencia General", value: "---", change: "Sin comparación", trend: "up", positiveWhen: "up", icon: TrendingUp },
   ],
   chartData: [],
+  weightSummary: {
+    totalRegistros: "---",
+    pesoInicial: "---",
+    pesoActual: "---",
+    variacionTotal: "Sin comparación",
+    periodoDias: "---",
+  },
   balance: {
     planned: "---",
     consumed: "---",
@@ -178,11 +195,16 @@ function buildBalanceView(source: unknown): BalanceView {
 }
 
 function buildChartData(source: unknown): ChartPoint[] {
-  const records = extractArray(source, ["evaluaciones", "trends", "data", "items", "rows", "results"]);
+  const records = (() => {
+    const unwrapped = unwrapData(source);
+    if (isRecord(unwrapped) && Array.isArray(unwrapped.serie)) return unwrapped.serie.filter(isRecord);
+    if (Array.isArray(unwrapped)) return unwrapped.filter(isRecord);
+    return extractArray(source, ["serie", "data", "items", "rows", "results"]);
+  })();
 
   return records
     .map((item) => {
-      const fechaRaw = String(findFirstValue(item, ["fecha_atencion", "fecha_evaluacion", "fecha", "created_at", "createdAt"]) ?? "");
+      const fechaRaw = String(findFirstValue(item, ["fecha", "fecha_atencion", "fecha_evaluacion", "created_at", "createdAt"]) ?? "");
       return {
         fecha: formatDateLabel(fechaRaw),
         fechaRaw,
@@ -205,53 +227,31 @@ function getLatestEvaluations(source: unknown): Record<string, unknown>[] {
     .slice(0, 2);
 }
 
-function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown): SummaryView {
+function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, weightChartSource: unknown): SummaryView {
   const dashboard = unwrapData(dashboardSource);
   const latestEvaluations = getLatestEvaluations(evaluationsSource);
   const latest = latestEvaluations[0];
   const previous = latestEvaluations[1];
+  const weightChartPayload = unwrapData(weightChartSource);
+  const weightSeries = buildChartData(weightChartPayload);
+  const latestWeightPoint = weightSeries.length > 0 ? weightSeries[weightSeries.length - 1] : undefined;
+  const previousWeightPoint = weightSeries.length > 1 ? weightSeries[weightSeries.length - 2] : undefined;
 
-  const currentWeight = parseNumber(findFirstValue(dashboard, [
+  const currentWeight = parseNumber(findFirstValue(weightChartPayload, [
     "peso_actual",
-    "peso_actual_kg",
-    "peso_kg",
-    "peso",
-    "ultima_evaluacion.peso_kg",
-  ])) ?? parseNumber(findFirstValue(latest, ["peso_actual", "peso_kg", "peso", "weight"]));
-  const previousWeight = parseNumber(findFirstValue(previous, ["peso_actual", "peso_kg", "peso", "weight"]));
+    "peso_fin",
+    "current_weight",
+  ])) ?? latestWeightPoint?.peso;
+  const previousWeight = previousWeightPoint?.peso;
 
-  const currentFat = parseNumber(findFirstValue(dashboard, [
-    "porcentaje_grasa",
-    "grasa_corporal_pct",
-    "porcentaje_grasa_corporal",
-    "%_grasa",
-    "ultima_evaluacion.porcentaje_grasa",
-  ])) ?? parseNumber(findFirstValue(latest, ["porcentaje_grasa", "grasa", "grasa_corporal_pct"]));
+  const currentFat = parseNumber(findFirstValue(latest, ["porcentaje_grasa", "grasa", "grasa_corporal_pct"]));
   const previousFat = parseNumber(findFirstValue(previous, ["porcentaje_grasa", "grasa", "grasa_corporal_pct"]));
 
-  const currentMuscle = parseNumber(findFirstValue(dashboard, [
-    "masa_muscular",
-    "masa_muscular_kg",
-    "musculo",
-    "muscle_mass_kg",
-    "ultima_evaluacion.masa_muscular_kg",
-  ])) ?? parseNumber(findFirstValue(latest, ["masa_muscular", "masa_muscular_kg", "musculo", "muscle_mass_kg"]));
+  const currentMuscle = parseNumber(findFirstValue(latest, ["masa_muscular", "masa_muscular_kg", "musculo", "muscle_mass_kg"]));
   const previousMuscle = parseNumber(findFirstValue(previous, ["masa_muscular", "masa_muscular_kg", "musculo", "muscle_mass_kg"]));
 
-  const currentAdherence = parseNumber(findFirstValue(dashboard, [
-    "adherencia_general",
-    "adherencia_pct",
-    "adherence",
-    "adherence_pct",
-    "indice_adherencia",
-    "adherencia_semana_actual.adherencia",
-  ])) ?? parseNumber(findFirstValue(latest, ["adherencia_general", "adherencia_pct", "adherence", "adherence_pct"]));
-  const previousAdherence = parseNumber(findFirstValue(dashboard, [
-    "adherencia_anterior",
-    "adherence_previous",
-    "adherence_last_week",
-    "adherencia_semana_anterior",
-  ]));
+  const currentAdherence = parseNumber(findFirstValue(latest, ["adherencia_general", "adherencia_pct", "adherence", "adherence_pct"]));
+  const previousAdherence = parseNumber(findFirstValue(previous, ["adherencia_general", "adherencia_pct", "adherence", "adherence_pct"]));
 
   const metrics: SummaryMetric[] = [
     {
@@ -288,9 +288,22 @@ function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown):
     },
   ];
 
+  const totalRegistros = parseNumber(findFirstValue(weightChartPayload, ["total_registros", "total", "count"])) ?? parseNumber(findFirstValue(weightChartSource, ["meta.total", "total"]));
+  const pesoInicial = parseNumber(findFirstValue(weightChartPayload, ["peso_inicial", "peso_inicio", "initial_weight"])) ?? undefined;
+  const pesoActual = parseNumber(findFirstValue(weightChartPayload, ["peso_actual", "peso_fin", "current_weight"])) ?? currentWeight;
+  const variacionTotal = parseNumber(findFirstValue(weightChartPayload, ["variacion_total", "delta", "weight_change"])) ?? undefined;
+  const periodoDias = parseNumber(findFirstValue(weightChartPayload, ["periodo_dias", "dias", "period_days"])) ?? undefined;
+
   return {
     metrics,
-    chartData: buildChartData(evaluationsSource),
+    chartData: weightSeries,
+    weightSummary: {
+      totalRegistros: totalRegistros === undefined ? "---" : formatNumber(totalRegistros, "", 0),
+      pesoInicial: formatNumber(pesoInicial, " kg"),
+      pesoActual: formatNumber(pesoActual, " kg"),
+      variacionTotal: formatDelta(variacionTotal, " kg"),
+      periodoDias: periodoDias === undefined ? "---" : formatNumber(periodoDias, " dias", 0),
+    },
     balance: buildBalanceView(dashboard),
   };
 }
@@ -367,16 +380,18 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
       }
 
       const resolvedEvaluationId = profileId ?? patientId;
-      const [dashboardResult, evaluationsResult] = await Promise.allSettled([
+      const resolvedWeightId = profileId ?? patientId;
+      const [dashboardResult, evaluationsResult, weightChartResult] = await Promise.allSettled([
         requestWithFallback(DASHBOARD_PATIENT_ENDPOINTS, (base) => `${base}/${patientId}`, token),
         requestWithFallback(CLINICAL_EVALUATION_ENDPOINTS, (base) => `${base}/patient/${resolvedEvaluationId}`, token),
+        requestWithFallback(WEIGHT_RECORDS_CHART_ENDPOINTS, (base) => `${base}/patient/${resolvedWeightId}/chart`, token),
       ]);
 
-      if (dashboardResult.status === "rejected" && evaluationsResult.status === "rejected") {
+      if (dashboardResult.status === "rejected" && evaluationsResult.status === "rejected" && weightChartResult.status === "rejected") {
         setSummary(defaultSummary());
         toast({
           title: "No se pudo cargar el resumen",
-          description: "Verifica los endpoints /dashboard/patient/{id} y /clinical-evaluation/patient/{id}.",
+          description: "Verifica los endpoints /dashboard/patient/{id}, /clinical-evaluation/patient/{id} y /weight-records/patient/{id}/chart.",
           variant: "destructive",
         });
         return;
@@ -385,6 +400,7 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
       setSummary(buildSummaryView(
         dashboardResult.status === "fulfilled" ? dashboardResult.value : undefined,
         evaluationsResult.status === "fulfilled" ? evaluationsResult.value : undefined,
+        weightChartResult.status === "fulfilled" ? weightChartResult.value : undefined,
       ));
     };
 
@@ -460,7 +476,7 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
         },
       ],
       graphic: chartData.length === 0
-        ? [{ type: "text", left: "center", top: "middle", style: { text: "Sin datos de evaluaciones", fill: `hsl(${mutedForeground})`, fontSize: 13, fontWeight: 500 } }]
+        ? [{ type: "text", left: "center", top: "middle", style: { text: "Sin registros de peso", fill: `hsl(${mutedForeground})`, fontSize: 13, fontWeight: 500 } }]
         : [],
     };
 
@@ -512,8 +528,26 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
 
       <div className="rounded-xl border border-border bg-card p-5">
         <h3 className="mb-1 text-sm font-semibold text-foreground">Evolución de Peso</h3>
-        <p className="mb-5 text-xs text-muted-foreground">Por visita clínica</p>
+        <p className="mb-5 text-xs text-muted-foreground">Registro diario en la app movil</p>
         <div ref={chartRef} className="h-[260px] w-full" />
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-5">
+        <h4 className="mb-3 text-sm font-semibold text-foreground">Resumen del registro</h4>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            { label: "Total de registros", value: summary.weightSummary.totalRegistros },
+            { label: "Peso inicial", value: summary.weightSummary.pesoInicial },
+            { label: "Peso actual", value: summary.weightSummary.pesoActual },
+            { label: "Variacion total", value: summary.weightSummary.variacionTotal },
+            { label: "Periodo", value: summary.weightSummary.periodoDias },
+          ].map((item) => (
+            <div key={item.label} className="rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="mt-1 text-lg font-bold text-foreground">{item.value}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5">

@@ -34,7 +34,11 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     ...(headers as Record<string, string> | undefined),
   };
 
-  if (body !== undefined) {
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const isStringBody = typeof body === "string";
+  const shouldJsonEncode = body !== undefined && !isFormData && !isStringBody;
+
+  if (body !== undefined && !isFormData && !isStringBody) {
     requestHeaders["Content-Type"] = "application/json";
   }
 
@@ -45,7 +49,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const response = await fetch(`${API_BASE_URL}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`, {
     ...rest,
     headers: requestHeaders,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : shouldJsonEncode ? JSON.stringify(body) : (body as BodyInit),
   });
 
   const text = await response.text();

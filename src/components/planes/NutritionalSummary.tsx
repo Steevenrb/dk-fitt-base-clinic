@@ -4,11 +4,13 @@ import type { FoodItem, MealKey, DayKey } from "./WeeklyPlanGrid";
 interface Props {
   plan: Record<DayKey, Record<MealKey, FoodItem[]>>;
   activeDays: string[];
-  targetKcal: number;
+  targetKcal: number | null;
+  showPerDay?: boolean;
 }
 
-export function NutritionalSummary({ plan, activeDays, targetKcal }: Props) {
+export function NutritionalSummary({ plan, activeDays, targetKcal, showPerDay = true }: Props) {
   const days = activeDays.length > 0 ? activeDays : Object.keys(plan);
+  const hasTarget = typeof targetKcal === "number" && Number.isFinite(targetKcal) && targetKcal > 0;
 
   const dailyTotals = days.map((day) => {
     const dayPlan = plan[day];
@@ -30,27 +32,33 @@ export function NutritionalSummary({ plan, activeDays, targetKcal }: Props) {
     fat: Math.round(dailyTotals.reduce((s, d) => s + d.fat, 0) / (dailyTotals.length || 1)),
   };
 
-  const kcalPct = Math.min(Math.round((avg.kcal / targetKcal) * 100), 120);
-  const deviation = avg.kcal - targetKcal;
+  const kcalPct = hasTarget ? Math.min(Math.round((avg.kcal / targetKcal) * 100), 120) : 0;
+  const deviation = hasTarget ? avg.kcal - targetKcal : 0;
   const isOver = deviation > 50;
   const isUnder = deviation < -50;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+    <div className="rounded-xl border border-border bg-card p-5 space-y-5 h-full">
       <h3 className="text-sm font-semibold text-foreground">Resumen Nutricional</h3>
 
       {/* Target comparison */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Objetivo: {targetKcal.toLocaleString()} kcal/día</span>
+          <span className="text-muted-foreground">
+            Objetivo: {hasTarget ? `${targetKcal.toLocaleString()} kcal/día` : "No calculado aun"}
+          </span>
           <span className={`font-semibold ${isOver || isUnder ? "text-accent" : "text-primary"}`}>
             {avg.kcal.toLocaleString()} kcal
           </span>
         </div>
-        <Progress value={kcalPct} className="h-3" />
-        <p className={`text-[11px] font-medium ${isOver || isUnder ? "text-accent" : "text-primary"}`}>
-          {isOver ? `+${deviation} kcal sobre objetivo` : isUnder ? `${deviation} kcal bajo objetivo` : "Dentro del rango objetivo"}
-        </p>
+        {hasTarget && (
+          <>
+            <Progress value={kcalPct} className="h-3" />
+            <p className={`text-[11px] font-medium ${isOver || isUnder ? "text-accent" : "text-primary"}`}>
+              {isOver ? `+${deviation} kcal sobre objetivo` : isUnder ? `${deviation} kcal bajo objetivo` : "Dentro del rango objetivo"}
+            </p>
+          </>
+        )}
       </div>
 
       {/* Macros */}
@@ -81,22 +89,24 @@ export function NutritionalSummary({ plan, activeDays, targetKcal }: Props) {
       </div>
 
       {/* Per day breakdown */}
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">Calorías por día</p>
-        {dailyTotals.map((d) => {
-          const pct = Math.round((d.kcal / targetKcal) * 100);
-          const off = Math.abs(d.kcal - targetKcal) > 50;
-          return (
-            <div key={d.day} className="flex items-center gap-3">
-              <span className="text-[11px] text-muted-foreground w-12 shrink-0">{d.day.slice(0, 3)}</span>
-              <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                <div className={`h-full rounded-full ${off ? "bg-accent" : "bg-primary"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      {showPerDay && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Calorías por día</p>
+          {dailyTotals.map((d) => {
+            const pct = hasTarget ? Math.round((d.kcal / targetKcal) * 100) : 0;
+            const off = hasTarget ? Math.abs(d.kcal - targetKcal) > 50 : false;
+            return (
+              <div key={d.day} className="flex items-center gap-3">
+                <span className="text-[11px] text-muted-foreground w-12 shrink-0">{d.day.slice(0, 3)}</span>
+                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className={`h-full rounded-full ${off ? "bg-accent" : "bg-primary"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                </div>
+                <span className={`text-[11px] font-medium w-16 text-right ${off ? "text-accent" : "text-foreground"}`}>{d.kcal} kcal</span>
               </div>
-              <span className={`text-[11px] font-medium w-16 text-right ${off ? "text-accent" : "text-foreground"}`}>{d.kcal} kcal</span>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

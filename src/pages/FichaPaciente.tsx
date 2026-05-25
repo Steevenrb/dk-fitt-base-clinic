@@ -1,4 +1,4 @@
-import { ArrowLeft, Ban } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabResumen } from "@/components/ficha/TabResumen";
 import { TabPerfilClinico } from "@/components/ficha/TabPerfilClinico";
 import { TabEvaluaciones } from "@/components/ficha/TabEvaluaciones";
-import { TabPlan } from "@/components/ficha/TabPlan";
+import { TabPlanes } from "@/components/ficha/TabPlanes";
 import { TabSeguimiento } from "@/components/ficha/TabSeguimiento";
 import { TabConsumo } from "@/components/ficha/TabConsumo";
 import { TabAlertas } from "@/components/ficha/TabAlertas";
@@ -169,11 +169,6 @@ const FichaPaciente = () => {
               {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs text-accent border-accent/30 hover:bg-accent/10">
-              <Ban className="h-3.5 w-3.5" /> Suspender plan
-            </Button>
-          </div>
         </div>
         <Tabs defaultValue="resumen" className="space-y-6">
           <TabsList className="bg-card border border-border p-1 h-auto flex-wrap">
@@ -190,7 +185,7 @@ const FichaPaciente = () => {
           <TabsContent value="resumen"><TabResumen patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="perfil"><TabPerfilClinico patientId={patientId} /></TabsContent>
           <TabsContent value="evaluaciones"><TabEvaluaciones patientId={patientId} profileId={header.profileId} /></TabsContent>
-          <TabsContent value="plan"><TabPlan /></TabsContent>
+          <TabsContent value="plan"><TabPlanes patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="seguimiento"><TabSeguimiento /></TabsContent>
           <TabsContent value="consumo"><TabConsumo /></TabsContent>
           <TabsContent value="alertas"><TabAlertas /></TabsContent>

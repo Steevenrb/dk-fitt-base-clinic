@@ -38,9 +38,9 @@ export function AdminSidebar() {
     <>
       <Sidebar collapsible="icon">
         <SidebarContent>
-          <div className="flex flex-col items-center justify-center px-4 pt-6 pb-4">
-            <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl transparent">
-              <img src={logoSrc} alt="DK Fitt" className="h-24 w-24 object-contain" />
+          <div className={`flex flex-col items-center justify-center px-4 ${collapsed ? "pt-4 pb-3" : "pt-6 pb-4"}`}>
+            <div className={`flex shrink-0 items-center justify-center rounded-xl transparent ${collapsed ? "h-12 w-12" : "h-28 w-28"}`}>
+              <img src={logoSrc} alt="DK Fitt" className={collapsed ? "h-10 w-10 object-contain" : "h-24 w-24 object-contain"} />
             </div>
             {!collapsed && (
               <span className="mt-1 text-center text-lg font-bold tracking-tight text-foreground">

@@ -9,6 +9,7 @@ import Index from "./pages/Index.tsx";
 import Pacientes from "./pages/Pacientes.tsx";
 import FichaPaciente from "./pages/FichaPaciente.tsx";
 import PlanesNutricionales from "./pages/PlanesNutricionales.tsx";
+import PlanesIndex from "./pages/PlanesIndex.tsx";
 import Seguimiento from "./pages/Seguimiento.tsx";
 import Alertas from "./pages/Alertas.tsx";
 import Citas from "./pages/Citas.tsx";
@@ -54,7 +55,8 @@ function AppRoutes() {
       <Route path="/" element={<ProtectedRoute role="nutricionista"><Index /></ProtectedRoute>} />
       <Route path="/pacientes" element={<ProtectedRoute role="nutricionista"><Pacientes /></ProtectedRoute>} />
       <Route path="/pacientes/:id" element={<ProtectedRoute role="nutricionista"><FichaPaciente /></ProtectedRoute>} />
-      <Route path="/planes" element={<ProtectedRoute role="nutricionista"><PlanesNutricionales /></ProtectedRoute>} />
+      <Route path="/planes" element={<ProtectedRoute role="nutricionista"><PlanesIndex /></ProtectedRoute>} />
+      <Route path="/planes/ver/:id" element={<ProtectedRoute role="nutricionista"><PlanesNutricionales /></ProtectedRoute>} />
       <Route path="/alimentos" element={<ProtectedRoute role="nutricionista"><AlimentosRecetas /></ProtectedRoute>} />
       <Route path="/seguimiento" element={<ProtectedRoute role="nutricionista"><Seguimiento /></ProtectedRoute>} />
       <Route path="/alertas" element={<ProtectedRoute role="nutricionista"><Alertas /></ProtectedRoute>} />

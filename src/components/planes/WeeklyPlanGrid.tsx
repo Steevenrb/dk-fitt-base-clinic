@@ -1,7 +1,4 @@
-import { useState } from "react";
-import { X, Copy, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Copy } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -53,41 +50,11 @@ const foodDatabase: FoodItem[] = [
 ];
 
 const defaultPlan: Record<DayKey, Record<MealKey, FoodItem[]>> = {
-  Lunes: {
-    desayuno: [foodDatabase[0], foodDatabase[1], foodDatabase[19]],
-    media_manana: [foodDatabase[8], foodDatabase[9]],
-    almuerzo: [foodDatabase[2], foodDatabase[3], foodDatabase[4]],
-    merienda: [foodDatabase[7]],
-    cena: [foodDatabase[18], foodDatabase[12]],
-  },
-  Martes: {
-    desayuno: [foodDatabase[1], foodDatabase[10], foodDatabase[17]],
-    media_manana: [foodDatabase[7], foodDatabase[8]],
-    almuerzo: [foodDatabase[5], foodDatabase[6], foodDatabase[12]],
-    merienda: [foodDatabase[11]],
-    cena: [foodDatabase[14], foodDatabase[4], foodDatabase[15]],
-  },
-  Miércoles: {
-    desayuno: [foodDatabase[0], foodDatabase[19]],
-    media_manana: [foodDatabase[9], foodDatabase[8]],
-    almuerzo: [foodDatabase[2], foodDatabase[13], foodDatabase[12]],
-    merienda: [foodDatabase[16]],
-    cena: [foodDatabase[18], foodDatabase[4]],
-  },
-  Jueves: {
-    desayuno: [foodDatabase[15], foodDatabase[11], foodDatabase[1]],
-    media_manana: [foodDatabase[8], foodDatabase[9]],
-    almuerzo: [foodDatabase[2], foodDatabase[3], foodDatabase[10]],
-    merienda: [foodDatabase[7]],
-    cena: [foodDatabase[14], foodDatabase[12], foodDatabase[11]],
-  },
-  Viernes: {
-    desayuno: [foodDatabase[1], foodDatabase[10], foodDatabase[16]],
-    media_manana: [foodDatabase[19], foodDatabase[16]],
-    almuerzo: [foodDatabase[5], foodDatabase[3], foodDatabase[4]],
-    merienda: [foodDatabase[8]],
-    cena: [foodDatabase[18], foodDatabase[12], foodDatabase[17]],
-  },
+  Lunes: { desayuno: [], media_manana: [], almuerzo: [], merienda: [], cena: [] },
+  Martes: { desayuno: [], media_manana: [], almuerzo: [], merienda: [], cena: [] },
+  Miércoles: { desayuno: [], media_manana: [], almuerzo: [], merienda: [], cena: [] },
+  Jueves: { desayuno: [], media_manana: [], almuerzo: [], merienda: [], cena: [] },
+  Viernes: { desayuno: [], media_manana: [], almuerzo: [], merienda: [], cena: [] },
 };
 
 const meals: MealKey[] = ["desayuno", "media_manana", "almuerzo", "merienda", "cena"];
@@ -98,57 +65,10 @@ interface Props {
   onPlanChange: (plan: Record<DayKey, Record<MealKey, FoodItem[]>>) => void;
 }
 
-function FoodSearch({ onAdd }: { onAdd: (food: FoodItem) => void }) {
-  const [query, setQuery] = useState("");
-  const results = query.length > 1
-    ? foodDatabase.filter((f) => f.name.toLowerCase().includes(query.toLowerCase())).slice(0, 5)
-    : [];
-
-  return (
-    <div className="space-y-1">
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Agregar alimento..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="h-7 pl-7 text-[11px] bg-muted/50"
-        />
-      </div>
-      {results.length > 0 && (
-        <div className="rounded-md border border-border bg-card shadow-lg max-h-32 overflow-y-auto">
-          {results.map((f, i) => (
-            <button
-              key={i}
-              onClick={() => { onAdd(f); setQuery(""); }}
-              className="w-full text-left px-2 py-1.5 text-[11px] text-foreground hover:bg-muted/50 flex justify-between"
-            >
-              <span>{f.name}</span>
-              <span className="text-muted-foreground">{f.kcal} kcal</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+// Food search removed per request (no "Agregar alimento" inputs)
 
 export function WeeklyPlanGrid({ activeDays, plan, onPlanChange }: Props) {
   const days = activeDays.length > 0 ? activeDays : Object.keys(defaultPlan);
-
-  const removeFood = (day: string, meal: MealKey, index: number) => {
-    const updated = { ...plan };
-    updated[day] = { ...updated[day] };
-    updated[day][meal] = updated[day][meal].filter((_, i) => i !== index);
-    onPlanChange(updated);
-  };
-
-  const addFood = (day: string, meal: MealKey, food: FoodItem) => {
-    const updated = { ...plan };
-    updated[day] = { ...updated[day] };
-    updated[day][meal] = [...(updated[day][meal] || []), food];
-    onPlanChange(updated);
-  };
 
   const copyMeal = (fromDay: string, meal: MealKey) => {
     const updated = { ...plan };
@@ -164,6 +84,15 @@ export function WeeklyPlanGrid({ activeDays, plan, onPlanChange }: Props) {
 
   const getMealKcal = (day: string, meal: MealKey) =>
     (plan[day]?.[meal] || []).reduce((s, f) => s + f.kcal, 0);
+
+  const getRecipeName = (foods: FoodItem[]) => {
+    if (foods.length === 0) return "Comida no asignada aun.";
+    if (foods.length === 1) return foods[0].name;
+
+    const first = foods[0].name;
+    const second = foods[1].name.toLowerCase();
+    return `${first} con ${second}`;
+  };
 
   return (
     <div className="rounded-xl border border-border bg-card">
@@ -194,38 +123,34 @@ export function WeeklyPlanGrid({ activeDays, plan, onPlanChange }: Props) {
               {days.map((day) => {
                 const foods = plan[day]?.[meal] || [];
                 const totalKcal = getMealKcal(day, meal);
+                const recipeName = getRecipeName(foods);
+                const isEmpty = foods.length === 0;
                 return (
-                  <div key={day} className="px-2 py-2 border-l border-border space-y-1.5 min-h-[100px]">
-                    {foods.map((f, i) => (
-                      <div key={i} className="flex items-center gap-1 group">
-                        <span className="text-[11px] text-foreground flex-1 truncate">{f.name}</span>
-                        <span className="text-[10px] text-muted-foreground shrink-0">{f.kcal}</span>
-                        <button
-                          onClick={() => removeFood(day, meal, i)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        >
-                          <X className="h-3 w-3 text-muted-foreground hover:text-accent" />
-                        </button>
-                      </div>
-                    ))}
-                    <FoodSearch onAdd={(f) => addFood(day, meal, f)} />
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-[10px] font-semibold text-primary">{totalKcal} kcal</span>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button className="text-muted-foreground hover:text-primary transition-colors">
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-2" align="end">
-                          <button
-                            onClick={() => copyMeal(day, meal)}
-                            className="text-xs text-foreground hover:text-primary px-2 py-1"
-                          >
-                            Copiar a todos los días
-                          </button>
-                        </PopoverContent>
-                      </Popover>
+                  <div key={day} className="px-2 py-2 border-l border-border min-h-[100px]">
+                    <div className="h-full rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5 flex flex-col justify-between gap-2">
+                      <p className={`text-xs font-medium leading-tight ${isEmpty ? "text-muted-foreground" : "text-foreground"} line-clamp-2`}>
+                        {recipeName}
+                      </p>
+                      {!isEmpty && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-semibold text-primary">{totalKcal} kcal</span>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button className="text-muted-foreground hover:text-primary transition-colors">
+                                <Copy className="h-3 w-3" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-2" align="end">
+                              <button
+                                onClick={() => copyMeal(day, meal)}
+                                className="text-xs text-foreground hover:text-primary px-2 py-1"
+                              >
+                                Copiar a todos los días
+                              </button>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
