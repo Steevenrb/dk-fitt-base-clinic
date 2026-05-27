@@ -49,17 +49,27 @@ const statusConfig: Record<TreatmentStatus, { label: string; className: string }
 function mapApiPatient(item: Record<string, unknown>, index: number) {
   const nombres = String(item.nombres ?? item.nombre ?? "").trim();
   const apellidos = String(item.apellidos ?? "").trim();
-  const fullName = `${nombres} ${apellidos}`.trim() || String(item.nombre_completo ?? item.name ?? `Paciente ${index + 1}`);
-  const id = Number(item.id_usuario ?? item.id_paciente ?? item.id_perfil ?? item.id ?? index + 1);
-  const lastRecord = String(item.ultima_evaluacion ?? item.fecha_ultima_evaluacion ?? item.last_evaluation_date ?? "");
-  const rawStatus = item.estado_plan ?? item.estado_tratamiento ?? item.estado ?? item.status ?? null;
+
+  const fullName =
+    `${nombres} ${apellidos}`.trim() ||
+    String(item.nombre_completo ?? item.name ?? `Paciente ${index + 1}`);
+  const id = Number(
+    item.id_usuario ?? item.id_paciente ?? item.id_perfil ??item.id ?? index + 1
+  );
+
+  const rawDate = String(
+    item.ultima_evaluacion ?? item.fecha_ultima_evaluacion ?? item.last_evaluation_date ?? ""
+  );
+  const lastRecord = rawDate
+    ? new Date(rawDate).toLocaleDateString("es-EC", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+      })
+    : "--";
+  const rawStatus =
+    item.estado_plan ?? item.estado_tratamiento ?? item.estado ?? item.status ?? null;
   const status = normalizeStatus(rawStatus);
   return {
-    id: Number(id),
-    name: fullName,
-    initials: toInitials(fullName),
-    lastRecord: lastRecord || "--",
-    status,
+    id: Number(id), name: fullName, initials: toInitials(fullName), lastRecord, status,
   };
 }
 
@@ -117,14 +127,16 @@ const PlanesIndex = () => {
                   <tr className="border-b border-border text-left">
                     <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Paciente</th>
                     <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Estado</th>
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Último</th>
+                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Fecha en
+                      
+                       que se Generó el Plan</th>
                     <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Acción</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && (
                     <tr>
-                      <td colSpan={3} className="px-5 py-12 text-center text-sm text-muted-foreground">Cargando pacientes...</td>
+                      <td colSpan={4} className="px-5 py-12 text-center text-sm text-muted-foreground">Cargando pacientes...</td>
                     </tr>
                   )}
 

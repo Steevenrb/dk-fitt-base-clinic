@@ -1,4 +1,5 @@
-import { Copy } from "lucide-react";
+import { Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   Popover,
   PopoverContent,
@@ -63,12 +64,52 @@ interface Props {
   activeDays: string[];
   plan: Record<DayKey, Record<MealKey, FoodItem[]>>;
   onPlanChange: (plan: Record<DayKey, Record<MealKey, FoodItem[]>>) => void;
+  onWeekChange?: (weekOffset: number) => void;
+  currentWeek?: number;
+  maxWeeks?: number;
+  weekLabel?: string;
 }
 
 // Food search removed per request (no "Agregar alimento" inputs)
 
-export function WeeklyPlanGrid({ activeDays, plan, onPlanChange }: Props) {
+export function WeeklyPlanGrid({ 
+  activeDays, 
+  plan, 
+  onPlanChange,
+  onWeekChange,
+  currentWeek = 0,
+  maxWeeks = 4,
+  weekLabel = "Semana Actual"
+}: Props) {
+  const [localWeek, setLocalWeek] = useState(currentWeek);
+  const canNavigateWeeks = typeof onWeekChange === "function" && maxWeeks > 1;
+
+  useEffect(() => {
+    setLocalWeek(currentWeek);
+  }, [currentWeek]);
+
   const days = activeDays.length > 0 ? activeDays : Object.keys(defaultPlan);
+
+  const handlePreviousWeek = () => {
+    if (localWeek > 0) {
+      setLocalWeek(localWeek - 1);
+      onWeekChange?.(localWeek - 1);
+    }
+  };
+
+  const handleNextWeek = () => {
+    if (localWeek < maxWeeks - 1) {
+      setLocalWeek(localWeek + 1);
+      onWeekChange?.(localWeek + 1);
+    }
+  };
+
+  const getWeekDisplayLabel = () => {
+    if (weekLabel) return weekLabel;
+    if (localWeek === 0) return "Semana Actual";
+    if (localWeek === 1) return "Próxima Semana";
+    return `Semana ${localWeek + 1}`;
+  };
 
   const copyMeal = (fromDay: string, meal: MealKey) => {
     const updated = { ...plan };
@@ -96,9 +137,30 @@ export function WeeklyPlanGrid({ activeDays, plan, onPlanChange }: Props) {
 
   return (
     <div className="rounded-xl border border-border bg-card">
-      <div className="border-b border-border px-5 py-4">
-        <h3 className="text-sm font-semibold text-foreground">Plan Semanal</h3>
-        <p className="text-xs text-muted-foreground">Asignación de alimentos por día y tiempo de comida</p>
+      <div className="border-b border-border px-5 py-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Plan Semanal</h3>
+          <p className="text-xs text-muted-foreground">Asignación de alimentos por día y tiempo de comida</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">{getWeekDisplayLabel()}</span>
+          <button
+            onClick={handlePreviousWeek}
+            disabled={!canNavigateWeeks || localWeek === 0}
+            className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="Semana anterior"
+          >
+            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <button
+            onClick={handleNextWeek}
+            disabled={!canNavigateWeeks || localWeek >= maxWeeks - 1}
+            className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            title="Próxima semana"
+          >
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <div className="min-w-[900px]">

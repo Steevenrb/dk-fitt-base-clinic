@@ -74,6 +74,7 @@ interface GenerarRecetaPayload {
   calorias_objetivo: number;
   restricciones?: string[];
   aptitudes?: number[];
+  forzar_nuevo?: boolean;
 }
 
 interface RecetaGeneradaResponse {
@@ -468,10 +469,10 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
     }, 800);
   };
 
-  const finalizarProgreso = () => {
+  const finalizarProgreso = (mensajeFinal: string) => {
     if (progresoRef.current) clearInterval(progresoRef.current);
     setProgreso(100);
-    setMensajeProgreso("Receta lista!");
+    setMensajeProgreso(mensajeFinal);
     setTimeout(() => {
       setProgreso(0);
       setMensajeProgreso("");
@@ -564,8 +565,27 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
       toast.success("Receta eliminada");
       setModalDetalle(false);
       setRecetaDetalle(null);
-    } catch {
-      toast.error("No se pudo eliminar la receta");
+    } catch (error) {
+      const apiError = error instanceof ApiError ? error : null;
+      const payload = apiError?.payload as { error?: { code?: string; message?: string }; message?: string } | null;
+      const errorCode = payload?.error?.code;
+      if (apiError?.status === 422 && errorCode === "FOREIGN_KEY_VIOLATION") {
+        try {
+          await requestFirstOk(
+            PLATOS_ENDPOINTS.map((base) => `${base}/${receta.id_plato}/force`),
+            { method: "DELETE", accessToken: token },
+          );
+          setRecetas((prev) => prev.filter((item) => item.id_plato !== receta.id_plato));
+          toast.success("Receta eliminada");
+          setModalDetalle(false);
+          setRecetaDetalle(null);
+          return;
+        } catch (forceError) {
+          toast.error(getApiErrorMessage(forceError, "No se pudo eliminar la receta"));
+          return;
+        }
+      }
+      toast.error(getApiErrorMessage(error, "No se pudo eliminar la receta"));
     }
   };
 
@@ -700,13 +720,14 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
         calorias_objetivo: Math.round(calorias),
         restricciones: generarForm.restricciones.length ? generarForm.restricciones : undefined,
         aptitudes: generarForm.aptitudes.length ? generarForm.aptitudes : undefined,
+        forzar_nuevo: true,
       };
       const res = await requestFirstOk<{ data?: RecetaGeneradaResponse } | RecetaGeneradaResponse>(
         GENERATE_ENDPOINTS,
         { method: "POST", accessToken: token, body: payload },
       );
-      finalizarProgreso();
       const generado = extractItem(res);
+      finalizarProgreso(generado.uso_gpt ? "Receta creada con IA" : "Receta generada");
       const nuevaReceta: Receta = {
         id_plato: generado.id_plato,
         nombre: generado.nombre,
@@ -1287,44 +1308,48 @@ function RecetaDetailModal({
           </ol>
         </div>
 
-        <Card className="border-border bg-muted/20">
-          <CardContent className="p-4 space-y-3">
-            <h4 className="font-semibold text-sm text-foreground">Aptitud Clínica</h4>
-            {receta.aptitudes && receta.aptitudes.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2">
-                {APTITUDES_CATALOGO.map((apt) => {
-                  const isActive = aptitudesAplican.has(apt.codigo);
-                  return (
-                    <div key={apt.codigo} className="flex items-center gap-2 text-sm">
-                      {isActive ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-400" />
-                      ) : (
-                        <X className="h-3.5 w-3.5 text-red-400" />
-                      )}
-                      <span className="text-foreground">{apt.nombre}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Sin aptitudes clínicas definidas.</p>
-            )}
-            {receta.descripcion && (
-              <div className="mt-2 p-2.5 rounded-md bg-amber-50 border border-amber-200">
+        {!receta.generado_por_ia && (
+          <Card className="border-border bg-muted/20">
+            <CardContent className="p-4 space-y-3">
+              <h4 className="font-semibold text-sm text-foreground">Aptitud Clínica</h4>
+              {receta.aptitudes && receta.aptitudes.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {APTITUDES_CATALOGO.map((apt) => {
+                    const isActive = aptitudesAplican.has(apt.codigo);
+                    return (
+                      <div key={apt.codigo} className="flex items-center gap-2 text-sm">
+                        {isActive ? (
+                          <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        ) : (
+                          <X className="h-3.5 w-3.5 text-red-400" />
+                        )}
+                        <span className="text-foreground">{apt.nombre}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sin aptitudes clínicas definidas.</p>
+              )}
+              {receta.descripcion && (
+                <div className="mt-2 p-2.5 rounded-md bg-amber-50 border border-amber-200">
+                  <p className="text-xs text-amber-900"><span className="font-semibold">Nota clínica:</span> {receta.descripcion}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+        {receta.generado_por_ia && receta.descripcion && (
+          <Card className="border-border bg-muted/20">
+            <CardContent className="p-4">
+              <div className="p-2.5 rounded-md bg-amber-50 border border-amber-200">
                 <p className="text-xs text-amber-900"><span className="font-semibold">Nota clínica:</span> {receta.descripcion}</p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
-        <div className="flex gap-2 flex-wrap">
-          <Button className="flex-1"><UtensilsCrossed className="h-4 w-4 mr-2" /> Usar en plan nutricional</Button>
-          {receta.generado_por_ia && (
-            <Button variant="outline" onClick={onGenerateVariant}><Plus className="h-4 w-4 mr-2" /> Generar variante</Button>
-          )}
-          {receta.generado_por_ia && (
-            <Button variant="outline" onClick={onEdit}><Edit className="h-4 w-4 mr-2" /> Editar receta</Button>
-          )}
+        <div className="flex gap-2 flex-wrap">         
           <Button variant="outline" className="text-destructive" onClick={onDeactivate}><Trash2 className="h-4 w-4 mr-2" /> Eliminar receta</Button>
         </div>
 

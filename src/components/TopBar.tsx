@@ -1,9 +1,10 @@
-import { ReactNode, useState } from "react";
-import { Bell, LogOut, User, Lock, Settings } from "lucide-react";
+import { ReactNode, useEffect, useState } from "react";
+import { Bell, LogOut, User, Lock } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { apiRequest } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
@@ -12,10 +13,83 @@ interface TopBarProps {
   children?: ReactNode;
 }
 
+const ACCESS_TOKEN_KEY = "dkfitt-access-token";
+const PROFILE_ENDPOINTS = ["/api/nutritionist-profile/me", "/nutritionist-profile/me"];
+
+type NutritionistProfilePayload = {
+  sexo?: string;
+};
+
+type NutritionistProfileResponse = {
+  success?: boolean;
+  data?: NutritionistProfilePayload;
+} & NutritionistProfilePayload;
+
+type RequestWithAuth = Omit<RequestInit, "body"> & { body?: unknown };
+
+async function requestWithFallback<T>(paths: string[], token: string, options: RequestWithAuth): Promise<T> {
+  let lastError: unknown;
+  for (const path of paths) {
+    try {
+      return await apiRequest<T>(path, {
+        ...options,
+        accessToken: token,
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+function normalizeSex(value?: string): "M" | "F" | "O" | "" {
+  if (!value) return "";
+  const raw = value.trim().toLowerCase();
+  if (raw === "f" || raw === "femenino") return "F";
+  if (raw === "m" || raw === "masculino") return "M";
+  if (raw === "o" || raw === "otro") return "O";
+  return "";
+}
+
+function getRoleLabelBySex(sex?: string | null): string {
+  if (sex === "F") return "Nutriologa";
+  return "Nutriologo";
+}
+
 export function TopBar({ children }: TopBarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showLogout, setShowLogout] = useState(false);
+  const [sex, setSex] = useState<"M" | "F" | "O" | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token) return;
+
+    const loadProfile = async () => {
+      try {
+        const response = await requestWithFallback<NutritionistProfileResponse>(PROFILE_ENDPOINTS, token, { method: "GET" });
+        const payload = response.data ?? response;
+        const normalized = normalizeSex(payload.sexo);
+        if (isActive) {
+          setSex(normalized || null);
+        }
+      } catch {
+        if (isActive) {
+          setSex(null);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const roleLabel = getRoleLabelBySex(sex);
 
   const handleLogout = () => {
     logout();
@@ -46,14 +120,14 @@ export function TopBar({ children }: TopBarProps) {
                 </Avatar>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium leading-none text-foreground">{user?.name || "Nutricionista Karen"}</p>
-                  <p className="text-xs text-muted-foreground">Nutrióloga clínica</p>
+                  <p className="text-xs text-muted-foreground">{roleLabel}</p>
                 </div>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel className="font-normal">
                 <p className="text-sm font-medium text-foreground">{user?.name || "Nutricionista Karen"}</p>
-                <p className="text-xs text-muted-foreground">Nutrióloga clínica</p>
+                <p className="text-xs text-muted-foreground">{roleLabel}</p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => navigate("/mi-perfil")} className="cursor-pointer gap-2">
@@ -61,9 +135,6 @@ export function TopBar({ children }: TopBarProps) {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate("/mi-perfil?tab=security")} className="cursor-pointer gap-2">
                 <Lock className="h-4 w-4" /> Cambiar contraseña
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/mi-perfil?tab=prefs")} className="cursor-pointer gap-2">
-                <Settings className="h-4 w-4" /> Preferencias
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setShowLogout(true)} className="cursor-pointer gap-2 text-destructive">

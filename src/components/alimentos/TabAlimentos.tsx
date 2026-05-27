@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Save, Search, Edit, Eye, Trash2 } from "lucide-react";
+import { Save, Search, Edit, Eye, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Alimento, catColors } from "./alimentosData";
 import { apiRequest } from "@/lib/api";
+import * as XLSX from "xlsx";
 
 interface TabAlimentosProps {
   base: Alimento[];
@@ -89,6 +90,8 @@ type DetailFormState = {
   fuente: string;
 };
 
+type ImportMode = "manual" | "archivo";
+
 const defaultFormState: DetailFormState = {
   nombre: "",
   categoria: "otros",
@@ -164,6 +167,94 @@ function parseNum(raw: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function parseOptionalNum(raw: string): string {
+  const normalized = String(raw ?? "").trim();
+  if (!normalized) return "";
+  const parsed = Number(normalized.replace(",", "."));
+  return Number.isFinite(parsed) ? String(parsed) : "";
+}
+
+function normalizeHeader(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function parseCategoriaValue(raw: string): CategoriaDetalle {
+  const normalized = normalizeHeader(raw);
+  if (!normalized) return "otros";
+  if (normalized.includes("prote") || normalized.includes("protein")) return "proteinas";
+  if (normalized.includes("carb") || normalized.includes("cereal") || normalized.includes("harina")) return "carbohidratos";
+  if (normalized.includes("gras") || normalized.includes("lipid") || normalized.includes("aceite")) return "grasas";
+  if (normalized.includes("lact") || normalized.includes("leche") || normalized.includes("yog")) return "lacteos";
+  if (normalized.includes("frut")) return "frutas";
+  if (normalized.includes("veget") || normalized.includes("verd")) return "vegetales";
+  return "otros";
+}
+
+function findSpreadsheetValue(row: Record<string, unknown>, aliases: string[]): string {
+  for (const [key, value] of Object.entries(row)) {
+    if (aliases.includes(normalizeHeader(key))) {
+      return String(value ?? "").trim();
+    }
+  }
+  return "";
+}
+
+function mapSpreadsheetRow(row: Record<string, unknown>): DetailFormState | null {
+  const nombre = findSpreadsheetValue(row, ["nombre", "alimento", "descripcion", "producto", "item"]);
+  if (!nombre) return null;
+
+  return {
+    nombre,
+    categoria: parseCategoriaValue(findSpreadsheetValue(row, ["categoria", "grupo", "tipo", "clasificacion"])),
+    calorias: parseOptionalNum(findSpreadsheetValue(row, ["calorias", "energia", "kcal", "energia100g", "kcal100g"])),
+    proteinas: parseOptionalNum(findSpreadsheetValue(row, ["proteinas", "proteina", "protein", "proteinas100g"])),
+    grasas: parseOptionalNum(findSpreadsheetValue(row, ["grasas", "grasa", "lipidos", "grasastotales"])),
+    carbohidratos: parseOptionalNum(findSpreadsheetValue(row, ["carbohidratos", "carbohidrato", "hidratos", "hidratosdecarbono", "carbs"])),
+    fibra: parseOptionalNum(findSpreadsheetValue(row, ["fibra"])),
+    ags: parseOptionalNum(findSpreadsheetValue(row, ["ags", "grasassaturadas", "saturadas", "acidosgrasossaturados"])),
+    agm: parseOptionalNum(findSpreadsheetValue(row, ["agm", "grasasmonoinsaturadas", "monoinsaturadas", "acidosgrasosmonoinsaturados"])),
+    agpi: parseOptionalNum(findSpreadsheetValue(row, ["agpi", "grasaspolinsaturadas", "polinsaturadas", "acidosgrasospolinsaturados"])),
+    colesterol: parseOptionalNum(findSpreadsheetValue(row, ["colesterol"])),
+    calcio: parseOptionalNum(findSpreadsheetValue(row, ["calcio"])),
+    fosforo: parseOptionalNum(findSpreadsheetValue(row, ["fosforo", "fósforo"])),
+    hierro: parseOptionalNum(findSpreadsheetValue(row, ["hierro"])),
+    potasio: parseOptionalNum(findSpreadsheetValue(row, ["potasio"])),
+    sodio: parseOptionalNum(findSpreadsheetValue(row, ["sodio"])),
+    zinc: parseOptionalNum(findSpreadsheetValue(row, ["zinc"])),
+    vitamina_c: parseOptionalNum(findSpreadsheetValue(row, ["vitaminac", "vitamina c", "vitaminacmg", "vitaminac100g"])),
+    vitamina_a: parseOptionalNum(findSpreadsheetValue(row, ["vitaminaa", "vitamina a", "vitaminaamcg", "vitaminaa100g"])),
+    folatos: parseOptionalNum(findSpreadsheetValue(row, ["folatos", "folate", "acidofolico"])),
+    vitamina_b12: parseOptionalNum(findSpreadsheetValue(row, ["vitaminab12", "vitamina b12", "b12"])),
+    fuente: findSpreadsheetValue(row, ["fuente", "origen", "procedencia"]),
+  };
+}
+
+async function readSpreadsheetRows(file: File): Promise<DetailFormState[]> {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  const workbook = extension === "csv"
+    ? XLSX.read(await file.text(), { type: "string" })
+    : XLSX.read(await file.arrayBuffer(), { type: "array" });
+
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) return [];
+
+  const worksheet = workbook.Sheets[sheetName];
+  const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
+  if (!csvText.trim()) return [];
+
+  const csvWorkbook = XLSX.read(csvText, { type: "string" });
+  const csvSheetName = csvWorkbook.SheetNames[0];
+  if (!csvSheetName) return [];
+
+  const csvWorksheet = csvWorkbook.Sheets[csvSheetName];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(csvWorksheet, { defval: "" });
+  return rows.map(mapSpreadsheetRow).filter((row): row is DetailFormState => row !== null);
+}
+
 function toPayload(form: DetailFormState): Omit<AlimentoDetalle, "id_alimento_detalle" | "created_at"> {
   return {
     nombre: form.nombre.trim(),
@@ -187,7 +278,7 @@ function toPayload(form: DetailFormState): Omit<AlimentoDetalle, "id_alimento_de
     vitamina_a: parseNum(form.vitamina_a),
     folatos: parseNum(form.folatos),
     vitamina_b12: parseNum(form.vitamina_b12),
-    fuente: undefined,
+    fuente: form.fuente.trim() || undefined,
   };
 }
 
@@ -349,6 +440,9 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createMode, setCreateMode] = useState<ImportMode>("manual");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState<number | null>(null);
   const [totalPages, setTotalPages] = useState<number | null>(null);
@@ -395,6 +489,8 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
 
   useEffect(() => {
     if (openCreateSignal === undefined || openCreateSignal === 0) return;
+    setCreateMode("manual");
+    setImportFile(null);
     setCreateOpen(true);
   }, [openCreateSignal]);
 
@@ -436,6 +532,54 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
       toast.error("No se pudo crear el alimento");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      toast.error("Selecciona un archivo para importar");
+      return;
+    }
+
+    const token = localStorage.getItem("dkfitt-access-token");
+    if (!token) {
+      toast.error("Sesion no valida");
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const spreadsheetRows = await readSpreadsheetRows(importFile);
+      if (spreadsheetRows.length === 0) {
+        toast.error("El archivo no contiene filas válidas");
+        return;
+      }
+
+      let created = 0;
+      let failed = 0;
+
+      for (const row of spreadsheetRows) {
+        try {
+          await createDetalle(toPayload(row), token);
+          created += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+
+      await loadRows(page);
+      setImportFile(null);
+      setCreateOpen(false);
+
+      if (failed > 0) {
+        toast.warning(`Importación parcial: ${created} alimentos cargados y ${failed} omitidos`);
+      } else {
+        toast.success(`Importación completada: ${created} alimentos cargados`);
+      }
+    } catch {
+      toast.error("No se pudo importar el archivo");
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -617,20 +761,61 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
           <DialogHeader>
             <DialogTitle>Registrar un nuevo alimento</DialogTitle>
           </DialogHeader>
+          <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+            <Button variant={createMode === "manual" ? "default" : "outline"} size="sm" onClick={() => setCreateMode("manual")}>Carga manual</Button>
+            <Button variant={createMode === "archivo" ? "default" : "outline"} size="sm" onClick={() => setCreateMode("archivo")}>Subir archivo</Button>
+          </div>
           <div className="flex-1 overflow-y-auto pr-1">
-            <DetailForm form={manualForm} onChange={(f, v) => updateFormField(f, v, false)} />
+            {createMode === "manual" ? (
+              <DetailForm form={manualForm} onChange={(f, v) => updateFormField(f, v, false)} />
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Importar alimentos desde Excel o CSV</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Usa la primera hoja del archivo y una fila de encabezados. El sistema leerá cada fila válida y la guardará como alimento.
+                    </p>
+                  </div>
+                  <Input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="h-9 text-xs"
+                    onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+                  />
+                  <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                    <span>{importFile ? importFile.name : "Ningún archivo seleccionado"}</span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setImportFile(null)} disabled={!importFile}>
+                      Limpiar
+                    </Button>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/10 p-4">
+                  <p className="text-xs font-medium text-foreground mb-2">Columnas compatibles</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    nombre, categoria, calorias, proteinas, grasas, carbohidratos, fibra, ags, agm, agpi, colesterol, calcio, fosforo, hierro, potasio, sodio, zinc, vitamina c, vitamina a, folatos, vitamina y b12.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
-            <Button
-              onClick={async () => {
-                await handleCreate();
-                setCreateOpen(false);
-              }}
-              disabled={saving}
-            >
-              <Save className="h-4 w-4 mr-2" /> Guardar alimento
-            </Button>
+            {createMode === "manual" ? (
+              <Button
+                onClick={async () => {
+                  await handleCreate();
+                  setCreateOpen(false);
+                }}
+                disabled={saving}
+              >
+                <Save className="h-4 w-4 mr-2" /> Guardar alimento
+              </Button>
+            ) : (
+              <Button onClick={handleImport} disabled={importing || !importFile}>
+                <Upload className="h-4 w-4 mr-2" /> Importar archivo
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

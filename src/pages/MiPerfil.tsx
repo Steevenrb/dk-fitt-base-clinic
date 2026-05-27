@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,24 +14,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApiError, apiRequest } from "@/lib/api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  User, Lock, Settings, Camera, Eye, EyeOff, Check, X,
-  Monitor, Globe, Bell, Clock, Shield
+  User, Lock, Eye, EyeOff, Check, X,
+  Clock, Shield
 } from "lucide-react";
 
-/* ─── mock data ─── */
-const initialProfile = {
-  nombres: "Carolina",
-  apellidos: "Méndez",
-  telefono: "+593 987 123 456",
-  fechaNacimiento: "1990-07-22",
-  sexo: "Femenino",
-  bio: "Nutricionista clínica especializada en trastornos metabólicos y nutrición deportiva.",
-  correo: "carolina.mendez@dkfitt.com",
-  especialidad: "Nutrición Clínica",
-  registro: "NUT-2024-0892",
-  rol: "Nutricionista",
+const ACCESS_TOKEN_KEY = "dkfitt-access-token";
+const PROFILE_ENDPOINTS = ["/api/nutritionist-profile/me", "/nutritionist-profile/me"];
+
+const emptyProfile = {
+  nombres: "",
+  apellidos: "",
+  telefono: "",
+  fechaNacimiento: "",
+  sexo: "",
+  correo: "",
+  especialidad: "",
+  registro: "",
+  rol: "",
 };
 
 const accessHistory = [
@@ -42,14 +43,6 @@ const accessHistory = [
   { fecha: "25/03/2026 20:11", dispositivo: "Firefox — MacOS", ip: "172.16.0.8", estado: "Fallido" },
   { fecha: "24/03/2026 10:05", dispositivo: "Chrome — Windows", ip: "192.168.1.45", estado: "Exitoso" },
 ];
-
-const notifDefaults: Record<string, boolean> = {
-  adherencia: true,
-  citas: true,
-  consumo: false,
-  resumen: true,
-  peso: true,
-};
 
 /* ─── password helpers ─── */
 function getStrength(pw: string) {
@@ -62,8 +55,72 @@ function getStrength(pw: string) {
 }
 
 const strengthLabel = ["", "Débil", "Débil", "Media", "Fuerte"];
-const strengthColor = ["", "bg-destructive", "bg-destructive", "bg-accent", "bg-primary"];
 const strengthPercent = [0, 25, 25, 60, 100];
+
+type NutritionistProfilePayload = {
+  id_usuario?: number;
+  nombres?: string;
+  apellidos?: string;
+  correo_institucional?: string;
+  fecha_nacimiento?: string;
+  sexo?: string;
+  perfil_nutricionista?: {
+    numero_registro_profesional?: string;
+    especialidad?: string;
+    telefono_contacto?: string;
+  };
+};
+
+type NutritionistProfileResponse = {
+  success?: boolean;
+  data?: NutritionistProfilePayload;
+} & NutritionistProfilePayload;
+
+type RequestWithAuth = Omit<RequestInit, "body"> & { body?: unknown };
+
+async function requestWithFallback<T>(paths: string[], token: string, options: RequestWithAuth): Promise<T> {
+  let lastError: unknown;
+  for (const path of paths) {
+    try {
+      return await apiRequest<T>(path, {
+        ...options,
+        accessToken: token,
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+function normalizeSex(value?: string): "M" | "F" | "O" | "" {
+  if (!value) return "";
+  const raw = value.trim().toLowerCase();
+  if (raw === "f" || raw === "femenino") return "F";
+  if (raw === "m" || raw === "masculino") return "M";
+  if (raw === "o" || raw === "otro") return "O";
+  return "";
+}
+
+function normalizeDateInput(value?: string): string {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function getTitleBySex(sex?: string): string {
+  if (sex === "M") return "Dr.";
+  if (sex === "F") return "Dra.";
+  return "";
+}
+
+function getRoleLabelBySex(sex?: string): string {
+  if (sex === "M") return "Nutriologo";
+  if (sex === "F") return "Nutriologa";
+  return "Nutriologo";
+}
 
 export default function MiPerfil() {
   const { toast } = useToast();
@@ -71,10 +128,14 @@ export default function MiPerfil() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const defaultTab = searchParams.get("tab") || "info";
+  const tabParam = searchParams.get("tab");
+  const defaultTab = tabParam === "security" ? "security" : "info";
 
   /* profile state */
-  const [profile, setProfile] = useState(initialProfile);
+  const [profile, setProfile] = useState(emptyProfile);
+  const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const up = (k: string, v: string) => setProfile((p) => ({ ...p, [k]: v }));
 
   /* password state */
@@ -96,12 +157,108 @@ export default function MiPerfil() {
   const allReqsMet = reqs.every((r) => r.ok);
   const pwMatch = pwNew === pwConfirm && pwConfirm.length > 0;
 
-  /* preferences */
-  const [notifs, setNotifs] = useState(notifDefaults);
-  const [timezone, setTimezone] = useState("America/Guayaquil");
+
+  const initials = useMemo(() => {
+    const first = profile.nombres?.[0] || "";
+    const last = profile.apellidos?.[0] || "";
+    const value = `${first}${last}`.trim();
+    return value ? value.toUpperCase() : "NU";
+  }, [profile.nombres, profile.apellidos]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadProfile = async () => {
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (!token) {
+        if (isActive) {
+          setProfileStatus("error");
+          setProfileError("No se encontro una sesion valida.");
+        }
+        return;
+      }
+
+      try {
+        if (isActive) {
+          setProfileStatus("loading");
+          setProfileError(null);
+        }
+
+        const response = await requestWithFallback<NutritionistProfileResponse>(PROFILE_ENDPOINTS, token, { method: "GET" });
+        const payload = response.data ?? response;
+        const perfil = payload.perfil_nutricionista ?? {};
+
+        const nextProfile = {
+          nombres: payload.nombres || "",
+          apellidos: payload.apellidos || "",
+          telefono: perfil.telefono_contacto || "",
+          fechaNacimiento: normalizeDateInput(payload.fecha_nacimiento),
+          sexo: normalizeSex(payload.sexo),
+          correo: payload.correo_institucional || "",
+          especialidad: perfil.especialidad || "",
+          registro: perfil.numero_registro_profesional || "",
+          rol: "Nutricionista",
+        };
+
+        if (isActive) {
+          setProfile(nextProfile);
+          setProfileStatus("ready");
+        }
+      } catch (error) {
+        let message = "No se pudo cargar el perfil.";
+        if (error instanceof ApiError) {
+          const payloadError = error.payload as { message?: string } | null;
+          message = payloadError?.message || error.message || message;
+        }
+
+        if (isActive) {
+          setProfileStatus("error");
+          setProfileError(message);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   /* handlers */
-  const saveProfile = () => toast({ title: "Perfil actualizado correctamente ✓" });
+  const saveProfile = async () => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token) {
+      toast({ title: "No se encontro una sesion valida", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      await requestWithFallback(PROFILE_ENDPOINTS, token, {
+        method: "PATCH",
+        body: {
+          nombres: profile.nombres,
+          apellidos: profile.apellidos,
+          fecha_nacimiento: profile.fechaNacimiento || null,
+          sexo: profile.sexo || null,
+          perfil_nutricionista: {
+            telefono_contacto: profile.telefono,
+          },
+        },
+      });
+      toast({ title: "Perfil actualizado correctamente ✓" });
+    } catch (error) {
+      let message = "No se pudo guardar el perfil.";
+      if (error instanceof ApiError) {
+        const payloadError = error.payload as { message?: string } | null;
+        message = payloadError?.message || error.message || message;
+      }
+      toast({ title: "Error al guardar", description: message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const updatePassword = () => {
     if (pwCurrent !== "nutri") {
@@ -115,8 +272,6 @@ export default function MiPerfil() {
     toast({ title: "Contraseña actualizada correctamente ✓" });
     setPwCurrent(""); setPwNew(""); setPwConfirm("");
   };
-
-  const savePreferences = () => toast({ title: "Preferencias guardadas ✓" });
 
   const handleCloseAll = () => {
     setShowCloseAll(false);
@@ -138,55 +293,73 @@ export default function MiPerfil() {
 
         {/* 2‑column layout */}
         <div className="grid gap-6 lg:grid-cols-[minmax(260px,30%),1fr]">
-          {/* ─── Left: Identity card ─── */}
-          <Card className="self-start">
-            <CardContent className="flex flex-col items-center gap-4 p-6">
-              <div className="relative">
+          {/* ─── Left: Identity card + appearance ─── */}
+          <div className="space-y-6 self-start">
+            <Card>
+              <CardContent className="flex flex-col items-center gap-4 p-6">
                 <Avatar className="h-[120px] w-[120px] border-4 border-primary">
-                  <AvatarFallback className="bg-primary/20 text-2xl font-bold text-primary">CM</AvatarFallback>
+                  <AvatarFallback className="bg-primary/20 text-2xl font-bold text-primary">{initials}</AvatarFallback>
                 </Avatar>
-                <Button size="sm" variant="secondary" className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-xs gap-1">
-                  <Camera className="h-3 w-3" /> Cambiar foto
-                </Button>
-              </div>
 
-              <div className="mt-4 text-center space-y-1">
-                <h2 className="text-lg font-bold text-foreground">Dra. {profile.nombres} {profile.apellidos}</h2>
-                <Badge className="bg-primary text-primary-foreground">Nutricionista</Badge>
-              </div>
-
-              <div className="w-full space-y-3 mt-2 text-sm">
-                <LockedField icon={<Lock className="h-3.5 w-3.5" />} label="Especialidad" value={profile.especialidad} />
-                <LockedField icon={<Lock className="h-3.5 w-3.5" />} label="Registro profesional" value={profile.registro} />
-                <LockedField icon={<Lock className="h-3.5 w-3.5" />} label="Correo electrónico" value={profile.correo} />
-                <p className="text-[11px] text-muted-foreground text-center">Para modificar estos datos contacta al administrador</p>
-              </div>
-
-              <div className="w-full border-t border-border pt-3 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Estado</span>
-                  <Badge variant="outline" className="border-primary text-primary">Activo</Badge>
+                <div className="mt-4 text-center space-y-1">
+                  <h2 className="text-lg font-bold text-foreground">
+                    {getTitleBySex(profile.sexo)} {profile.nombres} {profile.apellidos}
+                  </h2>
+                  <Badge className="bg-primary text-primary-foreground">{getRoleLabelBySex(profile.sexo)}</Badge>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Último acceso</span>
-                  <span className="text-foreground">Hoy, 09:14 AM</span>
+
+                <div className="w-full space-y-3 mt-2 text-sm">
+                  <LockedField icon={<Lock className="h-3.5 w-3.5" />} label="Especialidad" value={profile.especialidad || "No disponible"} />
+                  <LockedField icon={<Lock className="h-3.5 w-3.5" />} label="Registro profesional" value={profile.registro || "No disponible"} />
+                  <LockedField icon={<Lock className="h-3.5 w-3.5" />} label="Correo electrónico" value={profile.correo || "No disponible"} />
+                  
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+
+                <div className="w-full border-t border-border pt-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Estado</span>
+                    <Badge variant="outline" className="border-primary text-primary">Activo</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Último acceso</span>
+                    <span className="text-foreground">--</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6 space-y-3">
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-foreground">Modo oscuro del sistema</span>
+                  <Switch checked={theme === "dark"} onCheckedChange={toggleTheme} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* ─── Right: Tabs ─── */}
           <Tabs defaultValue={defaultTab} className="w-full">
-            <TabsList className="w-full grid grid-cols-3">
+            <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="info" className="gap-1.5"><User className="h-4 w-4" /> Información</TabsTrigger>
               <TabsTrigger value="security" className="gap-1.5"><Shield className="h-4 w-4" /> Seguridad</TabsTrigger>
-              <TabsTrigger value="prefs" className="gap-1.5"><Settings className="h-4 w-4" /> Preferencias</TabsTrigger>
             </TabsList>
 
             {/* ════ TAB 1: Información Personal ════ */}
             <TabsContent value="info">
               <Card>
                 <CardContent className="p-6 space-y-5">
+                  {profileStatus === "loading" && (
+                    <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                      Cargando perfil...
+                    </div>
+                  )}
+                  {profileStatus === "error" && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                      {profileError || "No se pudo cargar el perfil."}
+                    </div>
+                  )}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Nombres" value={profile.nombres} onChange={(v) => up("nombres", v)} />
                     <Field label="Apellidos" value={profile.apellidos} onChange={(v) => up("apellidos", v)} />
@@ -197,29 +370,26 @@ export default function MiPerfil() {
                       <Select value={profile.sexo} onValueChange={(v) => up("sexo", v)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Femenino">Femenino</SelectItem>
-                          <SelectItem value="Masculino">Masculino</SelectItem>
-                          <SelectItem value="Otro">Otro</SelectItem>
+                          <SelectItem value="F">Femenino</SelectItem>
+                          <SelectItem value="M">Masculino</SelectItem>
+                          <SelectItem value="O">Otro</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-foreground">Descripción profesional</Label>
-                    <Textarea value={profile.bio} onChange={(e) => up("bio", e.target.value)} rows={3} />
-                  </div>
-
                   {/* Locked fields */}
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <LockedInput label="Correo electrónico" value={profile.correo} />
-                    <LockedInput label="Especialidad" value={profile.especialidad} />
-                    <LockedInput label="Registro profesional" value={profile.registro} />
-                    <LockedInput label="Rol en el sistema" value={profile.rol} />
+                    <LockedInput label="Correo electrónico" value={profile.correo || "No disponible"} />
+                    <LockedInput label="Especialidad" value={profile.especialidad || "No disponible"} />
+                    <LockedInput label="Registro profesional" value={profile.registro || "No disponible"} />
+                    <LockedInput label="Rol en el sistema" value={getRoleLabelBySex(profile.sexo)} />
                   </div>
 
                   <div className="flex justify-end">
-                    <Button onClick={saveProfile} className="bg-primary text-primary-foreground">Guardar cambios</Button>
+                    <Button onClick={saveProfile} disabled={isSaving} className="bg-primary text-primary-foreground">
+                      {isSaving ? "Guardando..." : "Guardar cambios"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -262,26 +432,6 @@ export default function MiPerfil() {
                 </CardContent>
               </Card>
 
-              {/* Active sessions */}
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2"><Monitor className="h-4 w-4" /> Sesiones activas</h3>
-                  <div className="flex items-center justify-between rounded-lg border border-border p-4">
-                    <div className="flex items-center gap-3">
-                      <Monitor className="h-5 w-5 text-primary" />
-                      <div className="text-sm">
-                        <p className="font-medium text-foreground">Navegador web — Chrome</p>
-                        <p className="text-muted-foreground">IP: 192.168.1.45 · Inicio: 28/03/2026 09:14</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-primary text-primary-foreground">Sesión actual</Badge>
-                  </div>
-                  <Button variant="outline" className="text-destructive border-destructive/30" onClick={() => setShowCloseAll(true)}>
-                    Cerrar todas las sesiones
-                  </Button>
-                </CardContent>
-              </Card>
-
               {/* Access history */}
               <Card>
                 <CardContent className="p-6 space-y-4">
@@ -316,69 +466,6 @@ export default function MiPerfil() {
               </Card>
             </TabsContent>
 
-            {/* ════ TAB 3: Preferencias ════ */}
-            <TabsContent value="prefs">
-              <Card>
-                <CardContent className="p-6 space-y-8">
-                  {/* Appearance */}
-                  <section className="space-y-4">
-                    <h3 className="font-semibold text-foreground">Apariencia</h3>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground">Modo oscuro</span>
-                      <Switch checked={theme === "dark"} onCheckedChange={toggleTheme} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-foreground">Idioma</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-primary text-primary-foreground">Español</Badge>
-                        <Badge variant="outline" className="opacity-50">English <span className="ml-1 text-[10px]">Próximamente</span></Badge>
-                      </div>
-                    </div>
-                  </section>
-
-                  {/* Notifications */}
-                  <section className="space-y-4">
-                    <h3 className="font-semibold text-foreground flex items-center gap-2"><Bell className="h-4 w-4" /> Notificaciones</h3>
-                    {[
-                      { key: "adherencia", label: "Alertas de baja adherencia de pacientes" },
-                      { key: "citas", label: "Recordatorio de citas del día" },
-                      { key: "consumo", label: "Notificaciones de consumo adicional elevado" },
-                      { key: "resumen", label: "Resumen semanal de pacientes" },
-                      { key: "peso", label: "Alertas de cambios de peso importantes" },
-                    ].map((n) => (
-                      <div key={n.key} className="flex items-center justify-between">
-                        <span className="text-sm text-foreground">{n.label}</span>
-                        <Switch checked={notifs[n.key]} onCheckedChange={(v) => setNotifs((prev) => ({ ...prev, [n.key]: v }))} />
-                      </div>
-                    ))}
-                  </section>
-
-                  {/* Timezone */}
-                  <section className="space-y-4">
-                    <h3 className="font-semibold text-foreground">Zona horaria</h3>
-                    <Select value={timezone} onValueChange={setTimezone}>
-                      <SelectTrigger className="max-w-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="America/Guayaquil">América/Guayaquil (UTC-5)</SelectItem>
-                        <SelectItem value="America/Bogota">América/Bogotá (UTC-5)</SelectItem>
-                        <SelectItem value="America/Lima">América/Lima (UTC-5)</SelectItem>
-                        <SelectItem value="America/Mexico_City">América/Ciudad de México (UTC-6)</SelectItem>
-                        <SelectItem value="America/Santiago">América/Santiago (UTC-3)</SelectItem>
-                        <SelectItem value="America/Argentina/Buenos_Aires">América/Buenos Aires (UTC-3)</SelectItem>
-                        <SelectItem value="Europe/Madrid">Europa/Madrid (UTC+1)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </section>
-
-                  <div className="flex justify-end">
-                    <Button onClick={savePreferences} className="bg-primary text-primary-foreground">Guardar preferencias</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
           </Tabs>
         </div>
       </div>
