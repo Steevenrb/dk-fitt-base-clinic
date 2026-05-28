@@ -126,13 +126,13 @@ export default function Login() {
                   {loginErrors.password && <p className="text-xs text-destructive">{loginErrors.password}</p>}
                 </div>
 
-                <div className="flex items-center justify-between">
+                {/* <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Checkbox id="remember" />
                     <Label htmlFor="remember" className="text-sm cursor-pointer text-slate-700">Recordarme</Label>
                   </div>
-                  <button className="text-xs text-[#b08e45] hover:text-[#8f7239] hover:underline">¿Olvidaste tu contraseña?</button>
-                </div>
+                   <button className="text-xs text-[#b08e45] hover:text-[#8f7239] hover:underline">¿Olvidaste tu contraseña?</button>
+                </div> */}
 
                 {loginError && (
                   <div className="rounded-md bg-accent/20 border border-accent p-3 text-sm text-accent-foreground">

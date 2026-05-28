@@ -1,58 +1,76 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import { CalendarDays, TrendingUp, AlertTriangle, Flame, UtensilsCrossed } from "lucide-react";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { AlertTriangle, Flame, TrendingUp, UtensilsCrossed } from "lucide-react";
+import { apiRequest } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
-/* ───── data ───── */
+const ACCESS_TOKEN_KEY = "dkfitt-access-token";
+const ADDITIONAL_INTAKE_ENDPOINTS = ["/api/additional-intake/patient", "/additional-intake/patient"];
+const ADDITIONAL_INTAKE_IMPACT_ENDPOINTS = ["/api/additional-intake/patient", "/additional-intake/patient"];
 
-interface ConsumoExtra {
+type AdditionalIntakeApiItem = {
+  id_consumo_adicional: number;
+  id_perfil: number;
+  id_control: number | null;
+  fecha: string;
+  hora: string | null;
+  descripcion_alimento: string | null;
+  imagen_url: string | null;
+  calorias_estimadas: number | null;
+  confirmado: boolean | null;
+  calorias_sumadas: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+  porcion_g: number | null;
+  proteinas_g: number | null;
+  carbohidratos_g: number | null;
+  grasas_g: number | null;
+  confianza_pct: number | null;
+  fuente_estimacion: string | null;
+  mensaje: string | null;
+  alimentos_detectados?: Array<{
+    nombre: string;
+    calorias: number | null;
+    cantidad_g: number | null;
+  }>;
+};
+
+type AdditionalIntakeImpactApi = {
+  total_consumos: number;
+  total_confirmados: number;
+  total_descartados: number;
+  calorias_totales: number;
+  promedio_por_dia: number;
+  clasificacion_impacto: string;
+  analisis?: {
+    mensaje?: string;
+    pct_confirmacion?: number;
+  };
+};
+
+type AdditionalIntakeCard = {
   id: number;
   name: string;
   description: string;
   date: string;
   time: string;
   calories: number;
-  type: "snack" | "bebida" | "comida";
+  portionValue: number | null;
+  confirmed: boolean;
+  summed: boolean;
+  confidence: string;
+  portion: string;
+  proteins: string;
+  carbs: string;
+  fats: string;
   impact: "bajo" | "moderado" | "alto";
   imageUrl: string;
-}
-
-const consumos: ConsumoExtra[] = [
-  { id: 1, name: "Pan dulce", description: "Concha de chocolate comprada en la panadería del trabajo", date: "22 Mar 2026", time: "10:30", calories: 320, type: "snack", impact: "alto", imageUrl: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=260&fit=crop" },
-  { id: 2, name: "Jugo de naranja natural", description: "Jugo de naranja con zanahoria, vaso grande 350ml", date: "21 Mar 2026", time: "08:15", calories: 140, type: "bebida", impact: "moderado", imageUrl: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=400&h=260&fit=crop" },
-  { id: 3, name: "Mix de frutos secos", description: "Nueces, almendras y arándanos deshidratados, porción extra", date: "20 Mar 2026", time: "16:00", calories: 180, type: "snack", impact: "moderado", imageUrl: "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=400&h=260&fit=crop" },
-  { id: 4, name: "Helado artesanal", description: "1 bola de helado de vainilla con galleta, heladería artesanal", date: "19 Mar 2026", time: "15:20", calories: 250, type: "snack", impact: "alto", imageUrl: "https://images.unsplash.com/photo-1570197571499-166b36435e9f?w=400&h=260&fit=crop" },
-  { id: 5, name: "Galletas de avena", description: "3 galletas integrales de avena con miel del comedor", date: "18 Mar 2026", time: "11:45", calories: 90, type: "snack", impact: "bajo", imageUrl: "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400&h=260&fit=crop" },
-  { id: 6, name: "Café con leche grande", description: "Café latte con leche entera y azúcar, cadena comercial", date: "17 Mar 2026", time: "09:00", calories: 190, type: "bebida", impact: "moderado", imageUrl: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&h=260&fit=crop" },
-  { id: 7, name: "Tacos al pastor", description: "2 tacos al pastor con piña y salsa, puesto callejero", date: "16 Mar 2026", time: "14:30", calories: 420, type: "comida", impact: "alto", imageUrl: "https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=400&h=260&fit=crop" },
-  { id: 8, name: "Refresco sin azúcar", description: "Lata de refresco light 355ml, máquina expendedora", date: "15 Mar 2026", time: "13:10", calories: 5, type: "bebida", impact: "bajo", imageUrl: "https://images.unsplash.com/photo-1527960471264-932f39eb5846?w=400&h=260&fit=crop" },
-];
+  source: string;
+  detectedFoods: string;
+};
 
 const impactConfig = {
   bajo: { label: "Bajo", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
@@ -60,70 +78,190 @@ const impactConfig = {
   alto: { label: "Alto", className: "bg-accent/20 text-accent border-accent/30" },
 };
 
-const typeConfig = {
-  snack: { label: "Snack", className: "bg-muted text-muted-foreground border-border" },
-  bebida: { label: "Bebida", className: "bg-sky-500/15 text-sky-400 border-sky-500/30" },
-  comida: { label: "Comida", className: "bg-violet-500/15 text-violet-400 border-violet-500/30" },
-};
-
-const deviationData = [
-  { dia: "Lun 15", planificadas: 1800, consumidas: 1805, adicionales: 5, clasificacion: "plan" },
-  { dia: "Mar 16", planificadas: 1800, consumidas: 2220, adicionales: 420, clasificacion: "alta" },
-  { dia: "Mié 17", planificadas: 1800, consumidas: 1990, adicionales: 190, clasificacion: "leve" },
-  { dia: "Jue 18", planificadas: 1800, consumidas: 1890, adicionales: 90, clasificacion: "plan" },
-  { dia: "Vie 19", planificadas: 1800, consumidas: 2050, adicionales: 250, clasificacion: "leve" },
-  { dia: "Sáb 20", planificadas: 2000, consumidas: 2180, adicionales: 180, clasificacion: "leve" },
-  { dia: "Dom 21", planificadas: 2000, consumidas: 2140, adicionales: 140, clasificacion: "leve" },
-  { dia: "Lun 22", planificadas: 1800, consumidas: 2120, adicionales: 320, clasificacion: "alta" },
-];
-
-const acumuladoData = deviationData.map((d, i) => ({
-  dia: d.dia,
-  adicionales: d.adicionales,
-  acumulado: deviationData.slice(0, i + 1).reduce((s, x) => s + x.adicionales, 0),
-}));
-
-const clasificacionConfig: Record<string, { label: string; className: string }> = {
-  plan: { label: "Dentro del plan", className: "text-emerald-400" },
-  leve: { label: "Leve desviación", className: "text-primary" },
-  alta: { label: "Alta desviación", className: "text-accent" },
-};
-
-/* ───── tooltips ───── */
 const ChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload) return null;
   return (
     <div className="rounded-lg border border-border bg-card p-3 shadow-lg">
       <p className="mb-1 text-xs font-semibold text-foreground">{label}</p>
-      {payload.map((e: any) => (
-        <p key={e.name} className="text-xs text-muted-foreground">
-          <span style={{ color: e.color || e.fill }}>■</span> {e.name}: {e.value} kcal
+      {payload.map((entry: any) => (
+        <p key={entry.name} className="text-xs text-muted-foreground">
+          <span style={{ color: entry.color || entry.fill }}>■</span> {entry.name}: {entry.value} kcal
         </p>
       ))}
     </div>
   );
 };
 
-/* ───── component ───── */
+function formatDateLabel(value?: string | null): string {
+  if (!value) return "Sin fecha";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("es-EC", { day: "2-digit", month: "short", year: "numeric" });
+}
 
-export function TabConsumo() {
-  const totalCals = consumos.reduce((s, c) => s + c.calories, 0);
-  const avgDaily = Math.round(totalCals / 8);
-  const highDays = deviationData.filter((d) => d.clasificacion === "alta").length;
-  const deviationLevel = totalCals > 1200 ? "Alto" : totalCals > 600 ? "Medio" : "Bajo";
+function formatDateTimeLabel(dateValue?: string | null, timeValue?: string | null): string {
+  const datePart = formatDateLabel(dateValue);
+  const timePart = timeValue ? timeValue.slice(0, 5) : "--:--";
+  return `${datePart} · ${timePart}`;
+}
+
+function formatValue(value?: number | null, unit = "g"): string {
+  if (value === null || value === undefined) return "No disponible";
+  return `${value.toLocaleString()} ${unit}`;
+}
+
+function buildImpactClass(classification?: string | null): "bajo" | "moderado" | "alto" {
+  const normalized = String(classification || "").toLowerCase();
+  if (normalized.includes("alto")) return "alto";
+  if (normalized.includes("bajo")) return "bajo";
+  return "moderado";
+}
+
+function buildCardImpact(item: AdditionalIntakeApiItem): "bajo" | "moderado" | "alto" {
+  if (item.calorias_estimadas === null || item.calorias_estimadas === undefined) return "moderado";
+  if (item.calorias_estimadas >= 500) return "alto";
+  if (item.calorias_estimadas >= 180) return "moderado";
+  return "bajo";
+}
+
+function unwrapResponse<T>(payload: { data?: T } | T): T {
+  if (payload && typeof payload === "object" && "data" in payload) {
+    return (payload as { data?: T }).data as T;
+  }
+  return payload as T;
+}
+
+async function requestWithFallback<T>(bases: string[], buildPath: (base: string) => string, token: string): Promise<T> {
+  let lastError: unknown;
+  for (const base of bases) {
+    try {
+      return await apiRequest<T>(buildPath(base), { method: "GET", accessToken: token });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+export function TabConsumo({ patientId, profileId }: { patientId: number; profileId?: number | null }) {
+  const { toast } = useToast();
+  const [items, setItems] = useState<AdditionalIntakeCard[]>([]);
+  const [impact, setImpact] = useState<AdditionalIntakeImpactApi | null>(null);
+  const [loading, setLoading] = useState(true);
+  const resolvedPatientRefId = profileId ?? patientId;
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!resolvedPatientRefId || Number.isNaN(resolvedPatientRefId)) {
+        setItems([]);
+        setImpact(null);
+        setLoading(false);
+        return;
+      }
+
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (!token) {
+        setItems([]);
+        setImpact(null);
+        setLoading(false);
+        toast({ title: "Sesion no valida", description: "No se encontro token de acceso.", variant: "destructive" });
+        return;
+      }
+
+      setLoading(true);
+      const [itemsResult, impactResult] = await Promise.allSettled([
+        requestWithFallback<{ success?: boolean; data?: AdditionalIntakeApiItem[] }>(
+          ADDITIONAL_INTAKE_ENDPOINTS,
+          (base) => `${base}/${resolvedPatientRefId}`,
+          token,
+        ),
+        requestWithFallback<{ success?: boolean; data?: AdditionalIntakeImpactApi }>(
+          ADDITIONAL_INTAKE_IMPACT_ENDPOINTS,
+          (base) => `${base}/${resolvedPatientRefId}/impact`,
+          token,
+        ),
+      ]);
+
+      if (itemsResult.status === "fulfilled") {
+        const rawItems = unwrapResponse(itemsResult.value);
+        setItems(rawItems.map((item) => ({
+          id: item.id_consumo_adicional,
+          name: item.descripcion_alimento || "Consumo adicional",
+          description: item.descripcion_alimento || "Sin descripción",
+          date: formatDateLabel(item.fecha),
+          time: item.hora ? item.hora.slice(0, 5) : "--:--",
+          calories: item.calorias_estimadas ?? 0,
+          portionValue: item.porcion_g ?? null,
+          confirmed: Boolean(item.confirmado),
+          summed: Boolean(item.calorias_sumadas),
+          confidence: item.confianza_pct === null || item.confianza_pct === undefined ? "No disponible" : `${item.confianza_pct}%`,
+          portion: formatValue(item.porcion_g),
+          proteins: formatValue(item.proteinas_g),
+          carbs: formatValue(item.carbohidratos_g),
+          fats: formatValue(item.grasas_g),
+          impact: buildCardImpact(item),
+          imageUrl: item.imagen_url || "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=400&h=260&fit=crop",
+          source: item.fuente_estimacion || "Estimación del sistema",
+          detectedFoods: item.alimentos_detectados?.map((food) => food.nombre).filter(Boolean).join(", ") || "Sin detección detallada",
+        })));
+      } else {
+        setItems([]);
+      }
+
+      if (impactResult.status === "fulfilled") {
+        setImpact(unwrapResponse(impactResult.value));
+      } else {
+        setImpact(null);
+      }
+
+      if (itemsResult.status === "rejected" && impactResult.status === "rejected") {
+        toast({
+          title: "No se pudo cargar el consumo adicional",
+          description: "Verifica los endpoints /additional-intake/patient/{id} y /additional-intake/patient/{id}/impact.",
+          variant: "destructive",
+        });
+      }
+
+      setLoading(false);
+    };
+
+    void fetchData();
+  }, [resolvedPatientRefId, toast]);
+
+  const totalCals = impact?.calorias_totales ?? items.reduce((sum, item) => sum + item.calories, 0);
+  const avgDaily = impact?.promedio_por_dia ?? Math.round(totalCals / Math.max(items.length || 1, 1));
+  const impactClass = buildImpactClass(impact?.clasificacion_impacto);
+  const deviationLevel = impact?.clasificacion_impacto
+    ? impact.clasificacion_impacto.charAt(0).toUpperCase() + impact.clasificacion_impacto.slice(1)
+    : totalCals > 1200 ? "Alto" : totalCals > 600 ? "Medio" : "Bajo";
   const deviationColor = deviationLevel === "Alto" ? "text-accent" : deviationLevel === "Medio" ? "text-primary" : "text-emerald-400";
+  const totalConfirmed = impact?.total_confirmados ?? items.filter((item) => item.confirmed).length;
+  const totalDiscarded = impact?.total_descartados ?? items.filter((item) => !item.confirmed).length;
+  const pctConfirmation = impact?.analisis?.pct_confirmacion ?? (items.length > 0 ? Math.round((totalConfirmed / items.length) * 100) : 0);
+  const impactMessage = impact?.analisis?.mensaje || "Sin análisis de impacto disponible.";
+
+  const chartData = useMemo(() => {
+    let accumulated = 0;
+    return items.map((item) => {
+      accumulated += item.calories;
+      return {
+        dia: `${item.date} ${item.time}`,
+        adicionales: item.calories,
+        acumulado: accumulated,
+      };
+    });
+  }, [items]);
 
   return (
     <div className="space-y-6">
-      {/* ── Header ── */}
       <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Análisis de Consumo Adicional</h3>
-          <p className="text-xs text-muted-foreground mt-1">Alimentos y bebidas fuera del plan nutricional · últimos 8 días</p>
+          <p className="text-xs text-muted-foreground mt-1">Alimentos y bebidas fuera del plan nutricional · datos del paciente seleccionado</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Desviación</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Impacto</p>
             <p className={`text-sm font-bold ${deviationColor}`}>{deviationLevel}</p>
           </div>
           <div className="h-8 w-px bg-border" />
@@ -134,13 +272,12 @@ export function TabConsumo() {
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
           { label: "Calorías adicionales totales", value: `${totalCals.toLocaleString()} kcal`, icon: Flame, accent: true },
           { label: "Promedio diario de exceso", value: `${avgDaily} kcal`, icon: TrendingUp, accent: avgDaily > 150 },
-          { label: "Registros de consumo", value: consumos.length.toString(), icon: UtensilsCrossed, accent: false },
-          { label: "Días con alta desviación", value: `${highDays} de 8`, icon: AlertTriangle, accent: highDays >= 2 },
+          { label: "Registros de consumo", value: items.length.toString(), icon: UtensilsCrossed, accent: false },
+          { label: "Clasificación de impacto", value: impact?.clasificacion_impacto || "Sin datos", icon: AlertTriangle, accent: impactClass === "alto" },
         ].map((kpi) => (
           <div key={kpi.label} className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -152,84 +289,136 @@ export function TabConsumo() {
         ))}
       </div>
 
-      {/* ── Consumo Cards ── */}
-      <div>
-        <h4 className="text-sm font-semibold text-foreground mb-3">Registro de Consumos</h4>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {consumos.map((item) => {
-            const impact = impactConfig[item.impact];
-            const tipo = typeConfig[item.type];
-            return (
-              <div key={item.id} className="rounded-xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-lg hover:shadow-primary/5">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <img src={item.imageUrl} alt={item.name} className="h-32 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity" />
-                  </DialogTrigger>
-                  <DialogContent className="max-w-lg p-0 overflow-hidden">
-                    <img src={item.imageUrl} alt={item.name} className="w-full" />
-                  </DialogContent>
-                </Dialog>
-                <div className="p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-1">
-                    <p className="text-sm font-semibold text-foreground truncate">{item.name}</p>
-                    <Badge variant="outline" className={`text-[10px] shrink-0 ${impact.className}`}>{impact.label}</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <Badge variant="outline" className={`text-[10px] ${tipo.className}`}>{tipo.label}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border">
-                    <span>{item.date} · {item.time}</span>
-                    <span className="font-semibold text-foreground">{item.calories} kcal</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-1">Resumen del impacto calórico</h4>
+            <p className="text-xs text-muted-foreground">{impactMessage}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Confirmados</p>
+              <p className="text-sm font-semibold text-foreground">{totalConfirmed}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Descartados</p>
+              <p className="text-sm font-semibold text-foreground">{totalDiscarded}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">% confirmación</p>
+              <p className="text-sm font-semibold text-foreground">{pctConfirmation}%</p>
+            </div>
+            <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Clase de impacto</p>
+              <p className="text-sm font-semibold text-foreground capitalize">{impact?.clasificacion_impacto || "Sin datos"}</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ── Deviation Table ── */}
+      <div>
+        <h4 className="text-sm font-semibold text-foreground mb-3">Registro de Consumos</h4>
+        {loading ? (
+          <div className="rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">Cargando consumos adicionales...</div>
+        ) : items.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">No hay consumos adicionales registrados para este paciente.</div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {items.map((item) => {
+              const itemImpact = impactConfig[item.impact];
+              return (
+                <div key={item.id} className="rounded-xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-lg hover:shadow-primary/5">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <img src={item.imageUrl} alt={item.name} className="h-32 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity" />
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg p-0 overflow-hidden">
+                      <img src={item.imageUrl} alt={item.name} className="w-full" />
+                    </DialogContent>
+                  </Dialog>
+                  <div className="p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="text-sm font-semibold text-foreground truncate">{item.name}</p>
+                      <Badge variant="outline" className={`text-[10px] shrink-0 ${itemImpact.className}`}>{itemImpact.label}</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className={`text-[10px] ${item.confirmed ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "bg-muted text-muted-foreground border-border"}`}>
+                        {item.confirmed ? "Confirmado" : "Pendiente"}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[10px] ${item.summed ? "bg-sky-500/15 text-sky-400 border-sky-500/30" : "bg-muted text-muted-foreground border-border"}`}>
+                        {item.summed ? "Sumado" : "No sumado"}
+                      </Badge>
+                    </div>
+                    <div className="space-y-1 text-xs text-muted-foreground pt-1 border-t border-border">
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{item.date} · {item.time}</span>
+                        <span className="font-semibold text-foreground">{item.calories} kcal</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span>Confianza</span>
+                        <span className="text-foreground">{item.confidence}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="rounded-xl border border-border bg-card p-5">
-        <h4 className="text-sm font-semibold text-foreground mb-1">Análisis de Desviación Calórica</h4>
-        <p className="text-xs text-muted-foreground mb-4">Comparativa plan vs consumo real incluyendo extras</p>
+        <h4 className="text-sm font-semibold text-foreground mb-1">Detalle de consumos adicionales</h4>
+        <p className="text-xs text-muted-foreground mb-4">Listado de registros recibidos desde el endpoint</p>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-border">
-                <TableHead className="text-xs">Día</TableHead>
-                <TableHead className="text-xs text-right">Planificadas</TableHead>
-                <TableHead className="text-xs text-right">Consumidas</TableHead>
-                <TableHead className="text-xs text-right">Adicionales</TableHead>
-                <TableHead className="text-xs text-right">Diferencia</TableHead>
-                <TableHead className="text-xs">Clasificación</TableHead>
+                <TableHead className="text-xs">Fecha</TableHead>
+                <TableHead className="text-xs">Descripción</TableHead>
+                <TableHead className="text-xs text-right">Calorías</TableHead>
+                <TableHead className="text-xs text-right">Porción</TableHead>
+                <TableHead className="text-xs text-right">Proteínas</TableHead>
+                <TableHead className="text-xs text-right">Carbohidratos</TableHead>
+                <TableHead className="text-xs text-right">Grasas</TableHead>
+                <TableHead className="text-xs text-right">Confianza</TableHead>
+                <TableHead className="text-xs">Estado</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {deviationData.map((row) => {
-                const diff = row.consumidas - row.planificadas;
-                const cls = clasificacionConfig[row.clasificacion];
+              {items.map((row) => {
+                const cls = impactConfig[row.impact];
                 return (
-                  <TableRow key={row.dia} className="border-border">
-                    <TableCell className="text-xs font-medium">{row.dia}</TableCell>
-                    <TableCell className="text-xs text-right">{row.planificadas}</TableCell>
-                    <TableCell className="text-xs text-right">{row.consumidas}</TableCell>
-                    <TableCell className="text-xs text-right text-accent font-medium">+{row.adicionales}</TableCell>
-                    <TableCell className={`text-xs text-right font-medium ${diff > 100 ? "text-accent" : diff > 0 ? "text-primary" : "text-emerald-400"}`}>
-                      {diff > 0 ? `+${diff}` : diff}
+                  <TableRow key={row.id} className="border-border">
+                    <TableCell className="text-xs font-medium">{formatDateTimeLabel(row.date, row.time)}</TableCell>
+                    <TableCell className="text-xs">{row.description}</TableCell>
+                    <TableCell className="text-xs text-right font-medium">{row.calories.toLocaleString()}</TableCell>
+                    <TableCell className="text-xs text-right">{row.portion}</TableCell>
+                    <TableCell className="text-xs text-right">{row.proteins}</TableCell>
+                    <TableCell className="text-xs text-right">{row.carbs}</TableCell>
+                    <TableCell className="text-xs text-right">{row.fats}</TableCell>
+                    <TableCell className="text-xs text-right">{row.confidence}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`text-xs font-medium ${cls.className}`}>{cls.label}</span>
+                        <span className={`text-xs font-medium ${row.confirmed ? "text-emerald-400" : "text-muted-foreground"}`}>{row.confirmed ? "Confirmado" : "Pendiente"}</span>
+                      </div>
                     </TableCell>
-                    <TableCell><span className={`text-xs font-medium ${cls.className}`}>{cls.label}</span></TableCell>
                   </TableRow>
                 );
               })}
               <TableRow className="border-border bg-muted/30">
                 <TableCell className="text-xs font-semibold">Acumulado</TableCell>
-                <TableCell className="text-xs text-right font-semibold">{deviationData.reduce((s, r) => s + r.planificadas, 0).toLocaleString()}</TableCell>
-                <TableCell className="text-xs text-right font-semibold">{deviationData.reduce((s, r) => s + r.consumidas, 0).toLocaleString()}</TableCell>
-                <TableCell className="text-xs text-right font-semibold text-accent">+{totalCals.toLocaleString()}</TableCell>
-                <TableCell className="text-xs text-right font-semibold text-accent">
-                  +{(deviationData.reduce((s, r) => s + r.consumidas, 0) - deviationData.reduce((s, r) => s + r.planificadas, 0)).toLocaleString()}
+                <TableCell className="text-xs font-semibold">{items.length} consumos</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{totalCals.toLocaleString()}</TableCell>
+                <TableCell className="text-xs text-right font-semibold">
+                  {items.reduce((sum, row) => sum + (row.portionValue ?? 0), 0).toLocaleString()} g
                 </TableCell>
+                <TableCell className="text-xs text-right font-semibold">{items.reduce((sum, row) => sum + (Number(row.proteins.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{items.reduce((sum, row) => sum + (Number(row.carbs.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{items.reduce((sum, row) => sum + (Number(row.fats.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{pctConfirmation}%</TableCell>
                 <TableCell />
               </TableRow>
             </TableBody>
@@ -237,35 +426,32 @@ export function TabConsumo() {
         </div>
       </div>
 
-      {/* ── Charts ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Bar chart - adicionales por día */}
         <div className="rounded-xl border border-border bg-card p-5">
-          <h4 className="text-sm font-semibold text-foreground mb-1">Calorías Adicionales por Día</h4>
-          <p className="text-xs text-muted-foreground mb-4">Identificación de patrones de consumo extra</p>
+          <h4 className="text-sm font-semibold text-foreground mb-1">Calorías Adicionales por Registro</h4>
+          <p className="text-xs text-muted-foreground mb-4">Cada barra corresponde a un consumo adicional real</p>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={acumuladoData} barGap={4}>
+            <BarChart data={chartData} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 16%)" vertical={false} />
               <XAxis dataKey="dia" tick={{ fontSize: 10, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} unit=" kcal" />
               <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="adicionales" name="Adicionales" fill="hsl(38 98% 40%)" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="adicionales" name="Calorías" fill="hsl(38 98% 40%)" radius={[4, 4, 0, 0]} maxBarSize={32} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Line chart - acumulado */}
         <div className="rounded-xl border border-border bg-card p-5">
           <h4 className="text-sm font-semibold text-foreground mb-1">Exceso Calórico Acumulado</h4>
-          <p className="text-xs text-muted-foreground mb-4">Tendencia de acumulación en el período</p>
+          <p className="text-xs text-muted-foreground mb-4">Tendencia de acumulación según consumos adicionales reales</p>
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={acumuladoData}>
+            <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 16%)" vertical={false} />
               <XAxis dataKey="dia" tick={{ fontSize: 10, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} unit=" kcal" />
               <Tooltip content={<ChartTooltip />} />
               <Line type="monotone" dataKey="acumulado" name="Acumulado" stroke="hsl(44 90% 46%)" strokeWidth={2} dot={{ fill: "hsl(44 90% 46%)", r: 4 }} />
-              <Line type="monotone" dataKey="adicionales" name="Día" stroke="hsl(38 98% 40%)" strokeWidth={1.5} strokeDasharray="4 4" dot={{ fill: "hsl(38 98% 40%)", r: 3 }} />
+              <Line type="monotone" dataKey="adicionales" name="Registro" stroke="hsl(38 98% 40%)" strokeWidth={1.5} strokeDasharray="4 4" dot={{ fill: "hsl(38 98% 40%)", r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>

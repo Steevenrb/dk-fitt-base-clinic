@@ -42,7 +42,12 @@ const mealPlan: Record<string, { comida: string; descripcion: string; kcal: numb
 
 const days = Object.keys(mealPlan);
 
-export function TabPlanes() {
+type TabPlanesProps = {
+  patientId?: number;
+  profileId?: number | null;
+};
+
+export function TabPlanes({ patientId: _patientId, profileId: _profileId }: TabPlanesProps) {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-border bg-card p-5">
