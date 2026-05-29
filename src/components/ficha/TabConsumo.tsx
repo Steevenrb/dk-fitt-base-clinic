@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { AlertTriangle, Flame, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -55,6 +55,7 @@ type AdditionalIntakeCard = {
   id: number;
   name: string;
   description: string;
+  rawDate: string;
   date: string;
   time: string;
   calories: number;
@@ -85,7 +86,7 @@ const ChartTooltip = ({ active, payload, label }: any) => {
       <p className="mb-1 text-xs font-semibold text-foreground">{label}</p>
       {payload.map((entry: any) => (
         <p key={entry.name} className="text-xs text-muted-foreground">
-          <span style={{ color: entry.color || entry.fill }}>■</span> {entry.name}: {entry.value} kcal
+          <span style={{ color: entry.color || entry.fill }}>â– </span> {entry.name}: {entry.value} kcal
         </p>
       ))}
     </div>
@@ -98,11 +99,38 @@ function formatDateLabel(value?: string | null): string {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("es-EC", { day: "2-digit", month: "short", year: "numeric" });
 }
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDateKey(value?: string | null): string {
+  if (!value) return "";
+  return String(value).split("T")[0];
+}
+
+function parseDateKey(value: string): Date {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getWeekRange(dateKey: string) {
+  const date = parseDateKey(dateKey);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const start = new Date(date);
+  start.setDate(date.getDate() + diff);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start: formatLocalDate(start), end: formatLocalDate(end) };
+}
 
 function formatDateTimeLabel(dateValue?: string | null, timeValue?: string | null): string {
   const datePart = formatDateLabel(dateValue);
   const timePart = timeValue ? timeValue.slice(0, 5) : "--:--";
-  return `${datePart} · ${timePart}`;
+  return `${datePart} HORA: ${timePart}`;
 }
 
 function formatValue(value?: number | null, unit = "g"): string {
@@ -148,6 +176,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
   const [items, setItems] = useState<AdditionalIntakeCard[]>([]);
   const [impact, setImpact] = useState<AdditionalIntakeImpactApi | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(() => formatLocalDate(new Date()));
   const resolvedPatientRefId = profileId ?? patientId;
 
   useEffect(() => {
@@ -188,6 +217,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
           id: item.id_consumo_adicional,
           name: item.descripcion_alimento || "Consumo adicional",
           description: item.descripcion_alimento || "Sin descripción",
+          rawDate: normalizeDateKey(item.fecha),
           date: formatDateLabel(item.fecha),
           time: item.hora ? item.hora.slice(0, 5) : "--:--",
           calories: item.calorias_estimadas ?? 0,
@@ -228,21 +258,27 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
     void fetchData();
   }, [resolvedPatientRefId, toast]);
 
-  const totalCals = impact?.calorias_totales ?? items.reduce((sum, item) => sum + item.calories, 0);
-  const avgDaily = impact?.promedio_por_dia ?? Math.round(totalCals / Math.max(items.length || 1, 1));
+  const dayItems = useMemo(() => items.filter((item) => item.rawDate === selectedDate), [items, selectedDate]);
+  const selectedWeek = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
+  const weekItems = useMemo(() => items
+    .filter((item) => item.rawDate >= selectedWeek.start && item.rawDate <= selectedWeek.end)
+    .sort((a, b) => `${a.rawDate} ${a.time}`.localeCompare(`${b.rawDate} ${b.time}`)), [items, selectedWeek]);
+  const dayTotalCals = dayItems.reduce((sum, item) => sum + item.calories, 0);
+  const weekTotalCals = weekItems.reduce((sum, item) => sum + item.calories, 0);
+  const avgDaily = Math.round(weekTotalCals / 7);
   const impactClass = buildImpactClass(impact?.clasificacion_impacto);
-  const deviationLevel = impact?.clasificacion_impacto
-    ? impact.clasificacion_impacto.charAt(0).toUpperCase() + impact.clasificacion_impacto.slice(1)
-    : totalCals > 1200 ? "Alto" : totalCals > 600 ? "Medio" : "Bajo";
+  const deviationLevel = weekTotalCals > 1200 ? "Alto" : weekTotalCals > 600 ? "Medio" : "Bajo";
+  const dayImpactLevel = dayTotalCals > 1200 ? "Alto" : dayTotalCals > 600 ? "Medio" : "Bajo";
   const deviationColor = deviationLevel === "Alto" ? "text-accent" : deviationLevel === "Medio" ? "text-primary" : "text-emerald-400";
-  const totalConfirmed = impact?.total_confirmados ?? items.filter((item) => item.confirmed).length;
-  const totalDiscarded = impact?.total_descartados ?? items.filter((item) => !item.confirmed).length;
+  const totalConfirmed = dayItems.filter((item) => item.confirmed).length;
+  const totalDiscarded = dayItems.filter((item) => !item.confirmed).length;
+  const dayPctConfirmation = dayItems.length > 0 ? Math.round((totalConfirmed / dayItems.length) * 100) : 0;
   const pctConfirmation = impact?.analisis?.pct_confirmacion ?? (items.length > 0 ? Math.round((totalConfirmed / items.length) * 100) : 0);
-  const impactMessage = impact?.analisis?.mensaje || "Sin análisis de impacto disponible.";
+  const impactMessage = impact?.analisis?.mensaje || "Sin anÃ¡lisis de impacto disponible.";
 
   const chartData = useMemo(() => {
     let accumulated = 0;
-    return items.map((item) => {
+    return weekItems.map((item) => {
       accumulated += item.calories;
       return {
         dia: `${item.date} ${item.time}`,
@@ -250,33 +286,30 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
         acumulado: accumulated,
       };
     });
-  }, [items]);
+  }, [weekItems]);
 
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Análisis de Consumo Adicional</h3>
-          <p className="text-xs text-muted-foreground mt-1">Alimentos y bebidas fuera del plan nutricional · datos del paciente seleccionado</p>
+          <p className="text-xs text-muted-foreground mt-1">Alimentos y bebidas fuera del plan nutricional</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Impacto</p>
-            <p className={`text-sm font-bold ${deviationColor}`}>{deviationLevel}</p>
-          </div>
-          <div className="h-8 w-px bg-border" />
-          <div className="text-right">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Exceso acumulado</p>
-            <p className={`text-lg font-bold ${totalCals > 1200 ? "text-accent" : "text-primary"}`}>{totalCals.toLocaleString()} kcal</p>
-          </div>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: "Calorías adicionales totales", value: `${totalCals.toLocaleString()} kcal`, icon: Flame, accent: true },
+          { label: "CalorÃ­as adicionales totales", value: `${weekTotalCals.toLocaleString()} kcal`, icon: Flame, accent: true },
           { label: "Promedio diario de exceso", value: `${avgDaily} kcal`, icon: TrendingUp, accent: avgDaily > 150 },
-          { label: "Registros de consumo", value: items.length.toString(), icon: UtensilsCrossed, accent: false },
+          { label: "Registros de consumo", value: weekItems.length.toString(), icon: UtensilsCrossed, accent: false },
           { label: "Clasificación de impacto", value: impact?.clasificacion_impacto || "Sin datos", icon: AlertTriangle, accent: impactClass === "alto" },
         ].map((kpi) => (
           <div key={kpi.label} className="rounded-xl border border-border bg-card p-4">
@@ -292,25 +325,23 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h4 className="text-sm font-semibold text-foreground mb-1">Resumen del impacto calórico</h4>
-            <p className="text-xs text-muted-foreground">{impactMessage}</p>
+            <h4 className="text-sm font-semibold text-foreground mb-1">Resumen de consumo por dia</h4>
+            <p className="text-xs text-muted-foreground">
+              Total del {formatDateLabel(selectedDate)}: {dayTotalCals.toLocaleString()} kcal en {dayItems.length} consumos adicionales.
+            </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Confirmados</p>
-              <p className="text-sm font-semibold text-foreground">{totalConfirmed}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Consumos diarios</p>
+              <p className="text-sm font-semibold text-foreground">{dayItems.length}</p>
             </div>
             <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Descartados</p>
-              <p className="text-sm font-semibold text-foreground">{totalDiscarded}</p>
-            </div>
-            <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">% confirmación</p>
-              <p className="text-sm font-semibold text-foreground">{pctConfirmation}%</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Calorias diarias</p>
+              <p className="text-sm font-semibold text-foreground">{dayTotalCals.toLocaleString()} kcal</p>
             </div>
             <div className="rounded-lg border border-border bg-background/40 px-3 py-2">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Clase de impacto</p>
-              <p className="text-sm font-semibold text-foreground capitalize">{impact?.clasificacion_impacto || "Sin datos"}</p>
+              <p className="text-sm font-semibold text-foreground">{dayImpactLevel}</p>
             </div>
           </div>
         </div>
@@ -320,11 +351,11 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
         <h4 className="text-sm font-semibold text-foreground mb-3">Registro de Consumos</h4>
         {loading ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">Cargando consumos adicionales...</div>
-        ) : items.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">No hay consumos adicionales registrados para este paciente.</div>
+        ) : dayItems.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">No hay consumos adicionales registrados para este dia.</div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {items.map((item) => {
+            {dayItems.map((item) => {
               const itemImpact = impactConfig[item.impact];
               return (
                 <div key={item.id} className="rounded-xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-lg hover:shadow-primary/5">
@@ -352,7 +383,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
                     </div>
                     <div className="space-y-1 text-xs text-muted-foreground pt-1 border-t border-border">
                       <div className="flex items-center justify-between gap-2">
-                        <span>{item.date} · {item.time}</span>
+                        <span>{item.date} HORA: {item.time}</span>
                         <span className="font-semibold text-foreground">{item.calories} kcal</span>
                       </div>
                       <div className="flex items-center justify-between gap-2">
@@ -387,7 +418,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((row) => {
+              {dayItems.map((row) => {
                 const cls = impactConfig[row.impact];
                 return (
                   <TableRow key={row.id} className="border-border">
@@ -410,15 +441,15 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
               })}
               <TableRow className="border-border bg-muted/30">
                 <TableCell className="text-xs font-semibold">Acumulado</TableCell>
-                <TableCell className="text-xs font-semibold">{items.length} consumos</TableCell>
-                <TableCell className="text-xs text-right font-semibold">{totalCals.toLocaleString()}</TableCell>
+                <TableCell className="text-xs font-semibold">{dayItems.length} consumos</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{dayTotalCals.toLocaleString()}</TableCell>
                 <TableCell className="text-xs text-right font-semibold">
-                  {items.reduce((sum, row) => sum + (row.portionValue ?? 0), 0).toLocaleString()} g
+                  {dayItems.reduce((sum, row) => sum + (row.portionValue ?? 0), 0).toLocaleString()} g
                 </TableCell>
-                <TableCell className="text-xs text-right font-semibold">{items.reduce((sum, row) => sum + (Number(row.proteins.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
-                <TableCell className="text-xs text-right font-semibold">{items.reduce((sum, row) => sum + (Number(row.carbs.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
-                <TableCell className="text-xs text-right font-semibold">{items.reduce((sum, row) => sum + (Number(row.fats.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
-                <TableCell className="text-xs text-right font-semibold">{pctConfirmation}%</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{dayItems.reduce((sum, row) => sum + (Number(row.proteins.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{dayItems.reduce((sum, row) => sum + (Number(row.carbs.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{dayItems.reduce((sum, row) => sum + (Number(row.fats.replace(/[^\d.-]/g, "")) || 0), 0).toLocaleString()} g</TableCell>
+                <TableCell className="text-xs text-right font-semibold">{dayPctConfirmation}%</TableCell>
                 <TableCell />
               </TableRow>
             </TableBody>
@@ -426,24 +457,10 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h4 className="text-sm font-semibold text-foreground mb-1">Calorías Adicionales por Registro</h4>
-          <p className="text-xs text-muted-foreground mb-4">Cada barra corresponde a un consumo adicional real</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={chartData} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 16%)" vertical={false} />
-              <XAxis dataKey="dia" tick={{ fontSize: 10, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} unit=" kcal" />
-              <Tooltip content={<ChartTooltip />} />
-              <Bar dataKey="adicionales" name="Calorías" fill="hsl(38 98% 40%)" radius={[4, 4, 0, 0]} maxBarSize={32} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
+      <div className="grid grid-cols-1 gap-6">
         <div className="rounded-xl border border-border bg-card p-5">
           <h4 className="text-sm font-semibold text-foreground mb-1">Exceso Calórico Acumulado</h4>
-          <p className="text-xs text-muted-foreground mb-4">Tendencia de acumulación según consumos adicionales reales</p>
+          <p className="text-xs text-muted-foreground mb-4">Tendencia acumulada de la semana seleccionada</p>
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 16%)" vertical={false} />

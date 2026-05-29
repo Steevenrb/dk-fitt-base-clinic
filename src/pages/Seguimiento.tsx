@@ -1,163 +1,133 @@
-import { useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Check, X, Utensils, Dumbbell, Scale, Activity } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Check, X, Utensils, Activity, Flame, CalendarDays, Search, Eye } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { apiRequest } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 
-// ── Data ──
+const ACCESS_TOKEN_KEY = "dkfitt-access-token";
+const PATIENTS_ENDPOINTS = ["/api/patients", "/patients", "/api/pacientes"];
 
-const weekDays = ["Lun 17", "Mar 18", "Mié 19", "Jue 20", "Vie 21", "Sáb 22", "Dom 23"];
-
-interface MealRecord {
+type PatientRow = {
+  id: number;
+  trackingId: number;
   name: string;
-  planned: string;
+  initials: string;
+  status: string;
+  adherence: string;
+  lastEvaluation: string;
+};
+
+type MealTrackingRow = {
+  id_seguimiento_comida?: number;
+  id_menu_diario?: number;
+  fecha_registro?: string;
+  realizado?: boolean;
+  hora_registro?: string;
+  nombre_plato?: string;
+  nombre_tiempo?: string;
+  calorias_aportadas?: number;
+  dia_semana?: string;
+  fecha_menu?: string;
+};
+
+type MealRecord = {
+  name: string;
+  plate: string;
   actual: string | null;
   done: boolean;
-  diff: string;
-}
+  calories: number;
+};
 
-interface ExerciseRecord {
-  name: string;
-  duration: string;
-  done: boolean;
-}
-
-interface DayData {
+type DayData = {
+  date: string;
   label: string;
+  shortLabel: string;
   meals: MealRecord[];
-  exercises: ExerciseRecord[];
-  weight: number;
-  weightDiff: number;
   mealPct: number;
-  exercisePct: number;
-}
+  plannedCalories: number;
+  registeredCalories: number;
+};
 
-const dailyData: DayData[] = [
-  {
-    label: "Lun 17 Mar",
-    meals: [
-      { name: "Desayuno", planned: "07:30", actual: "07:45", done: true, diff: "+15 min" },
-      { name: "Media mañana", planned: "10:00", actual: "10:20", done: true, diff: "+20 min" },
-      { name: "Almuerzo", planned: "13:30", actual: "13:35", done: true, diff: "+5 min" },
-      { name: "Merienda", planned: "16:00", actual: "16:10", done: true, diff: "+10 min" },
-      { name: "Cena", planned: "19:30", actual: "20:00", done: true, diff: "+30 min" },
-    ],
-    exercises: [
-      { name: "Caminata rápida 30 min", duration: "30 min", done: true },
-      { name: "Estiramientos", duration: "15 min", done: true },
-    ],
-    weight: 74.3, weightDiff: -0.2, mealPct: 100, exercisePct: 100,
-  },
-  {
-    label: "Mar 18 Mar",
-    meals: [
-      { name: "Desayuno", planned: "07:30", actual: "08:00", done: true, diff: "+30 min" },
-      { name: "Media mañana", planned: "10:00", actual: null, done: false, diff: "—" },
-      { name: "Almuerzo", planned: "13:30", actual: "14:00", done: true, diff: "+30 min" },
-      { name: "Merienda", planned: "16:00", actual: "16:30", done: true, diff: "+30 min" },
-      { name: "Cena", planned: "19:30", actual: "20:15", done: true, diff: "+45 min" },
-    ],
-    exercises: [
-      { name: "Rutina fuerza tren superior", duration: "40 min", done: true },
-      { name: "Estiramientos", duration: "15 min", done: false },
-    ],
-    weight: 74.1, weightDiff: -0.2, mealPct: 80, exercisePct: 50,
-  },
-  {
-    label: "Mié 19 Mar",
-    meals: [
-      { name: "Desayuno", planned: "07:30", actual: "07:40", done: true, diff: "+10 min" },
-      { name: "Media mañana", planned: "10:00", actual: "10:05", done: true, diff: "+5 min" },
-      { name: "Almuerzo", planned: "13:30", actual: "13:30", done: true, diff: "A tiempo" },
-      { name: "Merienda", planned: "16:00", actual: null, done: false, diff: "—" },
-      { name: "Cena", planned: "19:30", actual: null, done: false, diff: "—" },
-    ],
-    exercises: [
-      { name: "Caminata rápida 30 min", duration: "30 min", done: true },
-      { name: "Estiramientos", duration: "15 min", done: true },
-    ],
-    weight: 74.0, weightDiff: -0.1, mealPct: 60, exercisePct: 100,
-  },
-  {
-    label: "Jue 20 Mar",
-    meals: [
-      { name: "Desayuno", planned: "07:30", actual: "07:50", done: true, diff: "+20 min" },
-      { name: "Media mañana", planned: "10:00", actual: "10:15", done: true, diff: "+15 min" },
-      { name: "Almuerzo", planned: "13:30", actual: "13:45", done: true, diff: "+15 min" },
-      { name: "Merienda", planned: "16:00", actual: "16:00", done: true, diff: "A tiempo" },
-      { name: "Cena", planned: "19:30", actual: "19:45", done: true, diff: "+15 min" },
-    ],
-    exercises: [
-      { name: "Rutina fuerza tren inferior", duration: "40 min", done: true },
-      { name: "Estiramientos", duration: "15 min", done: true },
-    ],
-    weight: 73.8, weightDiff: -0.2, mealPct: 100, exercisePct: 100,
-  },
-  {
-    label: "Vie 21 Mar",
-    meals: [
-      { name: "Desayuno", planned: "07:30", actual: "08:10", done: true, diff: "+40 min" },
-      { name: "Media mañana", planned: "10:00", actual: null, done: false, diff: "—" },
-      { name: "Almuerzo", planned: "13:30", actual: "14:30", done: true, diff: "+60 min" },
-      { name: "Merienda", planned: "16:00", actual: null, done: false, diff: "—" },
-      { name: "Cena", planned: "19:30", actual: "21:00", done: true, diff: "+90 min" },
-    ],
-    exercises: [
-      { name: "Caminata rápida 30 min", duration: "30 min", done: false },
-      { name: "Estiramientos", duration: "15 min", done: false },
-    ],
-    weight: 74.1, weightDiff: 0.3, mealPct: 60, exercisePct: 0,
-  },
-  {
-    label: "Sáb 22 Mar",
-    meals: [
-      { name: "Desayuno", planned: "08:00", actual: "09:30", done: true, diff: "+90 min" },
-      { name: "Media mañana", planned: "10:30", actual: null, done: false, diff: "—" },
-      { name: "Almuerzo", planned: "14:00", actual: "14:20", done: true, diff: "+20 min" },
-      { name: "Merienda", planned: "16:30", actual: null, done: false, diff: "—" },
-      { name: "Cena", planned: "20:00", actual: "21:30", done: true, diff: "+90 min" },
-    ],
-    exercises: [
-      { name: "Bicicleta estática 25 min", duration: "25 min", done: true },
-    ],
-    weight: 74.2, weightDiff: 0.1, mealPct: 60, exercisePct: 100,
-  },
-  {
-    label: "Dom 23 Mar",
-    meals: [
-      { name: "Desayuno", planned: "08:00", actual: "10:00", done: true, diff: "+120 min" },
-      { name: "Media mañana", planned: "10:30", actual: null, done: false, diff: "—" },
-      { name: "Almuerzo", planned: "14:00", actual: "15:00", done: true, diff: "+60 min" },
-      { name: "Merienda", planned: "16:30", actual: null, done: false, diff: "—" },
-      { name: "Cena", planned: "20:00", actual: null, done: false, diff: "—" },
-    ],
-    exercises: [],
-    weight: 74.1, weightDiff: -0.1, mealPct: 40, exercisePct: 0,
-  },
-];
+const normalizeStatus = (value: unknown) => {
+  const raw = String(value ?? "").toLowerCase();
+  if (raw === "activo") return "Activo";
+  if (raw === "pendiente") return "Pendiente";
+  if (raw === "suspendido") return "Suspendido";
+  if (raw === "finalizado") return "Finalizado";
+  return "---";
+};
 
-const adherenceTrend = [
-  { semana: "Sem 1", alimentario: 85, ejercicio: 70, total: 80 },
-  { semana: "Sem 2", alimentario: 78, ejercicio: 65, total: 74 },
-  { semana: "Sem 3", alimentario: 82, ejercicio: 80, total: 81 },
-  { semana: "Sem 4", alimentario: 75, ejercicio: 60, total: 70 },
-  { semana: "Sem 5", alimentario: 88, ejercicio: 75, total: 84 },
-  { semana: "Sem 6", alimentario: 72, ejercicio: 55, total: 67 },
-  { semana: "Actual", alimentario: 71, ejercicio: 64, total: 69 },
-];
+const normalizeAdherence = (value: unknown) => {
+  const raw = String(value ?? "").toLowerCase();
+  if (raw === "alto" || raw === "alta") return "Alta";
+  if (raw === "medio" || raw === "media") return "Media";
+  if (raw === "bajo" || raw === "baja") return "Baja";
+  return "---";
+};
 
-const comparisonData = weekDays.map((d, i) => ({
-  dia: d,
-  Planificadas: 1750,
-  Consumidas: [1720, 1890, 1480, 1760, 2100, 2280, 1350][i],
-}));
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
-// ── Helpers ──
+const parseDateKey = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const formatDate = (value: unknown) => {
+  if (!value) return "---";
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return "---";
+  return date.toLocaleDateString("es-EC", { year: "numeric", month: "2-digit", day: "2-digit" });
+};
+
+const formatDisplayDate = (value: string) =>
+  parseDateKey(value).toLocaleDateString("es-EC", { day: "2-digit", month: "long", year: "numeric" });
+
+const formatShortDate = (value: string) =>
+  parseDateKey(value).toLocaleDateString("es-EC", { weekday: "short", day: "2-digit" });
+
+const formatTime = (value?: string | null) => {
+  if (!value) return null;
+  const [hour = "", minute = ""] = value.split(":");
+  return hour && minute ? `${hour}:${minute}` : value;
+};
+
+const toInitials = (name: string) => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "P";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+};
+
+const getWeekDates = (dateKey = formatLocalDate(new Date())) => {
+  const date = parseDateKey(dateKey);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + diff);
+  return Array.from({ length: 7 }, (_, index) => {
+    const current = new Date(monday);
+    current.setDate(monday.getDate() + index);
+    return formatLocalDate(current);
+  });
+};
+
+const getDayIndex = (dateKey = formatLocalDate(new Date())) => {
+  const day = parseDateKey(dateKey).getDay();
+  return day === 0 ? 6 : day - 1;
+};
 
 const getLevel = (pct: number) => {
   if (pct >= 80) return { label: "Alta", className: "bg-primary/15 text-primary border-primary/30" };
@@ -174,61 +144,302 @@ const ChartTooltip = ({ active, payload, label }: any) => {
       <p className="mb-1 text-xs font-semibold text-foreground">{label}</p>
       {payload.map((p: any) => (
         <p key={p.name} className="text-xs text-muted-foreground">
-          <span style={{ color: p.color || p.fill }}>●</span> {p.name}: {p.value}{typeof p.value === "number" && p.value <= 100 ? "%" : " kcal"}
+          <span style={{ color: p.color || p.fill }}>●</span> {p.name}: {p.value}{p.name?.toLowerCase().includes("adherencia") ? "%" : " kcal"}
         </p>
       ))}
     </div>
   );
 };
 
-// ── Component ──
+async function requestWithFallback<T>(paths: string[], token: string): Promise<T> {
+  let lastError: unknown;
+  for (const path of paths) {
+    try {
+      return await apiRequest<T>(path, { method: "GET", accessToken: token });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+function extractList(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) return raw as Record<string, unknown>[];
+  if (!raw || typeof raw !== "object") return [];
+  const root = raw as Record<string, unknown>;
+  if (Array.isArray(root.data)) return root.data as Record<string, unknown>[];
+  if (Array.isArray(root.patients)) return root.patients as Record<string, unknown>[];
+  if (Array.isArray(root.pacientes)) return root.pacientes as Record<string, unknown>[];
+  if (root.data && typeof root.data === "object") {
+    const data = root.data as Record<string, unknown>;
+    if (Array.isArray(data.patients)) return data.patients as Record<string, unknown>[];
+    if (Array.isArray(data.pacientes)) return data.pacientes as Record<string, unknown>[];
+    if (Array.isArray(data.items)) return data.items as Record<string, unknown>[];
+    if (Array.isArray(data.results)) return data.results as Record<string, unknown>[];
+  }
+  return [];
+}
+
+function extractMealRows(raw: unknown): MealTrackingRow[] {
+  if (Array.isArray(raw)) return raw as MealTrackingRow[];
+  if (!raw || typeof raw !== "object") return [];
+  const data = (raw as { data?: unknown }).data;
+  return Array.isArray(data) ? data as MealTrackingRow[] : [];
+}
+
+function mapPatient(item: Record<string, unknown>, index: number): PatientRow {
+  const nombres = String(item.nombres ?? item.nombre ?? "").trim();
+  const apellidos = String(item.apellidos ?? "").trim();
+  const name = `${nombres} ${apellidos}`.trim() || String(item.nombre_completo ?? item.name ?? "Paciente");
+  const id = Number(item.id_usuario ?? item.id_paciente ?? item.id ?? index + 1);
+  const trackingId = Number(item.id_perfil ?? item.perfil_id ?? item.profile_id ?? item.id_paciente ?? id);
+
+  return {
+    id,
+    trackingId,
+    name,
+    initials: toInitials(name),
+    status: normalizeStatus(item.estado_tratamiento ?? item.estado_plan ?? item.estado),
+    adherence: normalizeAdherence(item.nivel_adherencia ?? item.adherencia ?? item.adherence_level),
+    lastEvaluation: formatDate(item.ultima_evaluacion ?? item.fecha_ultima_evaluacion ?? item.last_evaluation_date),
+  };
+}
+
+const mapMealsToDay = (date: string, rows: MealTrackingRow[]): DayData => {
+  const meals = rows.map((row) => ({
+    name: row.nombre_tiempo || "Comida",
+    plate: row.nombre_plato || "Sin nombre de plato",
+    actual: formatTime(row.hora_registro),
+    done: row.realizado === true,
+    calories: Number(row.calorias_aportadas ?? 0),
+  }));
+  const done = meals.filter((meal) => meal.done).length;
+  const mealPct = meals.length > 0 ? Math.round((done / meals.length) * 100) : 0;
+  const plannedCalories = meals.reduce((sum, meal) => sum + meal.calories, 0);
+  const registeredCalories = meals.reduce((sum, meal) => sum + (meal.done ? meal.calories : 0), 0);
+
+  return {
+    date,
+    label: formatDisplayDate(date),
+    shortLabel: formatShortDate(date),
+    meals,
+    mealPct,
+    plannedCalories,
+    registeredCalories,
+  };
+};
 
 const Seguimiento = () => {
-  const navigate = useNavigate();
-  const [selectedDay, setSelectedDay] = useState(3); // Jueves
-  const day = dailyData[selectedDay];
+  const { toast } = useToast();
+  const [patients, setPatients] = useState<PatientRow[]>([]);
+  const [loadingPatients, setLoadingPatients] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selectedPatient, setSelectedPatient] = useState<PatientRow | null>(null);
+  const [selectedDay, setSelectedDay] = useState(() => getDayIndex());
+  const [weekDates, setWeekDates] = useState(() => getWeekDates());
+  const [dailyData, setDailyData] = useState<DayData[]>([]);
+  const [loadingTracking, setLoadingTracking] = useState(false);
 
-  const weekMealAvg = Math.round(dailyData.reduce((s, d) => s + d.mealPct, 0) / dailyData.length);
-  const weekExAvg = Math.round(dailyData.reduce((s, d) => s + d.exercisePct, 0) / dailyData.length);
-  const weekTotal = Math.round((weekMealAvg + weekExAvg) / 2);
-  const dayTotal = day.exercises.length > 0 ? Math.round((day.mealPct + day.exercisePct) / 2) : day.mealPct;
+  useEffect(() => {
+    const fetchPatients = async () => {
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (!token) {
+        setLoadingPatients(false);
+        toast({ title: "Sesion no valida", description: "No se encontro token de acceso.", variant: "destructive" });
+        return;
+      }
+
+      setLoadingPatients(true);
+      try {
+        const response = await requestWithFallback<unknown>(PATIENTS_ENDPOINTS, token);
+        setPatients(extractList(response).map((item, index) => mapPatient(item, index)));
+      } catch {
+        setPatients([]);
+        toast({
+          title: "No se pudo cargar pacientes",
+          description: "Verifica que el endpoint GET /patients este disponible para nutricionista.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingPatients(false);
+      }
+    };
+
+    void fetchPatients();
+  }, [toast]);
+
+  useEffect(() => {
+    const fetchTracking = async () => {
+      if (!selectedPatient) return;
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (!token) return;
+
+      setLoadingTracking(true);
+      try {
+        const results = await Promise.all(weekDates.map(async (date) => {
+          const response = await apiRequest<unknown>(
+            `/meal-tracking/patient/${selectedPatient.trackingId}?fecha=${date}`,
+            { method: "GET", accessToken: token },
+          );
+          return mapMealsToDay(date, extractMealRows(response));
+        }));
+        setDailyData(results);
+      } catch {
+        setDailyData(weekDates.map((date) => mapMealsToDay(date, [])));
+        toast({
+          title: "No se pudo cargar seguimiento",
+          description: "Verifica endpoint GET /meal-tracking/patient/{id}?fecha=YYYY-MM-DD.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingTracking(false);
+      }
+    };
+
+    void fetchTracking();
+  }, [selectedPatient, weekDates, toast]);
+
+  const filteredPatients = useMemo(() => {
+    const q = search.toLowerCase();
+    return patients.filter((patient) => patient.name.toLowerCase().includes(q));
+  }, [patients, search]);
+
+  const day = dailyData[selectedDay] ?? mapMealsToDay(weekDates[selectedDay] ?? formatLocalDate(new Date()), []);
+  const weekMealAvg = dailyData.length > 0
+    ? Math.round(dailyData.reduce((sum, item) => sum + item.mealPct, 0) / dailyData.length)
+    : 0;
+  const weekCalories = dailyData.reduce((sum, item) => sum + item.registeredCalories, 0);
+  const totalMeals = dailyData.reduce((sum, item) => sum + item.meals.length, 0);
+  const totalDoneMeals = dailyData.reduce((sum, item) => sum + item.meals.filter((meal) => meal.done).length, 0);
 
   const kpis = [
     { label: "Cumplimiento Alimentario", value: `${weekMealAvg}%`, icon: Utensils, high: weekMealAvg >= 70 },
-    { label: "Cumplimiento Ejercicios", value: `${weekExAvg}%`, icon: Dumbbell, high: weekExAvg >= 70 },
-    { label: "Adherencia Total", value: `${weekTotal}%`, icon: Activity, high: weekTotal >= 70 },
-    { label: "Peso Actual / Objetivo", value: "74.1 / 70.0 kg", icon: Scale, high: true, sub: "-4.1 kg restantes" },
+    { label: "Comidas Cumplidas", value: `${totalDoneMeals}/${totalMeals}`, icon: Check, high: totalMeals > 0 && totalDoneMeals / totalMeals >= 0.7 },
+    { label: "Calorias Registradas", value: `${weekCalories.toLocaleString()} kcal`, icon: Flame, high: true },
+    { label: "Dias con Registro", value: `${dailyData.filter((item) => item.meals.length > 0).length}/7`, icon: CalendarDays, high: true },
   ];
+
+  const chartData = dailyData.map((item) => ({
+    dia: item.shortLabel,
+    Adherencia: item.mealPct,
+    Planificadas: item.plannedCalories,
+    Registradas: item.registeredCalories,
+  }));
+
+  if (!selectedPatient) {
+    return (
+      <AppLayout>
+        <div className="space-y-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-foreground">Seguimiento</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Selecciona un paciente para revisar su seguimiento alimentario.</p>
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar paciente..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-muted pl-9 text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-card">
+            <div className="border-b border-border px-5 py-4">
+              <p className="text-xs text-muted-foreground">{filteredPatients.length} pacientes disponibles</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Paciente</th>
+                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Estado</th>
+                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Adherencia</th>
+                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Ultima Evaluacion</th>
+                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Accion</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingPatients && (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted-foreground">Cargando pacientes...</td>
+                    </tr>
+                  )}
+                  {!loadingPatients && filteredPatients.map((patient) => (
+                    <tr key={patient.id} className="border-b border-border transition-colors last:border-0 hover:bg-muted/30">
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8 border border-border">
+                            <AvatarFallback className="bg-muted text-xs font-semibold text-foreground">{patient.initials}</AvatarFallback>
+                          </Avatar>
+                          <p className="font-medium text-foreground">{patient.name}</p>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3"><Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[11px]">{patient.status}</Badge></td>
+                      <td className="px-5 py-3"><Badge variant="outline" className={`text-[11px] ${getLevel(patient.adherence === "Alta" ? 90 : patient.adherence === "Media" ? 60 : 30).className}`}>{patient.adherence}</Badge></td>
+                      <td className="px-5 py-3 text-muted-foreground">{patient.lastEvaluation}</td>
+                      <td className="px-5 py-3">
+                        <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-primary" onClick={() => setSelectedPatient(patient)}>
+                          <Eye className="h-3.5 w-3.5" />
+                          Ver seguimiento
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!loadingPatients && filteredPatients.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted-foreground">No se encontraron pacientes.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/pacientes")} className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="icon" onClick={() => setSelectedPatient(null)} className="text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-bold text-foreground">Seguimiento — María González</h1>
-                <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[11px]">Activo</Badge>
-                <Badge variant="outline" className={`text-[11px] ${getLevel(weekTotal).className}`}>{getLevel(weekTotal).label}</Badge>
+                <h1 className="text-xl font-bold text-foreground">Seguimiento - {selectedPatient.name}</h1>
+                <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[11px]">{selectedPatient.status}</Badge>
+                <Badge variant="outline" className={`text-[11px] ${getLevel(weekMealAvg).className}`}>{getLevel(weekMealAvg).label}</Badge>
               </div>
-              <p className="text-sm text-muted-foreground mt-0.5">Semana del 17 al 23 de marzo 2026</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Semana del {formatDisplayDate(weekDates[0])} al {formatDisplayDate(weekDates[6])}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={weekDates[selectedDay]}
+              onChange={(e) => {
+                setWeekDates(getWeekDates(e.target.value));
+                setSelectedDay(getDayIndex(e.target.value));
+              }}
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
             <div className="text-right mr-2">
-              <p className={`text-3xl font-bold ${pctColor(weekTotal)}`}>{weekTotal}%</p>
+              <p className={`text-3xl font-bold ${pctColor(weekMealAvg)}`}>{weekMealAvg}%</p>
               <p className="text-[11px] text-muted-foreground">adherencia semanal</p>
             </div>
-            {/* Day selector */}
             <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedDay(Math.max(0, selectedDay - 1))}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-xs font-medium text-foreground px-2 min-w-[80px] text-center">{day.label}</span>
+              <span className="text-xs font-medium text-foreground px-2 min-w-[100px] text-center">{day.shortLabel}</span>
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedDay(Math.min(6, selectedDay + 1))}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -236,7 +447,6 @@ const Seguimiento = () => {
           </div>
         </div>
 
-        {/* KPIs */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {kpis.map((k) => (
             <div key={k.label} className="rounded-xl border border-border bg-card p-5">
@@ -247,158 +457,109 @@ const Seguimiento = () => {
                 </div>
               </div>
               <p className={`mt-3 text-3xl font-bold ${k.high ? "text-foreground" : "text-accent"}`}>{k.value}</p>
-              {k.sub && <p className="mt-1 text-xs text-muted-foreground">{k.sub}</p>}
             </div>
           ))}
         </div>
 
-        {/* Daily detail */}
+        {loadingTracking && (
+          <div className="rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">Cargando seguimiento alimentario...</div>
+        )}
+
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          {/* Meals */}
-          <div className="rounded-xl border border-border bg-card">
+          <div className="rounded-xl border border-border bg-card xl:col-span-2">
             <div className="border-b border-border px-5 py-4">
-              <h3 className="text-sm font-semibold text-foreground">Comidas del Día</h3>
+              <h3 className="text-sm font-semibold text-foreground">Comidas del Dia</h3>
               <p className="text-xs text-muted-foreground">{day.meals.filter((m) => m.done).length} de {day.meals.length} cumplidas</p>
             </div>
             <div className="divide-y divide-border">
-              {day.meals.map((m) => (
-                <div key={m.name} className="flex items-center gap-3 px-5 py-3">
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.done ? "bg-emerald-500/15 text-emerald-400" : "bg-accent/15 text-accent"}`}>
-                    {m.done ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+              {day.meals.length === 0 ? (
+                <div className="px-5 py-8 text-center text-sm text-muted-foreground">No hay registros de comidas para este dia.</div>
+              ) : day.meals.map((meal, index) => (
+                <div key={`${meal.name}-${index}`} className="flex items-center gap-3 px-5 py-3">
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${meal.done ? "bg-emerald-500/15 text-emerald-400" : "bg-accent/15 text-accent"}`}>
+                    {meal.done ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${m.done ? "text-foreground" : "text-muted-foreground"}`}>{m.name}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Plan: {m.planned} {m.actual && `· Real: ${m.actual}`}
-                    </p>
+                    <p className={`text-sm font-medium ${meal.done ? "text-foreground" : "text-muted-foreground"}`}>{meal.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{meal.plate}</p>
                   </div>
-                  <span className={`text-[11px] font-medium shrink-0 ${m.done ? (m.diff === "A tiempo" || m.diff.includes("+5") || m.diff.includes("+10") || m.diff.includes("+15") ? "text-primary" : "text-accent") : "text-muted-foreground"}`}>
-                    {m.diff}
-                  </span>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-medium text-foreground">{meal.calories} kcal</p>
+                    <p className="text-[11px] text-muted-foreground">{meal.actual ?? "--:--"}</p>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Exercises */}
-          <div className="rounded-xl border border-border bg-card">
-            <div className="border-b border-border px-5 py-4">
-              <h3 className="text-sm font-semibold text-foreground">Ejercicios del Día</h3>
-              <p className="text-xs text-muted-foreground">
-                {day.exercises.length > 0 ? `${day.exercises.filter((e) => e.done).length} de ${day.exercises.length} completados` : "Sin ejercicios programados"}
-              </p>
-            </div>
-            {day.exercises.length > 0 ? (
-              <div className="divide-y divide-border">
-                {day.exercises.map((e) => (
-                  <div key={e.name} className="flex items-center gap-3 px-5 py-3">
-                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${e.done ? "bg-emerald-500/15 text-emerald-400" : "bg-accent/15 text-accent"}`}>
-                      {e.done ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
-                    </div>
-                    <div className="flex-1">
-                      <p className={`text-sm ${e.done ? "text-foreground" : "text-muted-foreground"}`}>{e.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{e.duration}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="px-5 py-8 text-center text-sm text-muted-foreground">Día de descanso</div>
-            )}
-
-            {/* Weight */}
-            <div className="border-t border-border px-5 py-4">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Peso del Día</p>
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold text-foreground">{day.weight} kg</span>
-                <div className={`flex items-center gap-1 ${day.weightDiff <= 0 ? "text-emerald-400" : "text-accent"}`}>
-                  {day.weightDiff <= 0 ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
-                  <span className="text-sm font-semibold">{day.weightDiff > 0 ? "+" : ""}{day.weightDiff} kg</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Adherence indicators */}
           <div className="rounded-xl border border-border bg-card p-5 space-y-5">
             <h3 className="text-sm font-semibold text-foreground">Indicadores de Adherencia</h3>
-
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Cumplimiento diario</span>
-                  <span className={`font-semibold ${pctColor(dayTotal)}`}>{dayTotal}%</span>
+                  <span className={`font-semibold ${pctColor(day.mealPct)}`}>{day.mealPct}%</span>
                 </div>
-                <Progress value={dayTotal} className="h-3" />
-                <p className={`text-[11px] font-medium ${pctColor(dayTotal)}`}>{getLevel(dayTotal).label}</p>
+                <Progress value={day.mealPct} className="h-3" />
+                <p className={`text-[11px] font-medium ${pctColor(day.mealPct)}`}>{getLevel(day.mealPct).label}</p>
               </div>
-
               <div className="space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Cumplimiento semanal</span>
-                  <span className={`font-semibold ${pctColor(weekTotal)}`}>{weekTotal}%</span>
+                  <span className={`font-semibold ${pctColor(weekMealAvg)}`}>{weekMealAvg}%</span>
                 </div>
-                <Progress value={weekTotal} className="h-3" />
-                <p className={`text-[11px] font-medium ${pctColor(weekTotal)}`}>{getLevel(weekTotal).label}</p>
+                <Progress value={weekMealAvg} className="h-3" />
+                <p className={`text-[11px] font-medium ${pctColor(weekMealAvg)}`}>{getLevel(weekMealAvg).label}</p>
               </div>
             </div>
 
-            {/* Per-day mini bars */}
             <div className="space-y-2 pt-2">
-              <p className="text-xs font-medium text-muted-foreground">Adherencia por día</p>
-              {dailyData.map((dd, i) => {
-                const t = dd.exercises.length > 0 ? Math.round((dd.mealPct + dd.exercisePct) / 2) : dd.mealPct;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedDay(i)}
-                    className={`w-full flex items-center gap-3 rounded-md px-2 py-1 transition-colors ${i === selectedDay ? "bg-muted" : "hover:bg-muted/30"}`}
-                  >
-                    <span className="text-[11px] text-muted-foreground w-14 text-left shrink-0">{weekDays[i]}</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className={`h-full rounded-full ${t >= 70 ? "bg-primary" : "bg-accent"}`} style={{ width: `${t}%` }} />
-                    </div>
-                    <span className={`text-[11px] font-medium w-8 text-right ${pctColor(t)}`}>{t}%</span>
-                  </button>
-                );
-              })}
+              <p className="text-xs font-medium text-muted-foreground">Adherencia por dia</p>
+              {dailyData.map((dd, i) => (
+                <button
+                  key={dd.date}
+                  onClick={() => setSelectedDay(i)}
+                  className={`w-full flex items-center gap-3 rounded-md px-2 py-1 transition-colors ${i === selectedDay ? "bg-muted" : "hover:bg-muted/30"}`}
+                >
+                  <span className="text-[11px] text-muted-foreground w-16 text-left shrink-0">{dd.shortLabel}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div className={`h-full rounded-full ${dd.mealPct >= 70 ? "bg-primary" : "bg-accent"}`} style={{ width: `${dd.mealPct}%` }} />
+                  </div>
+                  <span className={`text-[11px] font-medium w-8 text-right ${pctColor(dd.mealPct)}`}>{dd.mealPct}%</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Analysis */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          {/* Adherence trend */}
           <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-1 text-sm font-semibold text-foreground">Adherencia en el Tiempo</h3>
-            <p className="mb-5 text-xs text-muted-foreground">Últimas 7 semanas</p>
+            <h3 className="mb-1 text-sm font-semibold text-foreground">Adherencia Alimentaria Semanal</h3>
+            <p className="mb-5 text-xs text-muted-foreground">Porcentaje de comidas realizadas por dia</p>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={adherenceTrend}>
+              <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 16%)" />
-                <XAxis dataKey="semana" tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="dia" tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} domain={[0, 100]} unit="%" />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="alimentario" name="Alimentario" stroke="#e5b106" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="ejercicio" name="Ejercicio" stroke="#cc8c02" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="total" name="Total" stroke="#a3a3a3" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="Adherencia" name="Adherencia" stroke="#e5b106" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Plan vs execution */}
           <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-1 text-sm font-semibold text-foreground">Plan vs Ejecución Real</h3>
-            <p className="mb-5 text-xs text-muted-foreground">Calorías planificadas vs consumidas esta semana</p>
+            <h3 className="mb-1 text-sm font-semibold text-foreground">Calorias Planificadas vs Registradas</h3>
+            <p className="mb-5 text-xs text-muted-foreground">Comparacion semanal entre calorias del plan y comidas realizadas</p>
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={comparisonData} barGap={4}>
+              <BarChart data={chartData} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 16%)" vertical={false} />
                 <XAxis dataKey="dia" tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend verticalAlign="top" align="right" iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11 }} />
                 <Bar dataKey="Planificadas" fill="#e5b106" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="Consumidas" fill="#cc8c02" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="Registradas" fill="#cc8c02" radius={[4, 4, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </div>

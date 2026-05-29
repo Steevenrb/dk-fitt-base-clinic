@@ -186,7 +186,7 @@ const FichaPaciente = () => {
           <TabsContent value="perfil"><TabPerfilClinico patientId={patientId} /></TabsContent>
           <TabsContent value="evaluaciones"><TabEvaluaciones patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="plan"><TabPlanes patientId={patientId} profileId={header.profileId} /></TabsContent>
-          <TabsContent value="seguimiento"><TabSeguimiento /></TabsContent>
+          <TabsContent value="seguimiento"><TabSeguimiento patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="consumo"><TabConsumo patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="alertas"><TabAlertas /></TabsContent>
           <TabsContent value="citas"><TabCitas /></TabsContent>
