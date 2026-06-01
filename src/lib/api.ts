@@ -176,7 +176,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     requestHeaders["Content-Type"] = "application/json";
   }
 
-  const storedToken = accessToken || localStorage.getItem(ACCESS_TOKEN_KEY) || undefined;
+  const isLoginRequest = path.includes("/auth/login");
+  const storedToken = !isLoginRequest ? accessToken || localStorage.getItem(ACCESS_TOKEN_KEY) || undefined : undefined;
 
   if (storedToken) {
     requestHeaders.Authorization = `Bearer ${storedToken}`;

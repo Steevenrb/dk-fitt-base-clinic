@@ -36,7 +36,7 @@ function extractMessage(error: unknown): string {
 
 export default function ChangePasswordRequired() {
   const navigate = useNavigate();
-  const { user, clearPasswordChangeRequirement, logout } = useAuth();
+  const { user, login, clearPasswordChangeRequirement, logout } = useAuth();
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -71,6 +71,17 @@ export default function ChangePasswordRequired() {
           contrasena_nueva: newPassword,
         },
       });
+
+      if (user?.email) {
+        const session = await login(user.email, newPassword);
+        if (!session.success) {
+          setSuccess("Contrasena actualizada correctamente.");
+          setError("La contrasena se actualizo, pero no se pudo renovar la sesion automaticamente. Inicia sesion nuevamente con tu nueva contrasena.");
+          logout();
+          navigate("/login", { replace: true });
+          return;
+        }
+      }
 
       clearPasswordChangeRequirement();
       setSuccess("Contrasena actualizada correctamente.");
