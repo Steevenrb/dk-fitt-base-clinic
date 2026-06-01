@@ -49,12 +49,12 @@ export default function ChangePasswordRequired() {
   const [success, setSuccess] = useState("");
 
   const strongEnough =
-    newPassword.length >= 8 &&
-    /[A-Z]/.test(newPassword) &&
-    /[0-9]/.test(newPassword) &&
-    /[^A-Za-z0-9]/.test(newPassword);
+    newPassword.trim().length >= 8 &&
+    /[A-Z]/.test(newPassword.trim()) &&
+    /[0-9]/.test(newPassword.trim()) &&
+    /[^A-Za-z0-9]/.test(newPassword.trim());
 
-  const canSubmit = currentPassword && newPassword && confirmPassword && strongEnough && newPassword === confirmPassword;
+  const canSubmit = currentPassword.trim() && newPassword.trim() && confirmPassword.trim() && strongEnough && newPassword.trim() === confirmPassword.trim();
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -64,37 +64,15 @@ export default function ChangePasswordRequired() {
     setSuccess("");
 
     try {
-      const payloads = [
-        {
-          contrasena_actual: currentPassword,
-          contrasena_nueva: newPassword,
+      const accessToken = localStorage.getItem("dkfitt-access-token") || undefined;
+      await apiRequest("/auth/change-password", {
+        method: "PATCH",
+        accessToken,
+        body: {
+          contrasena_actual: currentPassword.trim(),
+          contrasena_nueva: newPassword.trim(),
         },
-        {
-          contrasena_actual: currentPassword,
-          nueva_contrasena: newPassword,
-        },
-        {
-          current_password: currentPassword,
-          new_password: newPassword,
-        },
-      ];
-      let lastError: unknown = null;
-
-      for (const body of payloads) {
-        try {
-          await apiRequest("/api/auth/change-password", {
-            method: "PATCH",
-            body,
-          });
-          lastError = null;
-          break;
-        } catch (e) {
-          lastError = e;
-          if (!(e instanceof ApiError) || e.status !== 400) throw e;
-        }
-      }
-
-      if (lastError) throw lastError;
+      });
 
       clearPasswordChangeRequirement();
       setSuccess("Contrasena actualizada correctamente.");
