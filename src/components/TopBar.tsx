@@ -1,10 +1,10 @@
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Bell, CheckCircle2, LogOut, User, Lock } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, ApiError } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
@@ -131,6 +131,7 @@ export function TopBar({ children }: TopBarProps) {
   const [alerts, setAlerts] = useState<ApiAlert[]>([]);
   const [pendingAlerts, setPendingAlerts] = useState(0);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const lastAlertsLoadRef = useRef(0);
 
   useEffect(() => {
     let isActive = true;
@@ -159,9 +160,12 @@ export function TopBar({ children }: TopBarProps) {
     };
   }, []);
 
-  const loadAlerts = async () => {
+  const loadAlerts = async (force = false) => {
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
     if (!token) return;
+    const now = Date.now();
+    if (!force && now - lastAlertsLoadRef.current < 120_000) return;
+    lastAlertsLoadRef.current = now;
 
     setLoadingAlerts(true);
     try {
@@ -175,7 +179,8 @@ export function TopBar({ children }: TopBarProps) {
       const visibleAlerts = nextAlerts.filter((alert) => !readIds.includes(alert.id_alerta_sistema));
       setAlerts(visibleAlerts);
       setPendingAlerts(visibleAlerts.filter((alert) => !alert.revisada).length);
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 429) return;
       setAlerts([]);
       setPendingAlerts(0);
     } finally {
@@ -185,7 +190,7 @@ export function TopBar({ children }: TopBarProps) {
 
   useEffect(() => {
     void loadAlerts();
-    const intervalId = window.setInterval(() => void loadAlerts(), 180_000);
+    const intervalId = window.setInterval(() => void loadAlerts(), 600_000);
     let lastFocusLoad = 0;
     const handleFocus = () => {
       const now = Date.now();
@@ -225,7 +230,7 @@ export function TopBar({ children }: TopBarProps) {
         </div>
 
         <div className="flex items-center gap-3 shrink-0 ml-4">
-          <DropdownMenu onOpenChange={(open) => { if (open) void loadAlerts(); }}>
+          <DropdownMenu onOpenChange={(open) => { if (open) void loadAlerts(true); }}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
                 <Bell className="h-5 w-5" />

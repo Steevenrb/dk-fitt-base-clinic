@@ -6,7 +6,7 @@ import { WeightChart, type DashboardWeightPoint, type WeightPatientOption } from
 import { CaloriesChart, type DashboardCaloriePoint } from "@/components/dashboard/CaloriesChart";
 import { PatientsTable, type DashboardPatient } from "@/components/dashboard/PatientsTable";
 import { AlertsPanel, type DashboardAlert } from "@/components/dashboard/AlertsPanel";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
@@ -186,6 +186,25 @@ async function requestWithBaseFallback(bases: string[], buildPath: (base: string
   throw lastError;
 }
 
+function isApiStatus(error: unknown, status: number): boolean {
+  return error instanceof ApiError && error.status === status;
+}
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+async function settleSequential<T, R>(items: T[], mapper: (item: T) => Promise<R>, delayMs = 120): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (const item of items) {
+    try {
+      results.push({ status: "fulfilled", value: await mapper(item) });
+    } catch (reason) {
+      results.push({ status: "rejected", reason });
+    }
+    if (delayMs > 0) await wait(delayMs);
+  }
+  return results;
+}
+
 function buildKpis(patients: DashboardPatientRow[], alerts: ApiAlert[]): DashboardKpi[] {
   const activePatients = patients.filter((patient) => patient.status === "activo");
   const adherenceAvg = activePatients.length
@@ -348,7 +367,7 @@ const Index = () => {
   const [loadingCalories, setLoadingCalories] = useState(true);
 
   useEffect(() => {
-    let lastRefresh = 0;
+    let lastRefresh = Date.now();
     const refreshDashboard = (force = false) => {
       const now = Date.now();
       if (!force && now - lastRefresh < 60_000) return;
@@ -365,7 +384,7 @@ const Index = () => {
     window.addEventListener("dkfitt-patient-data-updated", throttledRefreshDashboard);
     window.addEventListener("dkfitt-plan-data-updated", forceRefreshDashboard);
     document.addEventListener("visibilitychange", refreshWhenVisible);
-    const intervalId = window.setInterval(refreshDashboard, 180000);
+    const intervalId = window.setInterval(refreshDashboard, 600000);
 
     return () => {
       window.removeEventListener("focus", throttledRefreshDashboard);
@@ -414,24 +433,30 @@ const Index = () => {
         setAlerts(alertRows);
         setLoadingMain(false);
 
-        if (patientsResult.status === "rejected") {
-          toast({ title: "No se pudo cargar pacientes", description: "Verifica endpoint GET /patients.", variant: "destructive" });
+        if (patientsResult.status === "rejected" && !isApiStatus(patientsResult.reason, 429)) {
+          toast({ title: "No se pudo cargar pacientes", description: "Intenta actualizar la pagina en unos momentos.", variant: "destructive" });
         }
 
-        const chartPatients = patientRowsWithOverrides.filter((patient) => patient.trackingId && patient.status === "activo");
+        const activeChartPatients = patientRowsWithOverrides.filter((patient) => patient.trackingId && patient.status === "activo");
+        const savedWeightIds = readSavedWeightSelection();
+        const chartPatients = (
+          savedWeightIds.length > 0
+            ? activeChartPatients.filter((patient) => savedWeightIds.includes(String(patient.trackingId || patient.id))).slice(0, 3)
+            : activeChartPatients.slice(0, 3)
+        );
         const caloriePatients = patientRowsWithOverrides.filter((patient) => patient.trackingId && patient.status === "activo");
 
         const [weightResults, calorieResults] = await Promise.all([
-          Promise.allSettled(chartPatients.map(async (patient) => {
+          settleSequential(chartPatients, async (patient) => {
             const raw = await requestWithBaseFallback(WEIGHT_RECORDS_CHART_ENDPOINTS, (base) => `${base}/patient/${patient.trackingId}/chart`, token);
             const rows = extractWeightRows(raw)
               .sort((a, b) => new Date(String(a.fecha ?? a.fecha_registro ?? a.date ?? a.created_at ?? "")).getTime() - new Date(String(b.fecha ?? b.fecha_registro ?? b.date ?? b.created_at ?? "")).getTime())
               .slice(-8);
             return { patient, rows };
-          })),
-          Promise.allSettled(caloriePatients.map((patient) =>
+          }),
+          settleSequential(caloriePatients, (patient) =>
             requestWithBaseFallback(CALORIE_CONTROL_PATIENT_ENDPOINTS, (base) => `${base}/${patient.trackingId}/history`, token)
-          )),
+          ),
         ]);
 
         const weightsByPatient = weightResults
@@ -455,12 +480,14 @@ const Index = () => {
         if (cancelled) return;
         setCalorieData(buildCalorieChart(calorieHistories, weekDates));
         setLoadingCalories(false);
-      } catch {
-        toast({
-          title: "No se pudo cargar dashboard",
-          description: "Verifica los endpoints de pacientes, alertas, evaluaciones y balance calorico.",
-          variant: "destructive",
-        });
+      } catch (error) {
+        if (!isApiStatus(error, 429)) {
+          toast({
+            title: "No se pudo actualizar el dashboard",
+            description: "Intenta nuevamente en unos momentos.",
+            variant: "destructive",
+          });
+        }
       } finally {
         if (!cancelled) {
           setLoadingMain(false);
