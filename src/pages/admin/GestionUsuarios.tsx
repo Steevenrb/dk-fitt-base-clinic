@@ -31,11 +31,35 @@ interface UsuarioGestion {
 }
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
-const DEFAULT_TEMP_PASSWORD = "NutriTemp2024!";
-
 const ADMIN_LIST_ENDPOINTS = ["/api/admin/users", "/admin/users", "/api/admin/usuarios", "/api/users"];
 const CREATE_NUTRI_ENDPOINT = "/api/admin/nutritionists";
 const UPDATE_USER_ENDPOINTS = ["/api/admin/users", "/admin/users", "/api/admin/usuarios"];
+
+function generateTemporaryPassword(): string {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const numbers = "23456789";
+  const special = "!@#$%&*?";
+  const all = `${upper}${lower}${numbers}${special}`;
+  const bytes = new Uint32Array(14);
+  crypto.getRandomValues(bytes);
+  const chars = [
+    upper[bytes[0] % upper.length],
+    lower[bytes[1] % lower.length],
+    numbers[bytes[2] % numbers.length],
+    special[bytes[3] % special.length],
+  ];
+
+  for (let i = 4; i < bytes.length; i += 1) {
+    chars.push(all[bytes[i] % all.length]);
+  }
+
+  return chars
+    .map((char, index) => ({ char, sort: bytes[index] }))
+    .sort((a, b) => a.sort - b.sort)
+    .map((item) => item.char)
+    .join("");
+}
 
 function formatDateTime(value?: string | null): string {
   if (!value) return "—";
@@ -208,7 +232,7 @@ export default function GestionUsuarios() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [successKind, setSuccessKind] = useState<"create" | "reset">("create");
   const [copied, setCopied] = useState(false);
-  const [generatedPassword, setGeneratedPassword] = useState(DEFAULT_TEMP_PASSWORD);
+  const [generatedPassword, setGeneratedPassword] = useState("");
 
   // Form
   const [fNombres, setFNombres] = useState("");
@@ -347,9 +371,13 @@ export default function GestionUsuarios() {
 
     setIsSubmitting(true);
     try {
+      const temporaryPassword = generateTemporaryPassword();
       const payload = {
         correo_institucional: fCorreo,
-        contrasena_temporal: DEFAULT_TEMP_PASSWORD,
+        contrasena_temporal: temporaryPassword,
+        password_temporal: temporaryPassword,
+        requiere_cambio_contrasena: true,
+        enviar_correo: true,
         nombres: fNombres,
         apellidos: fApellidos,
         edad,
@@ -363,14 +391,27 @@ export default function GestionUsuarios() {
         },
       };
 
-      const res = await apiRequest<{ success?: boolean; data?: { temporary_password?: string }; temporary_password?: string }>(CREATE_NUTRI_ENDPOINT, {
+      const res = await apiRequest<{
+        success?: boolean;
+        data?: { temporary_password?: string; contrasena_temporal?: string; password_temporal?: string };
+        temporary_password?: string;
+        contrasena_temporal?: string;
+        password_temporal?: string;
+      }>(CREATE_NUTRI_ENDPOINT, {
         method: "POST",
         accessToken: token,
         body: payload,
       });
 
-      const temporaryPassword = res?.data?.temporary_password || res?.temporary_password || DEFAULT_TEMP_PASSWORD;
-      setGeneratedPassword(temporaryPassword);
+      setGeneratedPassword(
+        res?.data?.temporary_password ||
+        res?.data?.contrasena_temporal ||
+        res?.data?.password_temporal ||
+        res?.temporary_password ||
+        res?.contrasena_temporal ||
+        res?.password_temporal ||
+        temporaryPassword
+      );
       setSuccessKind("create");
       setShowCreate(false);
       clearForm();
@@ -468,6 +509,10 @@ export default function GestionUsuarios() {
         password_temporal?: string;
       }>(UPDATE_USER_ENDPOINTS, `/${showReset.id}/reset-password`, token, {
         method: "POST",
+        body: {
+          requiere_cambio_contrasena: true,
+          enviar_correo: true,
+        },
       });
       setGeneratedPassword(
         res?.data?.temporary_password ||
@@ -476,7 +521,7 @@ export default function GestionUsuarios() {
         res?.temporary_password ||
         res?.contrasena_temporal ||
         res?.password_temporal ||
-        DEFAULT_TEMP_PASSWORD
+        ""
       );
       setShowReset(null);
       setSuccessKind("reset");
@@ -632,15 +677,23 @@ export default function GestionUsuarios() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{successKind === "create" ? "Cuenta creada exitosamente" : "Contraseña reseteada"}</DialogTitle>
-            <DialogDescription>Se ha generado una contraseña temporal para el usuario.</DialogDescription>
+            <DialogDescription>Se genero una contrasena temporal y el usuario debera cambiarla al iniciar sesion.</DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-2 p-3 rounded-md bg-muted border border-border">
-            <code className="flex-1 text-sm font-mono text-foreground">{generatedPassword}</code>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={copyPassword}>
-              {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">El usuario deberá cambiarla en su primer inicio de sesión.</p>
+          {generatedPassword ? (
+            <>
+              <div className="flex items-center gap-2 p-3 rounded-md bg-muted border border-border">
+                <code className="flex-1 text-sm font-mono text-foreground">{generatedPassword}</code>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={copyPassword}>
+                  {copied ? <Check className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Si el backend envia correos, esta clave tambien debe llegar al correo del usuario.</p>
+            </>
+          ) : (
+            <div className="rounded-md border border-primary/20 bg-primary/10 p-3 text-sm text-primary">
+              La nueva contrasena temporal fue enviada al correo del usuario.
+            </div>
+          )}
           <DialogFooter><Button onClick={() => setShowSuccess(false)} className="bg-primary text-primary-foreground">Entendido</Button></DialogFooter>
         </DialogContent>
       </Dialog>
