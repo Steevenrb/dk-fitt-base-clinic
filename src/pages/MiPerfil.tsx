@@ -24,6 +24,7 @@ import {
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const PROFILE_ENDPOINTS = ["/api/nutritionist-profile/me", "/nutritionist-profile/me"];
 const ME_ENDPOINTS = ["/api/auth/me", "/auth/me"];
+const CHANGE_PASSWORD_ENDPOINT = "/auth/change-password";
 
 const emptyProfile = {
   nombres: "",
@@ -169,6 +170,7 @@ export default function MiPerfil() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showCloseAll, setShowCloseAll] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   const strength = getStrength(pwNew);
   const reqs = [
@@ -291,17 +293,47 @@ export default function MiPerfil() {
     }
   };
 
-  const updatePassword = () => {
-    if (pwCurrent !== "nutri") {
-      toast({ title: "La contraseña actual no es correcta", variant: "destructive" });
+  const updatePasswordViaApi = async () => {
+    if (!pwCurrent.trim() || !pwNew.trim()) {
+      toast({ title: "Completa la contrasena actual y la nueva", variant: "destructive" });
       return;
     }
     if (!pwMatch) {
-      toast({ title: "Las contraseñas no coinciden", variant: "destructive" });
+      toast({ title: "Las contrasenas no coinciden", variant: "destructive" });
       return;
     }
-    toast({ title: "Contraseña actualizada correctamente ✓" });
-    setPwCurrent(""); setPwNew(""); setPwConfirm("");
+    if (!allReqsMet) {
+      toast({ title: "La nueva contrasena no cumple los requisitos", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setIsUpdatingPassword(true);
+      await apiRequest(CHANGE_PASSWORD_ENDPOINT, {
+        method: "PATCH",
+        body: {
+          contrasena_actual: pwCurrent,
+          contrasena_nueva: pwNew,
+        },
+      });
+      toast({ title: "Contrasena actualizada correctamente" });
+      setPwCurrent("");
+      setPwNew("");
+      setPwConfirm("");
+    } catch (error) {
+      let message = "No se pudo actualizar la contrasena.";
+      if (error instanceof ApiError) {
+        const payloadError = error.payload as { message?: string | string[]; error?: string } | null;
+        if (Array.isArray(payloadError?.message)) {
+          message = payloadError.message.join(" | ");
+        } else {
+          message = payloadError?.message || payloadError?.error || error.message || message;
+        }
+      }
+      toast({ title: "Error al actualizar contrasena", description: message, variant: "destructive" });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   const handleCloseAll = () => {
@@ -455,8 +487,8 @@ export default function MiPerfil() {
                     {pwConfirm && !pwMatch && <p className="text-xs text-destructive">Las contraseñas no coinciden</p>}
                   </div>
 
-                  <Button onClick={updatePassword} disabled={!allReqsMet || !pwMatch || !pwCurrent} className="bg-primary text-primary-foreground">
-                    Actualizar contraseña
+                  <Button onClick={updatePasswordViaApi} disabled={!allReqsMet || !pwMatch || !pwCurrent || isUpdatingPassword} className="bg-primary text-primary-foreground">
+                    {isUpdatingPassword ? "Actualizando..." : "Actualizar contraseña"}
                   </Button>
                 </CardContent>
               </Card>

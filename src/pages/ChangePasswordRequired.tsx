@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { API_BASE_URL, ApiError } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 
 function extractMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return "No se pudo actualizar la contrasena.";
@@ -64,26 +64,13 @@ export default function ChangePasswordRequired() {
     setSuccess("");
 
     try {
-      const accessToken = localStorage.getItem("dkfitt-access-token") || "";
-      const body = {
-        contrasena_actual: currentPassword.trim(),
-        contrasena_nueva: newPassword.trim(),
-      };
-      const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+      await apiRequest("/auth/change-password", {
         method: "PATCH",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        body: {
+          contrasena_actual: currentPassword,
+          contrasena_nueva: newPassword,
         },
-        body: JSON.stringify(body),
       });
-      const text = await response.text();
-      const parsed = text ? JSON.parse(text) : null;
-
-      if (!response.ok) {
-        throw new ApiError(response.statusText || "No se pudo actualizar la contrasena.", response.status, parsed);
-      }
 
       clearPasswordChangeRequirement();
       setSuccess("Contrasena actualizada correctamente.");
