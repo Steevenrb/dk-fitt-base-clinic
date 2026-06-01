@@ -15,6 +15,7 @@ export default function Login() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [loginNotice, setLoginNotice] = useState("");
   const [loginErrors, setLoginErrors] = useState<{ email?: string; password?: string }>({});
 
   const { login } = useAuth();
@@ -32,6 +33,13 @@ export default function Login() {
     const expired = localStorage.getItem("dkfitt-session-expired");
     const params = new URLSearchParams(window.location.search);
     const reason = params.get("reason");
+    const passwordChanged = params.get("passwordChanged");
+    if (passwordChanged === "true") {
+      setLoginNotice("Contrasena actualizada correctamente. Inicia sesion con tu nueva contrasena.");
+      params.delete("passwordChanged");
+      const next = params.toString();
+      window.history.replaceState({}, "", next ? `${window.location.pathname}?${next}` : window.location.pathname);
+    }
     const resolvedReason = reason || expired;
     if (resolvedReason === "inactive" || resolvedReason === "token") {
       localStorage.removeItem("dkfitt-session-expired");
@@ -54,6 +62,7 @@ export default function Login() {
     if (!loginPassword.trim()) errs.password = "Este campo es obligatorio";
     setLoginErrors(errs);
     setLoginError("");
+    setLoginNotice("");
     if (Object.keys(errs).length) return;
 
     setLoading(true);
@@ -137,6 +146,11 @@ export default function Login() {
                 {loginError && (
                   <div className="rounded-md bg-accent/20 border border-accent p-3 text-sm text-accent-foreground">
                     {loginError}
+                  </div>
+                )}
+                {loginNotice && (
+                  <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-700">
+                    {loginNotice}
                   </div>
                 )}
 

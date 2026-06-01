@@ -36,7 +36,7 @@ function extractMessage(error: unknown): string {
 
 export default function ChangePasswordRequired() {
   const navigate = useNavigate();
-  const { user, login, clearPasswordChangeRequirement, logout } = useAuth();
+  const { logout } = useAuth();
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -72,20 +72,8 @@ export default function ChangePasswordRequired() {
         },
       });
 
-      if (user?.email) {
-        const session = await login(user.email, newPassword);
-        if (!session.success) {
-          setSuccess("Contrasena actualizada correctamente.");
-          setError("La contrasena se actualizo, pero no se pudo renovar la sesion automaticamente. Inicia sesion nuevamente con tu nueva contrasena.");
-          logout();
-          navigate("/login", { replace: true });
-          return;
-        }
-      }
-
-      clearPasswordChangeRequirement();
-      setSuccess("Contrasena actualizada correctamente.");
-      navigate(user?.role === "admin" ? "/admin" : "/", { replace: true });
+      logout();
+      navigate("/login?passwordChanged=true", { replace: true });
     } catch (e) {
       console.error("Change password error payload:", e instanceof ApiError ? e.payload : e);
       setError(extractMessage(e));
