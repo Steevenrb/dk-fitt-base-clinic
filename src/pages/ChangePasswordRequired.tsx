@@ -69,7 +69,7 @@ export default function ChangePasswordRequired() {
           method: "PATCH",
           body: {
             contrasena_actual: currentPassword,
-            nueva_contrasena: newPassword,
+            contrasena_nueva: newPassword,
           },
         });
       } catch (e) {
