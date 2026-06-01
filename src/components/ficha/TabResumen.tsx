@@ -13,6 +13,7 @@ const CLINICAL_EVALUATION_ENDPOINTS = [
   "/clinical-evaluation",
 ];
 const WEIGHT_RECORDS_CHART_ENDPOINTS = ["/api/weight-records", "/weight-records"];
+const CALORIE_CONTROL_PATIENT_ENDPOINTS = ["/api/calorie-control/patient", "/calorie-control/patient"];
 
 type SummaryMetric = {
   label: string;
@@ -176,14 +177,41 @@ function extractArray(source: unknown, keys: string[] = ["items", "rows", "resul
   return [];
 }
 
-function buildBalanceView(source: unknown): BalanceView {
-  const planned = parseNumber(findFirstValue(source, ["calorias_planificadas", "calorias_planeadas", "calorias_objetivo", "planned_calories", "target_calories"]));
-  const consumed = parseNumber(findFirstValue(source, ["calorias_consumidas", "calorias_reales", "consumed_calories", "real_calories"]));
-  const balance = parseNumber(findFirstValue(source, ["balance_calorico", "caloric_balance", "balance", "diferencia_calorica", "delta_calorias"]));
+function getLatestBalanceRecord(source: unknown): unknown {
+  const records = extractArray(source, ["data", "items", "rows", "results", "history"]);
+  if (records.length === 0) return undefined;
+  return records
+    .slice()
+    .sort((left, right) =>
+      new Date(String(findFirstValue(right, ["fecha", "date", "created_at"]) ?? "")).getTime()
+      - new Date(String(findFirstValue(left, ["fecha", "date", "created_at"]) ?? "")).getTime()
+    )[0];
+}
 
-  const inferredBalance = balance ?? ((consumed !== undefined && planned !== undefined) ? consumed - planned : undefined);
-  const balanceLabel = inferredBalance === undefined ? "Sin datos" : inferredBalance > 0 ? "Superavit leve" : inferredBalance < 0 ? "Deficit leve" : "Equilibrio";
-  const balanceSub = inferredBalance === undefined ? "No se encontro balance semanal" : `${formatDelta(inferredBalance, " kcal/dia", 0)}`;
+function buildBalanceView(todaySource: unknown, historySource?: unknown): BalanceView {
+  const today = unwrapData(todaySource);
+  const balanceSource = findFirstValue(today, ["balance"]) ?? today ?? getLatestBalanceRecord(historySource);
+  const historyLatest = getLatestBalanceRecord(historySource);
+  const source = balanceSource || historyLatest;
+
+  const planned = parseNumber(findFirstValue(source, ["calorias_objetivo", "meta_calorica", "calorias_planificadas", "calorias_planeadas", "planned_calories", "target_calories"]));
+  const consumed = parseNumber(findFirstValue(source, ["calorias_totales_consumidas", "calorias_consumidas", "calorias_reales", "consumed_calories", "real_calories"]));
+  const remaining = parseNumber(findFirstValue(source, ["calorias_restantes"]));
+  const progress = parseNumber(findFirstValue(source, ["progreso_pct"]));
+  const estado = String(findFirstValue(source, ["estado"]) ?? "").toLowerCase();
+  const explicitBalance = parseNumber(findFirstValue(source, ["balance_calorico", "caloric_balance", "diferencia_calorica", "delta_calorias"]));
+
+  const inferredBalance = explicitBalance ?? ((consumed !== undefined && planned !== undefined) ? consumed - planned : remaining !== undefined ? -remaining : undefined);
+  const balanceLabel = inferredBalance === undefined
+    ? "Sin datos"
+    : estado === "exceso" || inferredBalance > 0
+      ? "Exceso"
+      : estado === "equilibrio" || inferredBalance === 0
+        ? "Equilibrio"
+        : "Deficit";
+  const balanceSub = inferredBalance === undefined
+    ? "No se encontro balance calorico"
+    : `${formatDelta(inferredBalance, " kcal", 0)}${progress !== undefined ? ` · ${Math.round(progress)}% de la meta` : ""}`;
 
   return {
     planned: formatNumber(planned, " kcal"),
@@ -227,7 +255,7 @@ function getLatestEvaluations(source: unknown): Record<string, unknown>[] {
     .slice(0, 2);
 }
 
-function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, weightChartSource: unknown): SummaryView {
+function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, weightChartSource: unknown, calorieTodaySource?: unknown, calorieHistorySource?: unknown): SummaryView {
   const dashboard = unwrapData(dashboardSource);
   const latestEvaluations = getLatestEvaluations(evaluationsSource);
   const latest = latestEvaluations[0];
@@ -304,7 +332,7 @@ function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, 
       variacionTotal: formatDelta(variacionTotal, " kg"),
       periodoDias: periodoDias === undefined ? "---" : formatNumber(periodoDias, " dias", 0),
     },
-    balance: buildBalanceView(dashboard),
+    balance: buildBalanceView(calorieTodaySource ?? dashboard, calorieHistorySource),
   };
 }
 
@@ -381,17 +409,26 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
 
       const resolvedEvaluationId = profileId ?? patientId;
       const resolvedWeightId = profileId ?? patientId;
-      const [dashboardResult, evaluationsResult, weightChartResult] = await Promise.allSettled([
+      const resolvedCalorieId = profileId ?? patientId;
+      const [dashboardResult, evaluationsResult, weightChartResult, calorieTodayResult, calorieHistoryResult] = await Promise.allSettled([
         requestWithFallback(DASHBOARD_PATIENT_ENDPOINTS, (base) => `${base}/${patientId}`, token),
         requestWithFallback(CLINICAL_EVALUATION_ENDPOINTS, (base) => `${base}/patient/${resolvedEvaluationId}`, token),
         requestWithFallback(WEIGHT_RECORDS_CHART_ENDPOINTS, (base) => `${base}/patient/${resolvedWeightId}/chart`, token),
+        requestWithFallback(CALORIE_CONTROL_PATIENT_ENDPOINTS, (base) => `${base}/${resolvedCalorieId}/today`, token),
+        requestWithFallback(CALORIE_CONTROL_PATIENT_ENDPOINTS, (base) => `${base}/${resolvedCalorieId}/history`, token),
       ]);
 
-      if (dashboardResult.status === "rejected" && evaluationsResult.status === "rejected" && weightChartResult.status === "rejected") {
+      if (
+        dashboardResult.status === "rejected"
+        && evaluationsResult.status === "rejected"
+        && weightChartResult.status === "rejected"
+        && calorieTodayResult.status === "rejected"
+        && calorieHistoryResult.status === "rejected"
+      ) {
         setSummary(defaultSummary());
         toast({
           title: "No se pudo cargar el resumen",
-          description: "Verifica los endpoints /dashboard/patient/{id}, /clinical-evaluation/patient/{id} y /weight-records/patient/{id}/chart.",
+          description: "Verifica los endpoints de resumen, evaluaciones, peso y balance calorico.",
           variant: "destructive",
         });
         return;
@@ -401,6 +438,8 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
         dashboardResult.status === "fulfilled" ? dashboardResult.value : undefined,
         evaluationsResult.status === "fulfilled" ? evaluationsResult.value : undefined,
         weightChartResult.status === "fulfilled" ? weightChartResult.value : undefined,
+        calorieTodayResult.status === "fulfilled" ? calorieTodayResult.value : undefined,
+        calorieHistoryResult.status === "fulfilled" ? calorieHistoryResult.value : undefined,
       ));
     };
 

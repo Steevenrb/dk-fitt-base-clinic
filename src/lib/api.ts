@@ -17,17 +17,151 @@ export class ApiError extends Error {
 type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
   accessToken?: string;
+  skipAuthRefresh?: boolean;
+};
+
+const ACCESS_TOKEN_KEY = "dkfitt-access-token";
+const REFRESH_TOKEN_KEY = "dkfitt-refresh-token";
+const AUTH_STORAGE_KEY = "dkfitt-auth";
+const FORCE_PASSWORD_CHANGE_KEY = "dkfitt-force-password-change";
+const SESSION_EXPIRED_KEY = "dkfitt-session-expired";
+
+type RefreshResponse = {
+  data?: {
+    access_token?: string;
+    accessToken?: string;
+    refresh_token?: string;
+    refreshToken?: string;
+  };
+  access_token?: string;
+  accessToken?: string;
+  refresh_token?: string;
+  refreshToken?: string;
+};
+
+let refreshPromise: Promise<string | null> | null = null;
+
+const normalizePath = (path: string) => {
+  if (API_BASE_URL.endsWith("/api") && path.startsWith("/api/")) {
+    return path.slice(4);
+  }
+  return path;
+};
+
+const buildUrl = (path: string) => {
+  const normalizedPath = normalizePath(path);
+  return `${API_BASE_URL}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`;
+};
+
+const clearStoredSession = (reason: "token" | "inactive" = "token") => {
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(FORCE_PASSWORD_CHANGE_KEY);
+    localStorage.setItem(SESSION_EXPIRED_KEY, reason);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("dkfitt-auth-expired"));
+    }
+  } catch {
+    // Ignore storage errors.
+  }
+};
+
+const redirectToLogin = (reason: "token" | "inactive" = "token") => {
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    window.location.assign(`/login?reason=${reason}`);
+  }
+};
+
+const forceLogoutForExpiredToken = () => {
+  clearStoredSession("token");
+  redirectToLogin("token");
+};
+
+const parseJsonSafely = (text: string) => {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
+const extractRefreshTokens = (payload: RefreshResponse | null) => {
+  const accessToken = payload?.data?.access_token || payload?.data?.accessToken || payload?.access_token || payload?.accessToken || null;
+  const refreshToken = payload?.data?.refresh_token || payload?.data?.refreshToken || payload?.refresh_token || payload?.refreshToken || null;
+  return { accessToken, refreshToken };
+};
+
+const requestTokenRefresh = async () => {
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!refreshToken) return null;
+
+  const refreshPaths = ["/auth/refresh", "/auth/refresh-token"];
+  let lastError: unknown = null;
+
+  for (const path of refreshPaths) {
+    try {
+      const response = await fetch(buildUrl(path), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: refreshToken, refreshToken }),
+      });
+
+      const parsed = parseJsonSafely(await response.text()) as RefreshResponse | null;
+      if (!response.ok) {
+        lastError = new ApiError(response.statusText || "No se pudo refrescar la sesion", response.status, parsed);
+        continue;
+      }
+
+      const tokens = extractRefreshTokens(parsed);
+      if (!tokens.accessToken) {
+        lastError = new ApiError("La respuesta de refresh no incluyo access token", response.status, parsed);
+        continue;
+      }
+
+      localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
+      if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+      return tokens.accessToken;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+};
+
+export const refreshAccessToken = async () => {
+  if (!refreshPromise) {
+    refreshPromise = requestTokenRefresh()
+      .catch(() => null)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+};
+
+export const getJwtExpirationMs = (token: string | null) => {
+  if (!token) return null;
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
+    const decoded = JSON.parse(atob(padded));
+    return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
 };
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { body, accessToken, headers, ...rest } = options;
-
-  const normalizedPath = (() => {
-    if (API_BASE_URL.endsWith("/api") && path.startsWith("/api/")) {
-      return path.slice(4);
-    }
-    return path;
-  })();
+  const { body, accessToken, headers, skipAuthRefresh, ...rest } = options;
 
   const requestHeaders: Record<string, string> = {
     Accept: "application/json",
@@ -42,38 +176,45 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     requestHeaders["Content-Type"] = "application/json";
   }
 
-  if (accessToken) {
-    requestHeaders.Authorization = `Bearer ${accessToken}`;
+  const storedToken = accessToken || localStorage.getItem(ACCESS_TOKEN_KEY) || undefined;
+
+  if (storedToken) {
+    requestHeaders.Authorization = `Bearer ${storedToken}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${normalizedPath.startsWith("/") ? normalizedPath : `/${normalizedPath}`}`, {
+  const response = await fetch(buildUrl(path), {
     ...rest,
     headers: requestHeaders,
     body: body === undefined ? undefined : shouldJsonEncode ? JSON.stringify(body) : (body as BodyInit),
   });
 
   const text = await response.text();
-  const parsed = text ? JSON.parse(text) : null;
+  const parsed = parseJsonSafely(text);
 
   if (!response.ok) {
-    const shouldForceLogout = response.status === 401;
-    if (shouldForceLogout && !path.includes("/auth/login")) {
-      try {
-        localStorage.removeItem("dkfitt-auth");
-        localStorage.removeItem("dkfitt-access-token");
-        localStorage.removeItem("dkfitt-refresh-token");
-        localStorage.removeItem("dkfitt-force-password-change");
-        localStorage.setItem("dkfitt-session-expired", "token");
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("dkfitt-auth-expired"));
-        }
-      } catch {
-        // Ignore storage errors.
-      }
+    const canRefresh =
+      response.status === 401
+      && !skipAuthRefresh
+      && !path.includes("/auth/login")
+      && !path.includes("/auth/refresh")
+      && !path.includes("/auth/logout")
+      && !!localStorage.getItem(REFRESH_TOKEN_KEY);
 
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-        window.location.assign("/login?reason=token");
+    if (canRefresh) {
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        return apiRequest<T>(path, {
+          ...rest,
+          body,
+          headers,
+          accessToken: newToken,
+          skipAuthRefresh: true,
+        });
       }
+    }
+
+    if (response.status === 401 && !path.includes("/auth/login")) {
+      forceLogoutForExpiredToken();
     }
 
     const message = (parsed as { message?: string } | null)?.message || response.statusText || "Error de API";

@@ -1,14 +1,14 @@
 import { AlertTriangle, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-interface Patient {
+export interface DashboardPatient {
   name: string;
-  adherence: "alto" | "medio" | "bajo";
+  adherence: "alto" | "medio" | "bajo" | "sin-plan";
   lastRecord: string;
   hasAlert: boolean;
 }
 
-const patients: Patient[] = [
+const defaultPatients: DashboardPatient[] = [
   { name: "María García López", adherence: "alto", lastRecord: "22 Mar 2026", hasAlert: false },
   { name: "Carlos Ramírez Torres", adherence: "medio", lastRecord: "21 Mar 2026", hasAlert: true },
   { name: "Ana Lucía Mendoza", adherence: "alto", lastRecord: "22 Mar 2026", hasAlert: false },
@@ -23,17 +23,18 @@ const adherenceBadge = {
   alto: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   medio: "bg-primary/15 text-primary border-primary/30",
   bajo: "bg-accent/20 text-accent border-accent/30",
+  "sin-plan": "bg-muted text-muted-foreground border-border",
 };
 
-const adherenceLabel = { alto: "Alto", medio: "Medio", bajo: "Bajo" };
+const adherenceLabel = { alto: "Alto", medio: "Medio", bajo: "Bajo", "sin-plan": "Sin plan" };
 
-export function PatientsTable() {
+export function PatientsTable({ patients = defaultPatients, loading = false }: { patients?: DashboardPatient[]; loading?: boolean }) {
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Vista Rápida de Pacientes</h3>
-          <p className="text-xs text-muted-foreground">{patients.length} pacientes registrados</p>
+          <p className="text-xs text-muted-foreground">{loading ? "Cargando pacientes..." : `${patients.length} pacientes registrados`}</p>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -47,7 +48,12 @@ export function PatientsTable() {
             </tr>
           </thead>
           <tbody>
-            {patients.map((p) => (
+            {loading && (
+              <tr>
+                <td colSpan={4} className="px-5 py-10 text-center text-sm text-muted-foreground">Cargando pacientes...</td>
+              </tr>
+            )}
+            {!loading && patients.map((p) => (
               <tr
                 key={p.name}
                 className={`border-b border-border transition-colors last:border-0 hover:bg-muted/30 ${
@@ -74,6 +80,11 @@ export function PatientsTable() {
                 </td>
               </tr>
             ))}
+            {!loading && patients.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-5 py-10 text-center text-sm text-muted-foreground">No hay pacientes para mostrar.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

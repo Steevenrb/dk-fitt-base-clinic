@@ -1,6 +1,15 @@
 import { TrendingUp, TrendingDown, Users, ClipboardCheck, Activity } from "lucide-react";
 
-const kpis = [
+export type DashboardKpi = {
+  label: string;
+  value: string;
+  change: string;
+  trend: "up" | "down";
+  icon: typeof Activity;
+  variant: "primary" | "accent";
+};
+
+const defaultKpis: DashboardKpi[] = [
   {
     label: "Adherencia Promedio",
     value: "78%",
@@ -35,7 +44,7 @@ const kpis = [
   },
 ];
 
-export function KpiCards() {
+export function KpiCards({ kpis = defaultKpis, loading = false }: { kpis?: DashboardKpi[]; loading?: boolean }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {kpis.map((kpi) => {
@@ -57,7 +66,7 @@ export function KpiCards() {
                 <kpi.icon className="h-4 w-4" />
               </div>
             </div>
-            <p className="mt-3 text-3xl font-bold text-foreground">{kpi.value}</p>
+            <p className="mt-3 text-3xl font-bold text-foreground">{loading ? "..." : kpi.value}</p>
             <div className="mt-2 flex items-center gap-1.5">
               {kpi.trend === "up" ? (
                 <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />

@@ -17,7 +17,6 @@ import AlimentosRecetas from "./pages/AlimentosRecetas.tsx";
 import MiPerfil from "./pages/MiPerfil.tsx";
 import DashboardAdmin from "./pages/admin/DashboardAdmin.tsx";
 import GestionUsuarios from "./pages/admin/GestionUsuarios.tsx";
-import EstadisticasSistema from "./pages/admin/EstadisticasSistema.tsx";
 import HistorialActividad from "./pages/admin/HistorialActividad.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ChangePasswordRequired from "./pages/ChangePasswordRequired.tsx";
@@ -66,7 +65,6 @@ function AppRoutes() {
       {/* Admin routes */}
       <Route path="/admin" element={<ProtectedRoute role="admin"><DashboardAdmin /></ProtectedRoute>} />
       <Route path="/admin/usuarios" element={<ProtectedRoute role="admin"><GestionUsuarios /></ProtectedRoute>} />
-      <Route path="/admin/estadisticas" element={<ProtectedRoute role="admin"><EstadisticasSistema /></ProtectedRoute>} />
       <Route path="/admin/historial" element={<ProtectedRoute role="admin"><HistorialActividad /></ProtectedRoute>} />
       
 

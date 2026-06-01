@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from "react";
-import { apiRequest, ApiError } from "@/lib/api";
+import { apiRequest, ApiError, getJwtExpirationMs, refreshAccessToken } from "@/lib/api";
 
 export type UserRole = "admin" | "nutricionista" | "paciente" | null;
 
@@ -159,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const lastActivityRef = useRef<number>(Date.now());
   const activityTimeoutRef = useRef<number | undefined>(undefined);
+  const lastRefreshAttemptRef = useRef<number>(0);
 
   const clearSession = useCallback(() => {
     setUser(null);
@@ -339,11 +340,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    const refreshIfNeeded = () => {
+      const now = Date.now();
+      const recentlyActive = now - lastActivityRef.current < 2 * 60 * 1000;
+      const enoughTimeSinceLastAttempt = now - lastRefreshAttemptRef.current > 30 * 1000;
+      if (!recentlyActive || !enoughTimeSinceLastAttempt) return;
+
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+      const expiresAt = getJwtExpirationMs(token);
+      if (!expiresAt) return;
+
+      const expiresSoon = expiresAt - now < 90 * 1000;
+      if (!expiresSoon) return;
+
+      lastRefreshAttemptRef.current = now;
+      void refreshAccessToken();
+    };
+
     const intervalId = window.setInterval(() => {
       const last = lastActivityRef.current;
       if (Date.now() - last >= INACTIVITY_LIMIT_MS) {
         forceLogout();
+        return;
       }
+      refreshIfNeeded();
     }, 30_000);
 
     const activityEvents: Array<keyof DocumentEventMap> = [
@@ -363,6 +383,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener("focus", markActivity, { passive: true });
     window.addEventListener("storage", handleStorage);
     markActivity();
+    refreshIfNeeded();
 
     return () => {
       activityEvents.forEach((evt) => document.removeEventListener(evt, markActivity));

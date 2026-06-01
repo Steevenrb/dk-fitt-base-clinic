@@ -38,6 +38,22 @@ type MealTrackingRow = {
   fecha_menu?: string;
 };
 
+type ExerciseTrackingRow = {
+  id_seguimiento_ejercicio?: number;
+  id_ejercicio?: number;
+  id_rutina?: number;
+  fecha_registro?: string;
+  fecha?: string;
+  realizado?: boolean;
+  completado?: boolean;
+  hora_registro?: string;
+  nombre_ejercicio?: string;
+  nombre?: string;
+  descripcion?: string;
+  duracion_min?: number;
+  duracion_minutos?: number;
+};
+
 type MealRecord = {
   name: string;
   plate: string;
@@ -46,12 +62,21 @@ type MealRecord = {
   calories: number;
 };
 
+type ExerciseRecord = {
+  name: string;
+  actual: string | null;
+  done: boolean;
+  duration: number | null;
+};
+
 type DayData = {
   date: string;
   label: string;
   shortLabel: string;
   meals: MealRecord[];
+  exercises: ExerciseRecord[];
   mealPct: number;
+  exercisePct: number;
   plannedCalories: number;
   registeredCalories: number;
 };
@@ -117,7 +142,7 @@ const getWeekDates = (dateKey = formatLocalDate(new Date())) => {
   const diff = day === 0 ? -6 : 1 - day;
   const monday = new Date(date);
   monday.setDate(date.getDate() + diff);
-  return Array.from({ length: 7 }, (_, index) => {
+  return Array.from({ length: 5 }, (_, index) => {
     const current = new Date(monday);
     current.setDate(monday.getDate() + index);
     return formatLocalDate(current);
@@ -126,7 +151,8 @@ const getWeekDates = (dateKey = formatLocalDate(new Date())) => {
 
 const getDayIndex = (dateKey = formatLocalDate(new Date())) => {
   const day = parseDateKey(dateKey).getDay();
-  return day === 0 ? 6 : day - 1;
+  if (day === 0 || day === 6) return 4;
+  return day - 1;
 };
 
 const getLevel = (pct: number) => {
@@ -144,7 +170,7 @@ const ChartTooltip = ({ active, payload, label }: any) => {
       <p className="mb-1 text-xs font-semibold text-foreground">{label}</p>
       {payload.map((p: any) => (
         <p key={p.name} className="text-xs text-muted-foreground">
-          <span style={{ color: p.color || p.fill }}>●</span> {p.name}: {p.value}{p.name?.toLowerCase().includes("adherencia") ? "%" : " kcal"}
+          <span style={{ color: p.color || p.fill }}>●</span> {p.name}: {p.value}{p.name?.toLowerCase().includes("adherencia") || p.name?.toLowerCase().includes("ejercicio") ? "%" : " kcal"}
         </p>
       ))}
     </div>
@@ -187,6 +213,13 @@ function extractMealRows(raw: unknown): MealTrackingRow[] {
   return Array.isArray(data) ? data as MealTrackingRow[] : [];
 }
 
+function extractExerciseRows(raw: unknown): ExerciseTrackingRow[] {
+  if (Array.isArray(raw)) return raw as ExerciseTrackingRow[];
+  if (!raw || typeof raw !== "object") return [];
+  const data = (raw as { data?: unknown }).data;
+  return Array.isArray(data) ? data as ExerciseTrackingRow[] : [];
+}
+
 function mapPatient(item: Record<string, unknown>, index: number): PatientRow {
   const nombres = String(item.nombres ?? item.nombre ?? "").trim();
   const apellidos = String(item.apellidos ?? "").trim();
@@ -205,16 +238,24 @@ function mapPatient(item: Record<string, unknown>, index: number): PatientRow {
   };
 }
 
-const mapMealsToDay = (date: string, rows: MealTrackingRow[]): DayData => {
-  const meals = rows.map((row) => ({
+const mapTrackingToDay = (date: string, mealRows: MealTrackingRow[], exerciseRows: ExerciseTrackingRow[] = []): DayData => {
+  const meals = mealRows.map((row) => ({
     name: row.nombre_tiempo || "Comida",
     plate: row.nombre_plato || "Sin nombre de plato",
     actual: formatTime(row.hora_registro),
     done: row.realizado === true,
     calories: Number(row.calorias_aportadas ?? 0),
   }));
+  const exercises = exerciseRows.map((row) => ({
+    name: row.nombre_ejercicio || row.nombre || row.descripcion || "Ejercicio",
+    actual: formatTime(row.hora_registro),
+    done: row.realizado === true || row.completado === true,
+    duration: Number(row.duracion_min ?? row.duracion_minutos) || null,
+  }));
   const done = meals.filter((meal) => meal.done).length;
+  const doneExercises = exercises.filter((exercise) => exercise.done).length;
   const mealPct = meals.length > 0 ? Math.round((done / meals.length) * 100) : 0;
+  const exercisePct = exercises.length > 0 ? Math.round((doneExercises / exercises.length) * 100) : 0;
   const plannedCalories = meals.reduce((sum, meal) => sum + meal.calories, 0);
   const registeredCalories = meals.reduce((sum, meal) => sum + (meal.done ? meal.calories : 0), 0);
 
@@ -223,7 +264,9 @@ const mapMealsToDay = (date: string, rows: MealTrackingRow[]): DayData => {
     label: formatDisplayDate(date),
     shortLabel: formatShortDate(date),
     meals,
+    exercises,
     mealPct,
+    exercisePct,
     plannedCalories,
     registeredCalories,
   };
@@ -277,18 +320,28 @@ const Seguimiento = () => {
       setLoadingTracking(true);
       try {
         const results = await Promise.all(weekDates.map(async (date) => {
-          const response = await apiRequest<unknown>(
-            `/meal-tracking/patient/${selectedPatient.trackingId}?fecha=${date}`,
-            { method: "GET", accessToken: token },
+          const [mealResult, exerciseResult] = await Promise.allSettled([
+            apiRequest<unknown>(
+              `/meal-tracking/patient/${selectedPatient.trackingId}?fecha=${date}`,
+              { method: "GET", accessToken: token },
+            ),
+            apiRequest<unknown>(
+              `/exercise-tracking/patient/${selectedPatient.trackingId}?fecha=${date}`,
+              { method: "GET", accessToken: token },
+            ),
+          ]);
+          return mapTrackingToDay(
+            date,
+            mealResult.status === "fulfilled" ? extractMealRows(mealResult.value) : [],
+            exerciseResult.status === "fulfilled" ? extractExerciseRows(exerciseResult.value) : [],
           );
-          return mapMealsToDay(date, extractMealRows(response));
         }));
         setDailyData(results);
       } catch {
-        setDailyData(weekDates.map((date) => mapMealsToDay(date, [])));
+        setDailyData(weekDates.map((date) => mapTrackingToDay(date, [])));
         toast({
           title: "No se pudo cargar seguimiento",
-          description: "Verifica endpoint GET /meal-tracking/patient/{id}?fecha=YYYY-MM-DD.",
+          description: "Verifica los endpoints de comidas y ejercicios del paciente.",
           variant: "destructive",
         });
       } finally {
@@ -304,24 +357,32 @@ const Seguimiento = () => {
     return patients.filter((patient) => patient.name.toLowerCase().includes(q));
   }, [patients, search]);
 
-  const day = dailyData[selectedDay] ?? mapMealsToDay(weekDates[selectedDay] ?? formatLocalDate(new Date()), []);
+  const day = dailyData[selectedDay] ?? mapTrackingToDay(weekDates[selectedDay] ?? formatLocalDate(new Date()), []);
   const weekMealAvg = dailyData.length > 0
     ? Math.round(dailyData.reduce((sum, item) => sum + item.mealPct, 0) / dailyData.length)
+    : 0;
+  const weekExerciseAvg = dailyData.length > 0
+    ? Math.round(dailyData.reduce((sum, item) => sum + item.exercisePct, 0) / dailyData.length)
     : 0;
   const weekCalories = dailyData.reduce((sum, item) => sum + item.registeredCalories, 0);
   const totalMeals = dailyData.reduce((sum, item) => sum + item.meals.length, 0);
   const totalDoneMeals = dailyData.reduce((sum, item) => sum + item.meals.filter((meal) => meal.done).length, 0);
+  const totalExercises = dailyData.reduce((sum, item) => sum + item.exercises.length, 0);
+  const totalDoneExercises = dailyData.reduce((sum, item) => sum + item.exercises.filter((exercise) => exercise.done).length, 0);
 
   const kpis = [
     { label: "Cumplimiento Alimentario", value: `${weekMealAvg}%`, icon: Utensils, high: weekMealAvg >= 70 },
+    { label: "Cumplimiento Ejercicio", value: `${weekExerciseAvg}%`, icon: Activity, high: weekExerciseAvg >= 70 },
     { label: "Comidas Cumplidas", value: `${totalDoneMeals}/${totalMeals}`, icon: Check, high: totalMeals > 0 && totalDoneMeals / totalMeals >= 0.7 },
+    { label: "Ejercicios Cumplidos", value: `${totalDoneExercises}/${totalExercises}`, icon: Activity, high: totalExercises > 0 && totalDoneExercises / totalExercises >= 0.7 },
     { label: "Calorias Registradas", value: `${weekCalories.toLocaleString()} kcal`, icon: Flame, high: true },
-    { label: "Dias con Registro", value: `${dailyData.filter((item) => item.meals.length > 0).length}/7`, icon: CalendarDays, high: true },
+    { label: "Dias con Registro", value: `${dailyData.filter((item) => item.meals.length > 0 || item.exercises.length > 0).length}/5`, icon: CalendarDays, high: true },
   ];
 
   const chartData = dailyData.map((item) => ({
     dia: item.shortLabel,
-    Adherencia: item.mealPct,
+    "Adherencia alimentos": item.mealPct,
+    "Adherencia ejercicio": item.exercisePct,
     Planificadas: item.plannedCalories,
     Registradas: item.registeredCalories,
   }));
@@ -417,7 +478,7 @@ const Seguimiento = () => {
                 <Badge variant="outline" className={`text-[11px] ${getLevel(weekMealAvg).className}`}>{getLevel(weekMealAvg).label}</Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Semana del {formatDisplayDate(weekDates[0])} al {formatDisplayDate(weekDates[6])}
+                Semana del {formatDisplayDate(weekDates[0])} al {formatDisplayDate(weekDates[4])}
               </p>
             </div>
           </div>
@@ -440,7 +501,7 @@ const Seguimiento = () => {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-xs font-medium text-foreground px-2 min-w-[100px] text-center">{day.shortLabel}</span>
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedDay(Math.min(6, selectedDay + 1))}>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedDay(Math.min(4, selectedDay + 1))}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -497,7 +558,7 @@ const Seguimiento = () => {
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Cumplimiento diario</span>
+                  <span className="text-muted-foreground">Alimentos diario</span>
                   <span className={`font-semibold ${pctColor(day.mealPct)}`}>{day.mealPct}%</span>
                 </div>
                 <Progress value={day.mealPct} className="h-3" />
@@ -505,11 +566,27 @@ const Seguimiento = () => {
               </div>
               <div className="space-y-1.5">
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Cumplimiento semanal</span>
+                  <span className="text-muted-foreground">Ejercicio diario</span>
+                  <span className={`font-semibold ${pctColor(day.exercisePct)}`}>{day.exercisePct}%</span>
+                </div>
+                <Progress value={day.exercisePct} className="h-3" />
+                <p className={`text-[11px] font-medium ${pctColor(day.exercisePct)}`}>{getLevel(day.exercisePct).label}</p>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Alimentos semanal</span>
                   <span className={`font-semibold ${pctColor(weekMealAvg)}`}>{weekMealAvg}%</span>
                 </div>
                 <Progress value={weekMealAvg} className="h-3" />
                 <p className={`text-[11px] font-medium ${pctColor(weekMealAvg)}`}>{getLevel(weekMealAvg).label}</p>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Ejercicio semanal</span>
+                  <span className={`font-semibold ${pctColor(weekExerciseAvg)}`}>{weekExerciseAvg}%</span>
+                </div>
+                <Progress value={weekExerciseAvg} className="h-3" />
+                <p className={`text-[11px] font-medium ${pctColor(weekExerciseAvg)}`}>{getLevel(weekExerciseAvg).label}</p>
               </div>
             </div>
 
@@ -526,6 +603,7 @@ const Seguimiento = () => {
                     <div className={`h-full rounded-full ${dd.mealPct >= 70 ? "bg-primary" : "bg-accent"}`} style={{ width: `${dd.mealPct}%` }} />
                   </div>
                   <span className={`text-[11px] font-medium w-8 text-right ${pctColor(dd.mealPct)}`}>{dd.mealPct}%</span>
+                  <span className={`text-[11px] font-medium w-8 text-right ${pctColor(dd.exercisePct)}`}>{dd.exercisePct}%</span>
                 </button>
               ))}
             </div>
@@ -534,8 +612,8 @@ const Seguimiento = () => {
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-1 text-sm font-semibold text-foreground">Adherencia Alimentaria Semanal</h3>
-            <p className="mb-5 text-xs text-muted-foreground">Porcentaje de comidas realizadas por dia</p>
+            <h3 className="mb-1 text-sm font-semibold text-foreground">Adherencia Semanal</h3>
+            <p className="mb-5 text-xs text-muted-foreground">Porcentaje de comidas y ejercicios realizados por dia</p>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 16%)" />
@@ -543,7 +621,8 @@ const Seguimiento = () => {
                 <YAxis tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} domain={[0, 100]} unit="%" />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="Adherencia" name="Adherencia" stroke="#e5b106" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="Adherencia alimentos" name="Adherencia alimentos" stroke="#e5b106" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="Adherencia ejercicio" name="Adherencia ejercicio" stroke="#22c55e" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

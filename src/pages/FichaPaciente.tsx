@@ -188,8 +188,8 @@ const FichaPaciente = () => {
           <TabsContent value="plan"><TabPlanes patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="seguimiento"><TabSeguimiento patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="consumo"><TabConsumo patientId={patientId} profileId={header.profileId} /></TabsContent>
-          <TabsContent value="alertas"><TabAlertas /></TabsContent>
-          <TabsContent value="citas"><TabCitas /></TabsContent>
+          <TabsContent value="alertas"><TabAlertas patientId={patientId} profileId={header.profileId} patientName={header.name} /></TabsContent>
+          <TabsContent value="citas"><TabCitas patientId={patientId} profileId={header.profileId} /></TabsContent>
         </Tabs>
       </div>
     </AppLayout>

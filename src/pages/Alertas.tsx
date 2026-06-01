@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,14 @@ function initials(name: string): string {
   return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
 }
 
+function normalizeName(value?: string): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function unwrapAlerts(raw: unknown): AlertsResponse {
   if (!raw || typeof raw !== "object") return { data: [], meta: {} };
   return raw as AlertsResponse;
@@ -90,13 +99,15 @@ function unwrapAlerts(raw: unknown): AlertsResponse {
 
 const Alertas = () => {
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const initialPatient = searchParams.get("paciente") || "all";
   const [alerts, setAlerts] = useState<ApiAlert[]>([]);
   const [meta, setMeta] = useState<AlertsMeta>({});
   const [loading, setLoading] = useState(true);
   const [markingId, setMarkingId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState<"all" | AlertType>("all");
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
-  const [filterPatient, setFilterPatient] = useState<string>("all");
+  const [filterPatient, setFilterPatient] = useState<string>(initialPatient);
   const [selectedAlert, setSelectedAlert] = useState<ApiAlert | null>(null);
 
   const fetchAlerts = async () => {
@@ -138,11 +149,19 @@ const Alertas = () => {
     void fetchAlerts();
   }, [filterType, filterStatus]);
 
+  useEffect(() => {
+    const patient = searchParams.get("paciente");
+    if (patient) setFilterPatient(patient);
+  }, [searchParams]);
+
   const patients = useMemo(() => [...new Set(alerts.map((alert) => alert.nombre_paciente).filter(Boolean))], [alerts]);
 
   const filtered = useMemo(() => {
     let list = [...alerts];
-    if (filterPatient !== "all") list = list.filter((alert) => alert.nombre_paciente === filterPatient);
+    if (filterPatient !== "all") {
+      const patientKey = normalizeName(filterPatient);
+      list = list.filter((alert) => normalizeName(alert.nombre_paciente) === patientKey);
+    }
     list.sort((a, b) => {
       if (a.revisada !== b.revisada) return a.revisada ? 1 : -1;
       return new Date(b.fecha_generacion).getTime() - new Date(a.fecha_generacion).getTime();
@@ -224,6 +243,9 @@ const Alertas = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los pacientes</SelectItem>
+              {filterPatient !== "all" && !patients.some((patient) => normalizeName(patient) === normalizeName(filterPatient)) && (
+                <SelectItem value={filterPatient}>{filterPatient}</SelectItem>
+              )}
               {patients.map((patient) => (
                 <SelectItem key={patient} value={patient}>{patient}</SelectItem>
               ))}
@@ -365,7 +387,7 @@ const Alertas = () => {
                   <div className="rounded-lg bg-muted/50 border border-border p-4">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Nota</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      El endpoint actual no incluye id del paciente ni detalle clinico extendido; por eso esta vista muestra el mensaje automatico recibido.
+                      Esta alerta corresponde a un evento automatico generado por el sistema.
                     </p>
                   </div>
 

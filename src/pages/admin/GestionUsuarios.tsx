@@ -7,16 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Edit, UserX, KeyRound, Copy, Check } from "lucide-react";
+import { Search, Plus, Edit, UserX, UserCheck, KeyRound, Copy, Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest, ApiError } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 interface UsuarioGestion {
   id: number;
+  nombres: string;
+  apellidos: string;
   nombre: string;
   correo: string;
   rol: "administrador" | "nutricionista" | "paciente" | string;
+  estado: "activo" | "inactivo" | string;
   fechaRegistro: string;
   ultimoAcceso: string;
   avatar: string;
@@ -61,6 +64,35 @@ function formatDate(value?: string | null): string {
 function normalizeSexo(value?: string | null): "M" | "F" | "O" | "" {
   if (value === "M" || value === "F" || value === "O") return value;
   return "";
+}
+
+function normalizeEstadoCuenta(item: Record<string, unknown>): "activo" | "inactivo" | string {
+  const raw = item.estado ?? item.estado_cuenta ?? item.status ?? item.account_status;
+  if (typeof raw === "boolean") return raw ? "activo" : "inactivo";
+  if (typeof item.activo === "boolean") return item.activo ? "activo" : "inactivo";
+  const estado = String(raw ?? "activo").toLowerCase();
+  if (["activo", "active", "habilitado"].includes(estado)) return "activo";
+  if (["inactivo", "inactive", "desactivado", "suspendido", "bloqueado"].includes(estado)) return "inactivo";
+  return estado || "activo";
+}
+
+function formatDateForInput(value?: unknown): string {
+  if (!value) return "";
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+function getObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function cleanField(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const text = String(value);
+  return text === "—" || text === "â€”" ? "" : text;
 }
 
 function roleLabel(role: string): string {
@@ -155,6 +187,13 @@ function extractApiErrorMessage(error: unknown): string {
   return error.message || `HTTP ${error.status}`;
 }
 
+async function updateUserStatus(id: number, token: string, estado: "activo" | "inactivo") {
+  return requestWithSuffixFallback(UPDATE_USER_ENDPOINTS, `/${id}/status`, token, {
+    method: "PATCH",
+    body: { estado },
+  });
+}
+
 export default function GestionUsuarios() {
   const { toast } = useToast();
   const [usuarios, setUsuarios] = useState<UsuarioGestion[]>([]);
@@ -167,6 +206,7 @@ export default function GestionUsuarios() {
   const [showDeactivate, setShowDeactivate] = useState<UsuarioGestion | null>(null);
   const [showReset, setShowReset] = useState<UsuarioGestion | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successKind, setSuccessKind] = useState<"create" | "reset">("create");
   const [copied, setCopied] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState(DEFAULT_TEMP_PASSWORD);
 
@@ -215,26 +255,33 @@ export default function GestionUsuarios() {
   };
 
   const mapApiUserToRow = (item: Record<string, unknown>): UsuarioGestion => {
-    const nombres = String(item.nombres ?? "");
-    const apellidos = String(item.apellidos ?? "");
+    const nutricionistaProfile = getObject(item.perfil_nutricionista ?? item.nutricionista ?? item.nutritionist_profile);
+    const perfil = getObject(item.perfil ?? item.profile);
+    const datosPerfil = { ...perfil, ...nutricionistaProfile };
+    const nombres = cleanField(item.nombres ?? item.nombre ?? datosPerfil.nombres ?? datosPerfil.nombre);
+    const apellidos = cleanField(item.apellidos ?? item.apellido ?? datosPerfil.apellidos ?? datosPerfil.apellido);
     const correo = String(item.correo_institucional ?? item.correo ?? item.email ?? "");
     const rol = String(item.rol ?? item.role ?? "");
+    const estado = normalizeEstadoCuenta(item);
     const nombre = `${nombres} ${apellidos}`.trim() || correo;
     const avatar = `${(nombres[0] || "")}${(apellidos[0] || "")}`.toUpperCase() || (correo[0]?.toUpperCase() || "U");
 
     return {
       id: Number(item.id_usuario ?? item.id ?? 0),
+      nombres,
+      apellidos,
       nombre,
       correo,
       rol,
+      estado,
       fechaRegistro: formatDateTime(String(item.fecha_registro ?? item.created_at ?? "")),
       ultimoAcceso: formatDateTime(String(item.ultimo_acceso ?? item.last_login ?? item.updated_at ?? "")),
       avatar,
-      registro: String(item.numero_registro_profesional ?? item.registro_profesional ?? item.registro ?? "—"),
-      especialidad: String(item.especialidad ?? "—"),
-      telefono: String(item.telefono_contacto ?? item.telefono ?? ""),
-      sexo: normalizeSexo(String(item.sexo ?? "")),
-      fechaNac: String(item.fecha_nacimiento ?? ""),
+      registro: cleanField(datosPerfil.numero_registro_profesional ?? item.numero_registro_profesional ?? item.registro_profesional ?? item.registro),
+      especialidad: cleanField(datosPerfil.especialidad ?? item.especialidad),
+      telefono: cleanField(datosPerfil.telefono_contacto ?? datosPerfil.telefono ?? item.telefono_contacto ?? item.telefono),
+      sexo: normalizeSexo(String(item.sexo ?? datosPerfil.sexo ?? "")),
+      fechaNac: formatDateForInput(item.fecha_nacimiento ?? datosPerfil.fecha_nacimiento),
     };
   };
 
@@ -269,15 +316,14 @@ export default function GestionUsuarios() {
   }, []);
 
   const openEdit = (n: UsuarioGestion) => {
-    const [first, ...rest] = n.nombre.split(" ");
-    setFNombres(first);
-    setFApellidos(rest.join(" "));
+    setFNombres(n.nombres);
+    setFApellidos(n.apellidos);
     setFCorreo(n.correo);
-    setFRegistro(n.registro);
-    setFEspecialidad(n.especialidad);
+    setFRegistro(cleanField(n.registro));
+    setFEspecialidad(cleanField(n.especialidad));
     setFFechaNac(n.fechaNac);
     setFSexo(n.sexo);
-    setFTelefono(n.telefono);
+    setFTelefono(cleanField(n.telefono));
     setShowEdit(n);
   };
 
@@ -325,6 +371,7 @@ export default function GestionUsuarios() {
 
       const temporaryPassword = res?.data?.temporary_password || res?.temporary_password || DEFAULT_TEMP_PASSWORD;
       setGeneratedPassword(temporaryPassword);
+      setSuccessKind("create");
       setShowCreate(false);
       clearForm();
       setShowSuccess(true);
@@ -357,18 +404,25 @@ export default function GestionUsuarios() {
           nombres: fNombres,
           apellidos: fApellidos,
           correo_institucional: fCorreo,
+          correo: fCorreo,
           fecha_nacimiento: fFechaNac || undefined,
           sexo: fSexo || undefined,
           numero_registro_profesional: fRegistro || undefined,
           especialidad: fEspecialidad || undefined,
           telefono_contacto: fTelefono || undefined,
+          perfil_nutricionista: {
+            numero_registro_profesional: fRegistro || null,
+            especialidad: fEspecialidad || null,
+            telefono_contacto: fTelefono || null,
+          },
         },
       });
       setShowEdit(null);
       clearForm();
       await fetchUsers();
-    } catch {
-      toast({ title: "No se pudo editar usuario", description: "Verifica que exista PATCH /api/admin/users/:id (o equivalente).", variant: "destructive" });
+    } catch (error) {
+      const detail = error instanceof ApiError ? extractApiErrorMessage(error) : "Verifica que exista PATCH /api/admin/users/:id (o equivalente).";
+      toast({ title: "No se pudo editar usuario", description: detail, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -379,17 +433,21 @@ export default function GestionUsuarios() {
     const token = getAccessToken();
     if (!token) return;
 
+    const nextEstado = showDeactivate.estado === "inactivo" ? "activo" : "inactivo";
     setIsSubmitting(true);
     try {
-      await apiRequest(`/api/admin/users/${showDeactivate.id}/status`, {
-        method: "PATCH",
-        accessToken: token,
-        body: { estado: "inactivo" },
+      await updateUserStatus(showDeactivate.id, token, nextEstado);
+      toast({
+        title: nextEstado === "activo" ? "Cuenta activada" : "Cuenta desactivada",
+        description: nextEstado === "activo"
+          ? `${showDeactivate.nombre} ya puede acceder al sistema.`
+          : `${showDeactivate.nombre} ya no podra acceder al sistema.`,
       });
       setShowDeactivate(null);
       await fetchUsers();
-    } catch {
-      toast({ title: "No se pudo desactivar", description: "Verifica endpoint PATCH /api/admin/users/:id/status.", variant: "destructive" });
+    } catch (error) {
+      const detail = error instanceof ApiError ? extractApiErrorMessage(error) : "Verifica endpoint PATCH /api/admin/users/:id/status.";
+      toast({ title: nextEstado === "activo" ? "No se pudo activar" : "No se pudo desactivar", description: detail, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -402,15 +460,31 @@ export default function GestionUsuarios() {
 
     setIsSubmitting(true);
     try {
-      const res = await apiRequest<{ success?: boolean; data?: { temporary_password?: string } }>(`/api/admin/users/${showReset.id}/reset-password`, {
+      const res = await requestWithSuffixFallback<{
+        success?: boolean;
+        data?: { temporary_password?: string; contrasena_temporal?: string; password_temporal?: string };
+        temporary_password?: string;
+        contrasena_temporal?: string;
+        password_temporal?: string;
+      }>(UPDATE_USER_ENDPOINTS, `/${showReset.id}/reset-password`, token, {
         method: "POST",
-        accessToken: token,
       });
-      setGeneratedPassword(res?.data?.temporary_password || DEFAULT_TEMP_PASSWORD);
+      setGeneratedPassword(
+        res?.data?.temporary_password ||
+        res?.data?.contrasena_temporal ||
+        res?.data?.password_temporal ||
+        res?.temporary_password ||
+        res?.contrasena_temporal ||
+        res?.password_temporal ||
+        DEFAULT_TEMP_PASSWORD
+      );
       setShowReset(null);
+      setSuccessKind("reset");
       setShowSuccess(true);
-    } catch {
-      toast({ title: "No se pudo resetear contraseña", description: "Verifica endpoint POST /api/admin/users/:id/reset-password.", variant: "destructive" });
+      await fetchUsers();
+    } catch (error) {
+      const detail = error instanceof ApiError ? extractApiErrorMessage(error) : "Verifica endpoint POST /api/admin/users/:id/reset-password.";
+      toast({ title: "No se pudo resetear contraseña", description: detail, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -490,12 +564,17 @@ export default function GestionUsuarios() {
                     <tr>
                       <td className="p-4 text-muted-foreground" colSpan={6}>No hay usuarios para mostrar.</td>
                     </tr>
-                  ) : filtered.map(n => (
-                    <tr key={n.id} className="border-b border-border/50 hover:bg-muted/20">
+                  ) : filtered.map(n => {
+                    const isInactive = n.estado === "inactivo";
+                    return (
+                    <tr key={n.id} className={`border-b border-border/50 hover:bg-muted/20 ${isInactive ? "opacity-45 grayscale" : ""}`}>
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/20 text-primary text-xs">{n.avatar}</AvatarFallback></Avatar>
-                          <span className="text-foreground font-medium">{n.nombre}</span>
+                          <div className="flex flex-col">
+                            <span className="text-foreground font-medium">{n.nombre}</span>
+                            {isInactive && <span className="text-xs text-muted-foreground">Cuenta inactiva</span>}
+                          </div>
                         </div>
                       </td>
                       <td className="p-3 text-muted-foreground">{n.correo}</td>
@@ -504,13 +583,25 @@ export default function GestionUsuarios() {
                       <td className="p-3 text-muted-foreground hidden lg:table-cell">{n.ultimoAcceso}</td>
                       <td className="p-3">
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" disabled={n.rol === "administrador" || isSubmitting} onClick={() => openEdit(n)} title="Editar"><Edit className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" disabled={n.rol === "administrador" || isSubmitting} onClick={() => setShowDeactivate(n)} title="Desactivar"><UserX className="h-3.5 w-3.5" /></Button>
+                          {n.rol !== "paciente" && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" disabled={n.rol === "administrador" || isSubmitting} onClick={() => openEdit(n)} title="Editar"><Edit className="h-3.5 w-3.5" /></Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-8 w-8 ${isInactive ? "text-primary" : "text-destructive"}`}
+                            disabled={n.rol === "administrador" || isSubmitting}
+                            onClick={() => setShowDeactivate(n)}
+                            title={isInactive ? "Activar" : "Desactivar"}
+                          >
+                            {isInactive ? <UserCheck className="h-3.5 w-3.5" /> : <UserX className="h-3.5 w-3.5" />}
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8" disabled={n.rol === "administrador" || isSubmitting} onClick={() => setShowReset(n)} title="Resetear contraseña"><KeyRound className="h-3.5 w-3.5" /></Button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -539,7 +630,10 @@ export default function GestionUsuarios() {
       {/* Success modal */}
       <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Cuenta creada exitosamente</DialogTitle><DialogDescription>Se ha generado una contraseña temporal para el nuevo usuario.</DialogDescription></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{successKind === "create" ? "Cuenta creada exitosamente" : "Contraseña reseteada"}</DialogTitle>
+            <DialogDescription>Se ha generado una contraseña temporal para el usuario.</DialogDescription>
+          </DialogHeader>
           <div className="flex items-center gap-2 p-3 rounded-md bg-muted border border-border">
             <code className="flex-1 text-sm font-mono text-foreground">{generatedPassword}</code>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={copyPassword}>
@@ -555,7 +649,7 @@ export default function GestionUsuarios() {
       <Dialog open={!!showDeactivate} onOpenChange={() => setShowDeactivate(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>¿Desactivar cuenta?</DialogTitle><DialogDescription>¿Estás seguro de que deseas desactivar la cuenta de {showDeactivate?.nombre}? Esta acción impedirá su acceso al sistema.</DialogDescription></DialogHeader>
-          <DialogFooter><Button variant="outline" onClick={() => setShowDeactivate(null)} disabled={isSubmitting}>Cancelar</Button><Button onClick={handleDeactivate} className="bg-accent text-accent-foreground hover:bg-accent/90" disabled={isSubmitting}>Desactivar</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setShowDeactivate(null)} disabled={isSubmitting}>Cancelar</Button><Button onClick={handleDeactivate} className="bg-accent text-accent-foreground hover:bg-accent/90" disabled={isSubmitting}>{showDeactivate?.estado === "inactivo" ? "Activar" : "Desactivar"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

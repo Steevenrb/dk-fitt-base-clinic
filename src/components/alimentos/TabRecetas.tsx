@@ -1186,26 +1186,38 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
   );
 }
 
-function RecetaDetailModal({
+export function RecetaDetailModal({
   receta,
   tiemposMap,
   onClose,
   onEdit,
   onDeactivate,
   onGenerateVariant,
+  readOnly = false,
 }: {
   receta: RecetaDetalle;
   tiemposMap: Record<number, string>;
   onClose: () => void;
-  onEdit: () => void;
-  onDeactivate: () => void;
-  onGenerateVariant: () => void;
+  onEdit?: () => void;
+  onDeactivate?: () => void;
+  onGenerateVariant?: () => void;
+  readOnly?: boolean;
 }) {
   const timeName = receta.id_tiempo_comida ? tiemposMap[receta.id_tiempo_comida] : "General";
   const normalized = normalizeTimeName(timeName);
   const timeConfig = timeIconMap[normalized] || timeIconMap.snack;
   const Icon = timeConfig.icon;
-  const macros = receta.ingredientes.length > 0 ? calcularMacros(receta.ingredientes) : null;
+  const macros = receta.ingredientes.length > 0
+    ? calcularMacros(receta.ingredientes)
+    : receta.proteinas_totales != null || receta.carbohidratos_totales != null || receta.grasas_totales != null
+      ? {
+        proteinas: Math.round(Number(receta.proteinas_totales ?? 0) * 10) / 10,
+        carbohidratos: Math.round(Number(receta.carbohidratos_totales ?? 0) * 10) / 10,
+        grasas: Math.round(Number(receta.grasas_totales ?? 0) * 10) / 10,
+        fibra: 0,
+        sodio: 0,
+      }
+      : null;
   const macroData = buildMacroData({
     proteinas: macros?.proteinas ?? 0,
     carbohidratos: macros?.carbohidratos ?? 0,
@@ -1287,24 +1299,28 @@ function RecetaDetailModal({
         <div>
           <h4 className="font-semibold text-sm text-foreground mb-2">Ingredientes</h4>
           <div className="space-y-1.5">
-            {receta.ingredientes.map((ing, idx) => (
+            {receta.ingredientes.length > 0 ? receta.ingredientes.map((ing, idx) => (
               <div key={`${ing.id_alimento_detalle ?? ing.id_alimento ?? "ing"}-${idx}`} className="flex justify-between text-sm py-1 border-b border-border/30">
                 <span className="text-foreground">{ing.nombre}</span>
                 <span className="text-muted-foreground">{formatCantidad(ing.cantidad_g)} · {Math.round(ing.calorias_aportadas)} kcal</span>
               </div>
-            ))}
+            )) : (
+              <p className="text-sm text-muted-foreground">Sin ingredientes registrados.</p>
+            )}
           </div>
         </div>
 
         <div>
           <h4 className="font-semibold text-sm text-foreground mb-2">Preparación</h4>
           <ol className="space-y-2">
-            {pasos.map((paso, i) => (
+            {pasos.length > 0 ? pasos.map((paso, i) => (
               <li key={`${i}-${paso}`} className="flex gap-3 items-start text-sm">
                 <span className="shrink-0 h-5 w-5 rounded-full bg-amber-100 text-amber-700 text-xs flex items-center justify-center font-semibold">{i + 1}</span>
                 <span className="text-muted-foreground">{paso.replace(/^\d+\.\s*/, "")}</span>
               </li>
-            ))}
+            )) : (
+              <li className="text-sm text-muted-foreground">Sin preparacion registrada.</li>
+            )}
           </ol>
         </div>
 
@@ -1349,13 +1365,17 @@ function RecetaDetailModal({
           </Card>
         )}
 
-        <div className="flex gap-2 flex-wrap">         
-          <Button variant="outline" className="text-destructive" onClick={onDeactivate}><Trash2 className="h-4 w-4 mr-2" /> Eliminar receta</Button>
-        </div>
+        {!readOnly && (
+          <>
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" className="text-destructive" onClick={onDeactivate}><Trash2 className="h-4 w-4 mr-2" /> Eliminar receta</Button>
+            </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cerrar</Button>
-        </DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Cerrar</Button>
+            </DialogFooter>
+          </>
+        )}
       </div>
     </div>
   );

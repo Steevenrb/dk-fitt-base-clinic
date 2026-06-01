@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BarChart3, History, Settings, LogOut, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, Users, History, LogOut, Sun, Moon } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -7,7 +7,6 @@ import {
 } from "@/components/ui/sidebar";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -15,7 +14,6 @@ import { useState } from "react";
 const navItems = [
   { title: "Dashboard Admin", url: "/admin", icon: LayoutDashboard },
   { title: "Gestión de Usuarios", url: "/admin/usuarios", icon: Users },
-  { title: "Estadísticas del Sistema", url: "/admin/estadisticas", icon: BarChart3 },
   { title: "Historial de Actividad", url: "/admin/historial", icon: History },
 ];
 
@@ -76,6 +74,10 @@ export function AdminSidebar() {
           <button onClick={toggleTheme} className="flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
             {theme === "dark" ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
             {!collapsed && <span>{theme === "dark" ? "Modo claro" : "Modo oscuro"}</span>}
+          </button>
+          <button onClick={() => setShowLogout(true)} className="mt-1 flex items-center gap-3 w-full rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
+            <LogOut className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Cerrar sesion</span>}
           </button>
         </SidebarFooter>
       </Sidebar>

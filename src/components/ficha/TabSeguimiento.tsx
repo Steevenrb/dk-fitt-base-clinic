@@ -20,9 +20,25 @@ type MealTrackingRow = {
   fecha_menu?: string;
 };
 
-type ApiListResponse = {
+type ExerciseTrackingRow = {
+  id_seguimiento_ejercicio?: number;
+  id_ejercicio?: number;
+  id_rutina?: number;
+  fecha_registro?: string;
+  fecha?: string;
+  realizado?: boolean;
+  completado?: boolean;
+  hora_registro?: string;
+  nombre_ejercicio?: string;
+  nombre?: string;
+  descripcion?: string;
+  duracion_min?: number;
+  duracion_minutos?: number;
+};
+
+type ApiListResponse<T> = {
   success?: boolean;
-  data?: MealTrackingRow[];
+  data?: T[];
 };
 
 function formatLocalDate(date: Date) {
@@ -38,10 +54,10 @@ function formatTime(value?: string) {
   return hour && minute ? `${hour}:${minute}` : value;
 }
 
-function extractRows(payload: unknown): MealTrackingRow[] {
-  if (Array.isArray(payload)) return payload as MealTrackingRow[];
+function extractRows<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) return payload as T[];
   if (!payload || typeof payload !== "object") return [];
-  const root = payload as ApiListResponse;
+  const root = payload as ApiListResponse<T>;
   return Array.isArray(root.data) ? root.data : [];
 }
 
@@ -55,11 +71,12 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
   const { toast } = useToast();
   const [selectedDate, setSelectedDate] = useState(() => formatLocalDate(new Date()));
   const [meals, setMeals] = useState<MealTrackingRow[]>([]);
+  const [exercises, setExercises] = useState<ExerciseTrackingRow[]>([]);
   const [loading, setLoading] = useState(false);
   const resolvedPatientRefId = profileId ?? patientId;
 
   useEffect(() => {
-    const fetchMeals = async () => {
+    const fetchTracking = async () => {
       if (!resolvedPatientRefId || Number.isNaN(resolvedPatientRefId)) return;
       const token = localStorage.getItem(ACCESS_TOKEN_KEY);
       if (!token) {
@@ -69,16 +86,24 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
 
       setLoading(true);
       try {
-        const response = await apiRequest<unknown>(
-          `/meal-tracking/patient/${resolvedPatientRefId}?fecha=${selectedDate}`,
-          { method: "GET", accessToken: token }
-        );
-        setMeals(extractRows(response));
+        const [mealResponse, exerciseResponse] = await Promise.all([
+          apiRequest<unknown>(
+            `/meal-tracking/patient/${resolvedPatientRefId}?fecha=${selectedDate}`,
+            { method: "GET", accessToken: token }
+          ),
+          apiRequest<unknown>(
+            `/exercise-tracking/patient/${resolvedPatientRefId}?fecha=${selectedDate}`,
+            { method: "GET", accessToken: token }
+          ),
+        ]);
+        setMeals(extractRows<MealTrackingRow>(mealResponse));
+        setExercises(extractRows<ExerciseTrackingRow>(exerciseResponse));
       } catch {
         setMeals([]);
+        setExercises([]);
         toast({
           title: "No se pudo cargar seguimiento",
-          description: "Verifica endpoint GET /meal-tracking/patient/{id}?fecha=YYYY-MM-DD.",
+          description: "Verifica los endpoints de comidas y ejercicios del paciente.",
           variant: "destructive",
         });
       } finally {
@@ -86,12 +111,15 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
       }
     };
 
-    void fetchMeals();
+    void fetchTracking();
   }, [resolvedPatientRefId, selectedDate, toast]);
 
   const mealsDone = useMemo(() => meals.filter((m) => m.realizado).length, [meals]);
   const mealAdherence = meals.length > 0 ? Math.round((mealsDone / meals.length) * 100) : 0;
-  const level = getLevel(mealAdherence);
+  const exercisesDone = useMemo(() => exercises.filter((e) => e.realizado === true || e.completado === true).length, [exercises]);
+  const exerciseAdherence = exercises.length > 0 ? Math.round((exercisesDone / exercises.length) * 100) : 0;
+  const generalAdherence = Math.round((mealAdherence + exerciseAdherence) / (exercises.length > 0 ? 2 : 1));
+  const level = getLevel(generalAdherence);
 
   return (
     <div className="space-y-6">
@@ -111,10 +139,10 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
         </div>
         <div className="flex items-center gap-4">
           <Progress value={mealAdherence} className="flex-1 h-3" />
-          <span className="text-lg font-bold text-primary">{mealAdherence}%</span>
+          <span className="text-lg font-bold text-primary">{generalAdherence}%</span>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          {mealsDone}/{meals.length} comidas cumplidas
+          {mealsDone}/{meals.length} comidas cumplidas · {exercisesDone}/{exercises.length} ejercicios cumplidos
         </p>
       </div>
 
@@ -161,10 +189,40 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
         <div className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-5 py-4">
             <h3 className="text-sm font-semibold text-foreground">Ejercicios del Dia</h3>
-            <p className="text-xs text-muted-foreground">Pendiente de integracion</p>
+            <p className="text-xs text-muted-foreground">
+              {loading ? "Cargando..." : `${exercisesDone} de ${exercises.length} cumplidos`}
+            </p>
           </div>
-          <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-            Aun no hay endpoint disponible para consultar ejercicios cumplidos.
+          <div className="divide-y divide-border">
+            {loading && (
+              <div className="px-5 py-8 text-center text-sm text-muted-foreground">Cargando ejercicios...</div>
+            )}
+
+            {!loading && exercises.length === 0 && (
+              <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+                No hay registros de ejercicios para esta fecha.
+              </div>
+            )}
+
+            {!loading && exercises.map((e) => {
+              const done = e.realizado === true || e.completado === true;
+              const exerciseName = e.nombre_ejercicio || e.nombre || e.descripcion || "Ejercicio registrado";
+              const duration = e.duracion_min ?? e.duracion_minutos;
+              return (
+                <div key={e.id_seguimiento_ejercicio ?? e.id_ejercicio ?? exerciseName} className="flex items-center gap-3 px-5 py-3">
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${done ? "bg-emerald-500/15 text-emerald-400" : "bg-accent/15 text-accent"}`}>
+                    {done ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${done ? "text-foreground" : "text-muted-foreground"}`}>{exerciseName}</p>
+                    {typeof duration === "number" && (
+                      <p className="text-xs text-muted-foreground">{duration} min</p>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">{formatTime(e.hora_registro)}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -1,5 +1,4 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,10 +27,8 @@ import {
   Plus,
   CheckCircle2,
   XCircle,
-  Eye,
   Edit,
   ClipboardList,
-  Users,
   CalendarCheck,
   CalendarX,
   Timer,
@@ -40,34 +37,30 @@ import {
 import { format, isSameDay, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { apiRequest } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
-/* ───── types & data ───── */
+const ACCESS_TOKEN_KEY = "dkfitt-access-token";
+const PATIENTS_ENDPOINTS = ["/api/patients", "/patients", "/api/pacientes"];
 
 type CitaStatus = "programada" | "atendida" | "cancelada" | "reprogramada";
 
-interface Cita {
+type Cita = {
   id: number;
+  patientId: number | null;
   patient: string;
   avatar: string;
-  date: string; // ISO
+  date: string;
   time: string;
   status: CitaStatus;
   hasEvaluation: boolean;
   notes: string;
-}
+};
 
-const initialCitas: Cita[] = [
-  { id: 1, patient: "María González", avatar: "MG", date: "2026-03-26", time: "09:00", status: "programada", hasEvaluation: false, notes: "Control mensual de peso y medidas" },
-  { id: 2, patient: "Carlos Ruiz", avatar: "CR", date: "2026-03-26", time: "10:30", status: "programada", hasEvaluation: false, notes: "Revisión de plan nutricional" },
-  { id: 3, patient: "Ana Martínez", avatar: "AM", date: "2026-03-27", time: "11:00", status: "programada", hasEvaluation: false, notes: "Evaluación inicial — primera consulta" },
-  { id: 4, patient: "Roberto Sánchez", avatar: "RS", date: "2026-03-28", time: "09:30", status: "programada", hasEvaluation: false, notes: "Seguimiento de adherencia al plan" },
-  { id: 5, patient: "Laura Díaz", avatar: "LD", date: "2026-03-24", time: "10:00", status: "atendida", hasEvaluation: true, notes: "Control quincenal — se registró evaluación clínica" },
-  { id: 6, patient: "María González", avatar: "MG", date: "2026-03-21", time: "09:00", status: "atendida", hasEvaluation: true, notes: "Ajuste de plan nutricional por baja adherencia" },
-  { id: 7, patient: "Carlos Ruiz", avatar: "CR", date: "2026-03-20", time: "14:00", status: "cancelada", hasEvaluation: false, notes: "Paciente no pudo asistir — reprogramar" },
-  { id: 8, patient: "Ana Martínez", avatar: "AM", date: "2026-03-19", time: "11:00", status: "reprogramada", hasEvaluation: false, notes: "Movida al 27 de marzo por conflicto de horario" },
-  { id: 9, patient: "Roberto Sánchez", avatar: "RS", date: "2026-03-17", time: "09:30", status: "atendida", hasEvaluation: false, notes: "Revisión de resultados de laboratorio" },
-  { id: 10, patient: "Laura Díaz", avatar: "LD", date: "2026-03-14", time: "10:00", status: "atendida", hasEvaluation: true, notes: "Evaluación de composición corporal" },
-];
+type PatientOption = {
+  id: number;
+  name: string;
+};
 
 const statusConfig: Record<CitaStatus, { label: string; className: string; icon: React.ElementType }> = {
   programada: { label: "Programada", className: "bg-primary/15 text-primary border-primary/30", icon: CalendarDays },
@@ -76,97 +69,340 @@ const statusConfig: Record<CitaStatus, { label: string; className: string; icon:
   reprogramada: { label: "Reprogramada", className: "bg-violet-500/15 text-violet-400 border-violet-500/30", icon: Clock },
 };
 
-const patients = ["María González", "Carlos Ruiz", "Ana Martínez", "Roberto Sánchez", "Laura Díaz"];
+function isPendingStatus(status: CitaStatus) {
+  return status === "programada" || status === "reprogramada";
+}
 
-/* ───── component ───── */
+function formatLocalDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseAppointmentDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: "", time: "" };
+  return {
+    date: formatLocalDate(date),
+    time: `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`,
+  };
+}
+
+function toDateTimePayload(date: string, time: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0).toISOString();
+}
+
+function toLocalDateTime(date: string, time: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0);
+}
+
+function todayKey() {
+  return formatLocalDate(new Date());
+}
+
+function isPastDate(date: string) {
+  return date < todayKey();
+}
+
+function canMarkAsAttended(cita: Cita) {
+  if (!cita.date || !cita.time) return false;
+  return cita.date === todayKey() && Date.now() >= toLocalDateTime(cita.date, cita.time).getTime();
+}
+
+function toInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "P";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+}
+
+function extractList(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) return raw as Record<string, unknown>[];
+  if (!raw || typeof raw !== "object") return [];
+  const root = raw as Record<string, unknown>;
+  if (Array.isArray(root.data)) return root.data as Record<string, unknown>[];
+  if (Array.isArray(root.items)) return root.items as Record<string, unknown>[];
+  if (Array.isArray(root.results)) return root.results as Record<string, unknown>[];
+  if (root.data && typeof root.data === "object") {
+    const data = root.data as Record<string, unknown>;
+    if (Array.isArray(data.items)) return data.items as Record<string, unknown>[];
+    if (Array.isArray(data.results)) return data.results as Record<string, unknown>[];
+    if (Array.isArray(data.citas)) return data.citas as Record<string, unknown>[];
+    if (Array.isArray(data.appointments)) return data.appointments as Record<string, unknown>[];
+  }
+  return [];
+}
+
+async function requestPatients(token: string): Promise<PatientOption[]> {
+  let lastError: unknown;
+  for (const path of PATIENTS_ENDPOINTS) {
+    try {
+      const res = await apiRequest<unknown>(path, { method: "GET", accessToken: token });
+      return extractList(res).map((item, index) => {
+        const nombres = String(item.nombres ?? item.nombre ?? "").trim();
+        const apellidos = String(item.apellidos ?? "").trim();
+        const name = `${nombres} ${apellidos}`.trim() || String(item.nombre_completo ?? item.name ?? "Paciente");
+        const id = Number(item.id_perfil ?? item.perfil_id ?? item.profile_id ?? item.id_paciente ?? item.id_usuario ?? item.id ?? index + 1);
+        return { id, name };
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+function mapAppointment(item: Record<string, unknown>): Cita {
+  const fechaHora = String(item.fecha_hora ?? item.fechaHora ?? item.datetime ?? item.fecha ?? "");
+  const parsed = parseAppointmentDate(fechaHora);
+  const patient =
+    String(item.nombre_paciente ?? item.paciente_nombre ?? item.patient_name ?? "").trim()
+    || String((item.paciente as Record<string, unknown> | undefined)?.nombre_completo ?? "").trim()
+    || "Paciente";
+  const status = String(item.estado ?? item.status ?? "programada").toLowerCase() as CitaStatus;
+
+  return {
+    id: Number(item.id_cita ?? item.id ?? item.appointment_id ?? 0),
+    patientId: Number(item.id_paciente ?? item.id_perfil ?? item.paciente_id ?? 0) || null,
+    patient,
+    avatar: toInitials(patient),
+    date: parsed.date,
+    time: parsed.time,
+    status: ["programada", "atendida", "cancelada", "reprogramada"].includes(status) ? status : "programada",
+    hasEvaluation: Boolean(item.id_evaluacion ?? item.evaluacion_id ?? item.evaluacion),
+    notes: String(item.notas ?? item.notes ?? ""),
+  };
+}
 
 const Citas = () => {
-  const navigate = useNavigate();
-  const [citas, setCitas] = useState(initialCitas);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date(2026, 2, 26));
+  const { toast } = useToast();
+  const [citas, setCitas] = useState<Cita[]>([]);
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showAttendDialog, setShowAttendDialog] = useState(false);
   const [attendingCita, setAttendingCita] = useState<Cita | null>(null);
+  const [editingCita, setEditingCita] = useState<Cita | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | CitaStatus>("all");
 
-  // Form state
   const [formPatient, setFormPatient] = useState("");
-  const [formDate, setFormDate] = useState("");
+  const [formDate, setFormDate] = useState(formatLocalDate(new Date()));
   const [formTime, setFormTime] = useState("");
   const [formNotes, setFormNotes] = useState("");
 
-  // KPIs
+  const resetForm = () => {
+    setFormPatient("");
+    const selectedKey = selectedDate ? formatLocalDate(selectedDate) : todayKey();
+    setFormDate(isPastDate(selectedKey) ? todayKey() : selectedKey);
+    setFormTime("");
+    setFormNotes("");
+    setEditingCita(null);
+  };
+
+  const fetchData = async () => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token) {
+      setLoading(false);
+      toast({ title: "Sesión no válida", description: "No se encontró token de acceso.", variant: "destructive" });
+      return;
+    }
+
+    const params = new URLSearchParams({ page: "1", limit: "100" });
+    if (filterStatus !== "all") params.set("estado", filterStatus);
+
+    setLoading(true);
+    try {
+      const [appointmentsRes, patientsRes] = await Promise.all([
+        apiRequest<unknown>(`/appointments?${params.toString()}`, { method: "GET", accessToken: token }),
+        requestPatients(token).catch(() => []),
+      ]);
+      setCitas(extractList(appointmentsRes).map(mapAppointment).filter((item) => item.id));
+      setPatients(patientsRes);
+    } catch {
+      setCitas([]);
+      toast({
+        title: "No se pudo cargar citas",
+        description: "Verifica endpoint GET /appointments.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchData();
+  }, [filterStatus]);
+
   const programadas = citas.filter((c) => c.status === "programada").length;
   const atendidas = citas.filter((c) => c.status === "atendida").length;
   const canceladas = citas.filter((c) => c.status === "cancelada").length;
   const pendientes = citas.filter((c) => c.status === "programada" || c.status === "reprogramada").length;
 
-  // Citas for selected day
   const dayCitas = useMemo(() => {
     if (!selectedDate) return [];
     return citas
-      .filter((c) => isSameDay(parseISO(c.date), selectedDate))
+      .filter((c) => c.date && isSameDay(parseISO(c.date), selectedDate))
       .sort((a, b) => a.time.localeCompare(b.time));
   }, [citas, selectedDate]);
 
-  // All citas sorted
   const allSorted = useMemo(
     () => [...citas].sort((a, b) => b.date.localeCompare(a.date) || a.time.localeCompare(b.time)),
     [citas]
   );
 
-  // Dates that have citas (for calendar modifiers)
-  const citaDates = useMemo(() => citas.map((c) => parseISO(c.date)), [citas]);
+  const citaDates = useMemo(() => citas.filter((c) => c.date).map((c) => parseISO(c.date)), [citas]);
 
-  const handleSave = () => {
-    if (!formPatient || !formDate || !formTime) return;
-    const avatar = formPatient.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-    setCitas((prev) => [
-      ...prev,
-      {
-        id: Math.max(...prev.map((c) => c.id)) + 1,
-        patient: formPatient,
-        avatar,
-        date: formDate,
-        time: formTime,
-        status: "programada",
-        hasEvaluation: false,
-        notes: formNotes,
-      },
-    ]);
-    setShowForm(false);
-    setFormPatient("");
-    setFormDate("");
-    setFormTime("");
-    setFormNotes("");
+  const openCreate = () => {
+    resetForm();
+    setShowForm(true);
   };
 
-  const markAttended = (id: number, withEval: boolean) => {
-    setCitas((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: "atendida" as CitaStatus, hasEvaluation: withEval || c.hasEvaluation } : c))
-    );
-    setShowAttendDialog(false);
-    setAttendingCita(null);
+  const openEdit = (cita: Cita) => {
+    if (cita.status === "atendida") {
+      toast({
+        title: "Cita atendida",
+        description: "No se puede editar una cita que ya fue marcada como atendida.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditingCita(cita);
+    setFormPatient(cita.patientId ? String(cita.patientId) : "");
+    setFormDate(cita.date);
+    setFormTime(cita.time);
+    setFormNotes(cita.notes);
+    setShowForm(true);
   };
 
-  const cancelCita = (id: number) => {
-    setCitas((prev) => prev.map((c) => (c.id === id ? { ...c, status: "cancelada" as CitaStatus } : c)));
+  const handleSave = async () => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token || !formDate || !formTime) return;
+    if (!editingCita && !formPatient) return;
+
+    if (isPastDate(formDate)) {
+      toast({
+        title: "Fecha invalida",
+        description: "No se pueden agendar citas en dias que ya pasaron.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const baseBody = {
+        fecha_hora: toDateTimePayload(formDate, formTime),
+        notas: formNotes,
+      };
+
+      if (editingCita) {
+        const wasRescheduled = formDate !== editingCita.date || formTime !== editingCita.time;
+        await apiRequest(`/appointments/${editingCita.id}`, {
+          method: "PUT",
+          accessToken: token,
+          body: baseBody,
+        });
+        if (wasRescheduled && editingCita.status !== "reprogramada") {
+          await apiRequest(`/appointments/${editingCita.id}/status`, {
+            method: "PATCH",
+            accessToken: token,
+            body: { estado: "reprogramada" },
+          });
+        }
+      } else {
+        await apiRequest("/appointments", {
+          method: "POST",
+          accessToken: token,
+          body: {
+            ...baseBody,
+            id_perfil: Number(formPatient),
+          },
+        });
+      }
+
+      setShowForm(false);
+      resetForm();
+      await fetchData();
+      toast({ title: editingCita ? "Cita actualizada" : "Cita programada" });
+    } catch {
+      toast({
+        title: editingCita ? "No se pudo actualizar cita" : "No se pudo agendar cita",
+        description: editingCita ? "Verifica endpoint PUT /appointments/{id}." : "Verifica endpoint POST /appointments.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const changeStatus = async (id: number, estado: CitaStatus) => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token) return;
+    const cita = citas.find((item) => item.id === id) ?? attendingCita;
+
+    if (estado === "atendida" && cita && !canMarkAsAttended(cita)) {
+      toast({
+        title: "Aun no se puede marcar como atendida",
+        description: "Solo puedes marcarla como atendida el dia de la cita, cuando la hora programada ya haya llegado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiRequest(`/appointments/${id}/status`, {
+        method: "PATCH",
+        accessToken: token,
+        body: { estado },
+      });
+      setCitas((prev) => prev.map((c) => (c.id === id ? { ...c, status: estado } : c)));
+      toast({ title: "Estado actualizado" });
+    } catch {
+      toast({ title: "No se pudo cambiar estado", description: "Verifica endpoint PATCH /appointments/{id}/status.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+      setShowAttendDialog(false);
+      setAttendingCita(null);
+    }
   };
 
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">Gestión de Citas</h1>
             <p className="text-sm text-muted-foreground mt-0.5">Planificación y seguimiento de consultas nutricionales</p>
           </div>
-          <Button size="sm" className="gap-1.5 text-xs" onClick={() => setShowForm(true)}>
-            <Plus className="h-3.5 w-3.5" /> Agendar Cita
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | CitaStatus)}>
+              <SelectTrigger className="w-[155px] h-9 text-xs bg-card border-border">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="programada">Programada</SelectItem>
+                <SelectItem value="atendida">Atendida</SelectItem>
+                <SelectItem value="cancelada">Cancelada</SelectItem>
+                <SelectItem value="reprogramada">Reprogramada</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" className="gap-1.5 text-xs" onClick={openCreate}>
+              <Plus className="h-3.5 w-3.5" /> Agendar Cita
+            </Button>
+          </div>
         </div>
 
-        {/* KPI Cards */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[
             { label: "Programadas", value: programadas, icon: CalendarCheck, accent: false },
@@ -184,9 +420,7 @@ const Citas = () => {
           ))}
         </div>
 
-        {/* Calendar + Day list */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[auto_1fr]">
-          {/* Calendar */}
           <div className="rounded-xl border border-border bg-card p-4">
             <Calendar
               mode="single"
@@ -199,13 +433,12 @@ const Citas = () => {
             />
           </div>
 
-          {/* Day citas */}
           <div className="rounded-xl border border-border bg-card p-5">
             <h3 className="text-sm font-semibold text-foreground mb-1">
               {selectedDate ? format(selectedDate, "EEEE d 'de' MMMM, yyyy", { locale: es }) : "Selecciona un día"}
             </h3>
             <p className="text-xs text-muted-foreground mb-4">
-              {dayCitas.length === 0 ? "Sin citas para este día" : `${dayCitas.length} cita(s) programada(s)`}
+              {loading ? "Cargando citas..." : dayCitas.length === 0 ? "Sin citas para este día" : `${dayCitas.length} cita(s) programada(s)`}
             </p>
             <div className="space-y-3">
               {dayCitas.map((cita) => {
@@ -220,14 +453,15 @@ const Citas = () => {
                         <p className="text-sm font-semibold text-foreground">{cita.patient}</p>
                         {cita.hasEvaluation && <FileText className="h-3.5 w-3.5 text-primary" />}
                       </div>
-                      <p className="text-xs text-muted-foreground">{cita.time} · {cita.notes}</p>
+                      <p className="text-xs text-muted-foreground">{cita.time} · {cita.notes || "Sin notas"}</p>
                     </div>
                     <Badge variant="outline" className={`text-[10px] shrink-0 ${sc.className}`}>{sc.label}</Badge>
-                    {cita.status === "programada" && (
+                    {isPendingStatus(cita.status) && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="text-[11px] h-7 gap-1 border-primary/30 text-primary hover:bg-primary/10 shrink-0"
+                        disabled={submitting}
                         onClick={() => { setAttendingCita(cita); setShowAttendDialog(true); }}
                       >
                         <CheckCircle2 className="h-3 w-3" /> Atender
@@ -240,7 +474,6 @@ const Citas = () => {
           </div>
         </div>
 
-        {/* Full table */}
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-1">Historial de Citas</h3>
           <p className="text-xs text-muted-foreground mb-4">Todas las consultas registradas en el sistema</p>
@@ -257,7 +490,12 @@ const Citas = () => {
                 </tr>
               </thead>
               <tbody>
-                {allSorted.map((cita) => {
+                {loading && (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">Cargando citas...</td>
+                  </tr>
+                )}
+                {!loading && allSorted.map((cita) => {
                   const sc = statusConfig[cita.status];
                   return (
                     <tr key={cita.id} className="border-b border-border last:border-0">
@@ -270,9 +508,9 @@ const Citas = () => {
                         </div>
                       </td>
                       <td className="py-3 text-xs text-muted-foreground">
-                        {format(parseISO(cita.date), "dd MMM yyyy", { locale: es })}
+                        {cita.date ? format(parseISO(cita.date), "dd MMM yyyy", { locale: es }) : "---"}
                       </td>
-                      <td className="py-3 text-xs text-muted-foreground">{cita.time}</td>
+                      <td className="py-3 text-xs text-muted-foreground">{cita.time || "--:--"}</td>
                       <td className="py-3">
                         <Badge variant="outline" className={`text-[10px] ${sc.className}`}>{sc.label}</Badge>
                       </td>
@@ -281,20 +519,28 @@ const Citas = () => {
                       </td>
                       <td className="py-3">
                         <div className="flex items-center gap-1 justify-end">
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => navigate("/pacientes/1")}>
-                            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => openEdit(cita)}
+                            disabled={submitting || cita.status === "atendida"}
+                            title={cita.status === "atendida" ? "No se puede editar una cita atendida" : "Editar cita"}
+                          >
+                            <Edit className="h-3.5 w-3.5 text-muted-foreground" />
                           </Button>
-                          {cita.status === "programada" && (
+                          {isPendingStatus(cita.status) && (
                             <>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 w-7 p-0"
+                                disabled={submitting}
                                 onClick={() => { setAttendingCita(cita); setShowAttendDialog(true); }}
                               >
                                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => cancelCita(cita.id)}>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={submitting} onClick={() => void changeStatus(cita.id, "cancelada")}>
                                 <XCircle className="h-3.5 w-3.5 text-accent" />
                               </Button>
                             </>
@@ -304,29 +550,33 @@ const Citas = () => {
                     </tr>
                   );
                 })}
+                {!loading && allSorted.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">No hay citas para mostrar.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
-      {/* Agendar Cita Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm} onOpenChange={(open) => { setShowForm(open); if (!open) resetForm(); }}>
         <DialogContent className="sm:max-w-md border-border bg-card">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Agendar Cita</DialogTitle>
-            <DialogDescription className="text-muted-foreground">Programa una nueva consulta nutricional</DialogDescription>
+            <DialogTitle className="text-foreground">{editingCita ? "Editar Cita" : "Agendar Cita"}</DialogTitle>
+            <DialogDescription className="text-muted-foreground">Programa o actualiza una consulta nutricional</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Paciente</Label>
-              <Select value={formPatient} onValueChange={setFormPatient}>
+              <Select value={formPatient} onValueChange={setFormPatient} disabled={!!editingCita}>
                 <SelectTrigger className="h-9 text-xs bg-background border-border">
                   <SelectValue placeholder="Seleccionar paciente" />
                 </SelectTrigger>
                 <SelectContent>
                   {patients.map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -334,7 +584,7 @@ const Citas = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Fecha</Label>
-                <Input type="date" className="h-9 text-xs bg-background border-border" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
+                <Input type="date" min={todayKey()} className="h-9 text-xs bg-background border-border" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Hora</Label>
@@ -347,47 +597,54 @@ const Citas = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button size="sm" className="text-xs" onClick={handleSave}>Guardar cita</Button>
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowForm(false)} disabled={submitting}>Cancelar</Button>
+            <Button size="sm" className="text-xs" onClick={handleSave} disabled={submitting || !formDate || !formTime || (!editingCita && !formPatient)}>
+              Guardar cita
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Mark Attended Dialog */}
       <Dialog open={showAttendDialog} onOpenChange={setShowAttendDialog}>
         <DialogContent className="sm:max-w-sm border-border bg-card">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Marcar como Atendida</DialogTitle>
+            <DialogTitle className="text-foreground">Cambiar estado de la cita</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              {attendingCita?.patient} — {attendingCita?.time}
+              {attendingCita?.patient} - {attendingCita?.time}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <p className="text-xs text-muted-foreground">¿Desea registrar una evaluación clínica asociada a esta consulta?</p>
+            <p className="text-xs text-muted-foreground">El vínculo con evaluación clínica se implementará cuando tengamos un selector de evaluación.</p>
             <div className="space-y-2">
               <Button
                 variant="outline"
                 size="sm"
                 className="w-full justify-start gap-2 text-xs h-10 border-primary/30 text-primary hover:bg-primary/10"
-                onClick={() => attendingCita && markAttended(attendingCita.id, true)}
+                disabled={submitting || !attendingCita || !canMarkAsAttended(attendingCita)}
+                title={attendingCita && canMarkAsAttended(attendingCita) ? "Marcar atendida" : "Disponible el dia y hora de la cita"}
+                onClick={() => attendingCita && void changeStatus(attendingCita.id, "atendida")}
               >
-                <ClipboardList className="h-4 w-4" /> Registrar evaluación clínica
+                <ClipboardList className="h-4 w-4" /> Marcar atendida
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start gap-2 text-xs h-10 border-border"
-                onClick={() => attendingCita && markAttended(attendingCita.id, true)}
-              >
-                <FileText className="h-4 w-4" /> Vincular evaluación existente
-              </Button>
+              {attendingCita?.status !== "reprogramada" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2 text-xs h-10 border-border"
+                  disabled={submitting}
+                  onClick={() => attendingCita && void changeStatus(attendingCita.id, "reprogramada")}
+                >
+                  <Clock className="h-4 w-4" /> Marcar reprogramada
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-start gap-2 text-xs h-10 text-muted-foreground"
-                onClick={() => attendingCita && markAttended(attendingCita.id, false)}
+                className="w-full justify-start gap-2 text-xs h-10 text-accent"
+                disabled={submitting}
+                onClick={() => attendingCita && void changeStatus(attendingCita.id, "cancelada")}
               >
-                <CheckCircle2 className="h-4 w-4" /> Solo marcar atendida
+                <XCircle className="h-4 w-4" /> Cancelar cita
               </Button>
             </div>
           </div>

@@ -12,16 +12,7 @@ const CLINICAL_EVALUATION_ENDPOINTS = [
   "/api/clinical-evaluation",
   "/clinical-evaluation",
 ];
-const CALORIE_CONTROL_WEEKLY_ENDPOINTS = [
-  "/api/calorie-control/me/weekly",
-  "/calorie-control/me/weekly",
-  "/api/calorie-control/me/history",
-  "/calorie-control/me/history",
-];
-const CALORIE_CONTROL_TODAY_ENDPOINTS = [
-  "/api/calorie-control/patient",
-  "/calorie-control/patient",
-];
+const CALORIE_CONTROL_PATIENT_ENDPOINTS = ["/api/calorie-control/patient", "/calorie-control/patient"];
 
 type EvaluationRow = {
   id: number;
@@ -45,6 +36,9 @@ type BalancePoint = {
   fecha: string;
   fechaRaw: string;
   balance: number;
+  objetivo: number;
+  consumidas: number;
+  adicionales: number;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -243,21 +237,25 @@ function buildBalanceSeries(source: unknown): BalancePoint[] {
   return records
     .map((item) => {
       const fechaRaw = String(findFirstValue(item, ["fecha", "date", "dia", "day", "created_at"]) ?? "");
-      const balanceRaw = parseNumber(findFirstValue(item, [
+      const explicitBalance = parseNumber(findFirstValue(item, [
         "balance_calorico",
         "balance",
         "caloric_balance",
         "diferencia_calorica",
         "delta_calorias",
-        "calorias_restantes",
       ]));
-      const objetivo = parseNumber(findFirstValue(item, ["calorias_objetivo", "objetivo", "target_calories"]));
-      const consumidas = parseNumber(findFirstValue(item, ["calorias_totales_consumidas", "calorias_consumidas", "consumed_calories"]));
-      const balance = balanceRaw ?? ((consumidas !== undefined && objetivo !== undefined) ? consumidas - objetivo : undefined);
+      const objetivo = parseNumber(findFirstValue(item, ["calorias_objetivo", "meta_calorica", "objetivo", "target_calories"])) ?? 0;
+      const consumidas = parseNumber(findFirstValue(item, ["calorias_totales_consumidas", "calorias_consumidas", "consumed_calories"])) ?? 0;
+      const adicionales = parseNumber(findFirstValue(item, ["calorias_consumidas_adicional", "calorias_adicionales"])) ?? 0;
+      const restantes = parseNumber(findFirstValue(item, ["calorias_restantes"]));
+      const balance = explicitBalance ?? (objetivo > 0 ? consumidas - objetivo : restantes !== undefined ? -restantes : 0);
       return {
         fecha: formatDateLabel(fechaRaw),
         fechaRaw,
-        balance: balance ?? 0,
+        balance,
+        objetivo,
+        consumidas,
+        adicionales,
       };
     })
     .filter((item) => item.fechaRaw)
@@ -311,12 +309,13 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
       }
 
       const evaluationId = profileId ?? patientId;
+      const calorieControlId = profileId ?? patientId;
 
       const [evaluationResult, dashboardResult, weeklyResult, todayResult] = await Promise.allSettled([
         requestWithFallback(CLINICAL_EVALUATION_ENDPOINTS, (base) => `${base}/patient/${evaluationId}`, token),
         requestWithFallback(DASHBOARD_PATIENT_ENDPOINTS, (base) => `${base}/${patientId}`, token),
-        requestWithFallback(CALORIE_CONTROL_WEEKLY_ENDPOINTS, (base) => `${base}`, token),
-        requestWithFallback(CALORIE_CONTROL_TODAY_ENDPOINTS, (base) => `${base}/${patientId}/today`, token),
+        requestWithFallback(CALORIE_CONTROL_PATIENT_ENDPOINTS, (base) => `${base}/${calorieControlId}/history`, token),
+        requestWithFallback(CALORIE_CONTROL_PATIENT_ENDPOINTS, (base) => `${base}/${calorieControlId}/today`, token),
       ]);
 
       if (evaluationResult.status === "fulfilled") {
@@ -334,12 +333,20 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
         balance = buildBalanceSeries(todayResult.value);
         if (balance.length === 0) {
           const todayRaw = unwrapData(todayResult.value);
-          const todayBalance = parseNumber(findFirstValue(todayRaw, ["balance_calorico", "balance", "calorias_restantes"]));
+          const todayBalanceSource = findFirstValue(todayRaw, ["balance"]) ?? todayRaw;
+          const objetivo = parseNumber(findFirstValue(todayBalanceSource, ["calorias_objetivo", "meta_calorica"])) ?? 0;
+          const consumidas = parseNumber(findFirstValue(todayBalanceSource, ["calorias_totales_consumidas"])) ?? 0;
+          const restantes = parseNumber(findFirstValue(todayBalanceSource, ["calorias_restantes"]));
+          const todayBalance = parseNumber(findFirstValue(todayBalanceSource, ["balance_calorico", "diferencia_calorica", "delta_calorias"]))
+            ?? (objetivo > 0 ? consumidas - objetivo : restantes !== undefined ? -restantes : undefined);
           if (todayBalance !== undefined) {
             balance = [{
               fecha: "Hoy",
               fechaRaw: new Date().toISOString(),
               balance: todayBalance,
+              objetivo,
+              consumidas,
+              adicionales: parseNumber(findFirstValue(todayBalanceSource, ["calorias_consumidas_adicional", "calorias_adicionales"])) ?? 0,
             }];
           }
         }
@@ -539,7 +546,17 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
     const isMobile = balanceRef.current.clientWidth < 640;
 
     const option: echarts.EChartsOption = {
-      tooltip: { trigger: "axis" },
+      tooltip: {
+        trigger: "axis",
+        formatter: (params) => {
+          const rows = Array.isArray(params) ? params : [params];
+          const title = rows[0]?.axisValueLabel ?? "";
+          return [
+            `<div style="font-weight:600;margin-bottom:4px;">${title}</div>`,
+            ...rows.map((row: any) => `${row.marker} ${row.seriesName}: ${Number(row.value ?? 0).toLocaleString()} kcal`),
+          ].join("");
+        },
+      },
       grid: { left: 8, right: 16, top: 16, bottom: isMobile ? 36 : 24, containLabel: true },
       xAxis: {
         type: "category",
@@ -563,14 +580,32 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
         : [],
       series: [
         {
-          name: "Balance",
+          name: "Objetivo",
           type: "line",
           smooth: true,
-          data: balanceSeries.map((item) => item.balance),
+          data: balanceSeries.map((item) => item.objetivo),
+          lineStyle: { width: 2, color: "#4cd3ff" },
+          symbol: "circle",
+          symbolSize: 6,
+        },
+        {
+          name: "Consumidas",
+          type: "line",
+          smooth: true,
+          data: balanceSeries.map((item) => item.consumidas),
           lineStyle: { width: 2, color: "#e5b106" },
           symbol: "circle",
           symbolSize: 6,
-          areaStyle: { color: "rgba(229, 177, 6, 0.12)" },
+          areaStyle: { color: "rgba(229, 177, 6, 0.10)" },
+        },
+        {
+          name: "Balance",
+          type: "bar",
+          data: balanceSeries.map((item) => item.balance),
+          itemStyle: {
+            color: (params: any) => Number(params.value) > 0 ? "#e11d48" : "#22c55e",
+            borderRadius: [4, 4, 0, 0],
+          },
         },
       ],
       graphic: balanceSeries.length === 0
