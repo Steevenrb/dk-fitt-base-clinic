@@ -103,7 +103,7 @@ export default function Login() {
                     placeholder="correo@dkfitt.com"
                     value={loginEmail}
                     onChange={e => { setLoginEmail(e.target.value); setLoginErrors(p => ({ ...p, email: undefined })); }}
-                    className={loginErrors.email ? "border-destructive bg-white" : "bg-white border-slate-300"}
+                    className={loginErrors.email ? "border-destructive bg-white text-slate-900 caret-slate-900" : "bg-white border-slate-300 text-slate-900 caret-slate-900"}
                   />
                   {loginErrors.email && <p className="text-xs text-destructive">{loginErrors.email}</p>}
                 </div>
@@ -116,7 +116,7 @@ export default function Login() {
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={e => { setLoginPassword(e.target.value); setLoginErrors(p => ({ ...p, password: undefined })); }}
-                      className={loginErrors.password ? "border-destructive pr-10 bg-white" : "pr-10 bg-white border-slate-300"}
+                      className={loginErrors.password ? "border-destructive pr-10 bg-white text-slate-900 caret-slate-900" : "pr-10 bg-white border-slate-300 text-slate-900 caret-slate-900"}
                       onKeyDown={e => e.key === "Enter" && handleLogin()}
                     />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800">
