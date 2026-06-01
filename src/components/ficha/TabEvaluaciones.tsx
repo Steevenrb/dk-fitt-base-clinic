@@ -623,7 +623,7 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
   }, [balanceSeries, themeKey]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       <div className="rounded-xl border border-border bg-card p-5">
         <h3 className="mb-1 text-sm font-semibold text-foreground">Tendencias Clínicas</h3>
         <p className="mb-5 text-xs text-muted-foreground">Evolución por fechas de atención</p>
@@ -669,11 +669,11 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
       </div>
 
       <div className="rounded-xl border border-border bg-card">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+        <div className="flex flex-col gap-2 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold text-foreground">Historial de Evaluaciones</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[1120px] text-sm">
             <thead>
               <tr className="border-b border-border text-left">
                 <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Fecha</th>

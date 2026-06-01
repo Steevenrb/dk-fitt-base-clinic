@@ -276,11 +276,48 @@ const Pacientes = () => {
         />
       }
     >
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 min-w-0">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">Gestion de Pacientes</h1>
             <p className="text-sm text-muted-foreground">Monitoreo y seguimiento nutricional</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:hidden">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar paciente..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-muted pl-9 text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full bg-muted text-sm">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los estados</SelectItem>
+                <SelectItem value="activo">Activo</SelectItem>
+                <SelectItem value="pendiente">Pendiente</SelectItem>
+                <SelectItem value="suspendido">Suspendido</SelectItem>
+                <SelectItem value="finalizado">Finalizado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={adherenceFilter} onValueChange={setAdherenceFilter}>
+              <SelectTrigger className="w-full bg-muted text-sm">
+                <SelectValue placeholder="Adherencia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Toda adherencia</SelectItem>
+                <SelectItem value="alto">Alto</SelectItem>
+                <SelectItem value="medio">Medio</SelectItem>
+                <SelectItem value="bajo">Bajo</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -291,7 +328,7 @@ const Pacientes = () => {
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
                   <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Paciente</th>

@@ -32,7 +32,7 @@ const AlimentosRecetas = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
@@ -40,8 +40,9 @@ const AlimentosRecetas = () => {
             <p className="text-muted-foreground text-sm mt-1">Composición nutricional y creación de recetas personalizadas</p>
           </div>
           {activeTab === "alimentos" && (
-            <div className="flex gap-2">
+            <div className="flex w-full gap-2 sm:w-auto">
               <Button
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setActiveTab("alimentos");
                   setOpenCreateFoodSignal((prev) => prev + 1);
@@ -55,11 +56,13 @@ const AlimentosRecetas = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-card border border-border">
-            <TabsTrigger value="alimentos"><Apple className="h-4 w-4 mr-2" /> Alimentos</TabsTrigger>
-            <TabsTrigger value="recetas"><BookOpen className="h-4 w-4 mr-2" /> Recetas</TabsTrigger>
-            <TabsTrigger value="constructor"><ChefHat className="h-4 w-4 mr-2" /> Constructor</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto pb-1">
+            <TabsList className="h-auto min-w-max bg-card border border-border">
+              <TabsTrigger value="alimentos"><Apple className="h-4 w-4 mr-2" /> Alimentos</TabsTrigger>
+              <TabsTrigger value="recetas"><BookOpen className="h-4 w-4 mr-2" /> Recetas</TabsTrigger>
+              <TabsTrigger value="constructor"><ChefHat className="h-4 w-4 mr-2" /> Constructor</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="alimentos" className="mt-4">
             <TabAlimentos

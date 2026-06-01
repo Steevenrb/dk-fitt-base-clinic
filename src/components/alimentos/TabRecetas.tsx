@@ -772,15 +772,15 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 min-w-0">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Buscar receta..." className="pl-9" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
           </div>
           <Select value={String(filtroTiempo)} onValueChange={(value) => setFiltroTiempo(value === "todas" ? "todas" : Number(value))}>
-            <SelectTrigger className="w-44"><SelectValue placeholder="Tiempo de comida" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="Tiempo de comida" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todas">Todas</SelectItem>
               {tiemposNormalized.map((t) => (
@@ -789,7 +789,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
             </SelectContent>
           </Select>
           <Select value={filtroOrigen} onValueChange={(value) => setFiltroOrigen(value as "todos" | "ia" | "manual")}>
-            <SelectTrigger className="w-36"><SelectValue placeholder="Origen" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-36"><SelectValue placeholder="Origen" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
               <SelectItem value="ia">IA</SelectItem>
@@ -798,7 +798,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
           </Select>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-2" /> Nueva receta</Button>
+              <Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" /> Nueva receta</Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => openGenerateModal()}>
@@ -909,7 +909,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
       </div>
 
       {!loading && recetasFiltradas.length > 0 && (
-        <div className="flex items-center justify-between pt-2">
+        <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             Pagina {pagina} de {totalPaginas} · {recetasFiltradas.length} recetas
           </p>

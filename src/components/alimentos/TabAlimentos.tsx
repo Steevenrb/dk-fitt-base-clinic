@@ -642,8 +642,8 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
               </CardDescription>
             </div>
           </div>
-          <div className="flex gap-2 mt-2">
-            <div className="relative flex-1">
+          <div className="flex flex-col gap-2 mt-2 sm:flex-row">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Filtrar por nombre..."
@@ -653,7 +653,7 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
               />
             </div>
             <Select value={filtroCategoria} onValueChange={(v) => setFiltroCategoria(v as "todas" | CategoriaDetalle)}>
-              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full h-8 text-xs sm:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todas</SelectItem>
                 {CATEGORY_OPTIONS.map((cat) => (
@@ -664,8 +664,8 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-auto max-h-[620px]">
-            <Table>
+          <div className="max-h-[620px] overflow-auto">
+            <Table className="min-w-[760px]">
               <TableHeader>
                 <TableRow className="border-border">
                   <TableHead>Alimento</TableHead>
@@ -736,7 +736,7 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs"
+                className="h-8 flex-1 text-xs sm:flex-none"
                 disabled={page <= 1 || loading}
                 onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               >
@@ -745,7 +745,7 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs"
+                className="h-8 flex-1 text-xs sm:flex-none"
                 disabled={loading || (totalPages !== null && page >= totalPages)}
                 onClick={() => setPage((prev) => prev + 1)}
               >
@@ -757,7 +757,7 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
       </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="bg-card border-border max-w-5xl h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="bg-card border-border max-w-[calc(100vw-2rem)] sm:max-w-5xl h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Registrar un nuevo alimento</DialogTitle>
           </DialogHeader>

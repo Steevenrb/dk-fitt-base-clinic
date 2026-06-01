@@ -390,7 +390,7 @@ const Seguimiento = () => {
   if (!selectedPatient) {
     return (
       <AppLayout>
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-bold text-foreground">Seguimiento</h1>
@@ -412,7 +412,7 @@ const Seguimiento = () => {
               <p className="text-xs text-muted-foreground">{filteredPatients.length} pacientes disponibles</p>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="border-b border-border text-left">
                     <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Paciente</th>
@@ -465,7 +465,7 @@ const Seguimiento = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => setSelectedPatient(null)} className="text-muted-foreground hover:text-foreground">

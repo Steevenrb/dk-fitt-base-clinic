@@ -289,23 +289,23 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
   }, [weekItems]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Análisis de Consumo Adicional</h3>
           <p className="text-xs text-muted-foreground mt-1">Alimentos y bebidas fuera del plan nutricional</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full items-center gap-3 sm:w-auto">
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary sm:w-auto"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: "CalorÃ­as adicionales totales", value: `${weekTotalCals.toLocaleString()} kcal`, icon: Flame, accent: true },
           { label: "Promedio diario de exceso", value: `${avgDaily} kcal`, icon: TrendingUp, accent: avgDaily > 150 },
@@ -403,7 +403,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
         <h4 className="text-sm font-semibold text-foreground mb-1">Detalle de consumos adicionales</h4>
         <p className="text-xs text-muted-foreground mb-4">Listado de registros recibidos desde el endpoint</p>
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow className="border-border">
                 <TableHead className="text-xs">Fecha</TableHead>

@@ -18,11 +18,12 @@ import { ApiError, apiRequest } from "@/lib/api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   User, Lock, Eye, EyeOff, Check, X,
-  Clock, Shield
+  Shield
 } from "lucide-react";
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const PROFILE_ENDPOINTS = ["/api/nutritionist-profile/me", "/nutritionist-profile/me"];
+const ME_ENDPOINTS = ["/api/auth/me", "/auth/me"];
 
 const emptyProfile = {
   nombres: "",
@@ -36,6 +37,7 @@ const emptyProfile = {
   rol: "",
 };
 
+/* Removed static access history until a dedicated endpoint exists.
 const accessHistory = [
   { fecha: "28/03/2026 09:14", dispositivo: "Chrome — Windows", ip: "192.168.1.45", estado: "Exitoso" },
   { fecha: "27/03/2026 14:32", dispositivo: "Chrome — Windows", ip: "192.168.1.45", estado: "Exitoso" },
@@ -43,6 +45,7 @@ const accessHistory = [
   { fecha: "25/03/2026 20:11", dispositivo: "Firefox — MacOS", ip: "172.16.0.8", estado: "Fallido" },
   { fecha: "24/03/2026 10:05", dispositivo: "Chrome — Windows", ip: "192.168.1.45", estado: "Exitoso" },
 ];
+*/
 
 /* ─── password helpers ─── */
 function getStrength(pw: string) {
@@ -64,6 +67,9 @@ type NutritionistProfilePayload = {
   correo_institucional?: string;
   fecha_nacimiento?: string;
   sexo?: string;
+  ultimo_acceso?: string;
+  last_login?: string;
+  updated_at?: string;
   perfil_nutricionista?: {
     numero_registro_profesional?: string;
     especialidad?: string;
@@ -120,6 +126,23 @@ function getRoleLabelBySex(sex?: string): string {
   if (sex === "M") return "Nutriologo";
   if (sex === "F") return "Nutriologa";
   return "Nutriologo";
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleString("es-EC", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getLastAccess(payload?: NutritionistProfilePayload | null): string {
+  return payload?.ultimo_acceso || payload?.last_login || payload?.updated_at || "";
 }
 
 export default function MiPerfil() {
@@ -184,8 +207,16 @@ export default function MiPerfil() {
           setProfileError(null);
         }
 
-        const response = await requestWithFallback<NutritionistProfileResponse>(PROFILE_ENDPOINTS, token, { method: "GET" });
+        const [profileResult, meResult] = await Promise.allSettled([
+          requestWithFallback<NutritionistProfileResponse>(PROFILE_ENDPOINTS, token, { method: "GET" }),
+          requestWithFallback<NutritionistProfileResponse>(ME_ENDPOINTS, token, { method: "GET" }),
+        ]);
+
+        if (profileResult.status === "rejected") throw profileResult.reason;
+
+        const response = profileResult.value;
         const payload = response.data ?? response;
+        const mePayload = meResult.status === "fulfilled" ? (meResult.value.data ?? meResult.value) : null;
         const perfil = payload.perfil_nutricionista ?? {};
 
         const nextProfile = {
@@ -321,8 +352,6 @@ export default function MiPerfil() {
                     <Badge variant="outline" className="border-primary text-primary">Activo</Badge>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Último acceso</span>
-                    <span className="text-foreground">--</span>
                   </div>
                 </div>
               </CardContent>
@@ -432,38 +461,6 @@ export default function MiPerfil() {
                 </CardContent>
               </Card>
 
-              {/* Access history */}
-              <Card>
-                <CardContent className="p-6 space-y-4">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2"><Clock className="h-4 w-4" /> Historial de accesos</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border text-muted-foreground">
-                          <th className="text-left py-2 pr-4">Fecha y hora</th>
-                          <th className="text-left py-2 pr-4">Dispositivo</th>
-                          <th className="text-left py-2 pr-4">IP</th>
-                          <th className="text-left py-2">Estado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {accessHistory.map((a, i) => (
-                          <tr key={i} className="border-b border-border/50">
-                            <td className="py-2 pr-4 text-foreground">{a.fecha}</td>
-                            <td className="py-2 pr-4 text-foreground">{a.dispositivo}</td>
-                            <td className="py-2 pr-4 text-muted-foreground">{a.ip}</td>
-                            <td className="py-2">
-                              <Badge variant={a.estado === "Fallido" ? "destructive" : "outline"} className={a.estado === "Fallido" ? "bg-accent text-accent-foreground" : "border-primary text-primary"}>
-                                {a.estado}
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
 
           </Tabs>

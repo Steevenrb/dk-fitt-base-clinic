@@ -345,7 +345,7 @@ export function TabConstructor({ onSaveRecipe, editingRecipe, onClearEdit, onSav
 
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+    <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-5">
       {/* ─── LEFT: FORM ─── */}
       <div className="xl:col-span-3 space-y-4">
         {editingRecipe && (
@@ -399,14 +399,14 @@ export function TabConstructor({ onSaveRecipe, editingRecipe, onClearEdit, onSav
           </CardHeader>
           <CardContent className="space-y-3">
             {ingredientes.map((ing, idx) => (
-              <div key={idx} className="flex items-center gap-2 bg-muted/30 border border-border rounded-lg px-3 py-2">
-                <span className="text-sm font-medium text-foreground min-w-[120px] truncate flex-1">{ing.alimento.nombre}</span>
-                <Input type="number" className="w-20 h-8 text-sm" value={ing.cantidad} onChange={e => updateIngrediente(idx, "cantidad", e.target.value)} min={0} />
+              <div key={idx} className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 sm:flex-row sm:items-center">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{ing.alimento.nombre}</span>
+                <Input type="number" className="h-8 w-full text-sm sm:w-20" value={ing.cantidad} onChange={e => updateIngrediente(idx, "cantidad", e.target.value)} min={0} />
                 <Select value={ing.unidad} onValueChange={v => updateIngrediente(idx, "unidad", v)}>
-                  <SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-full text-xs sm:w-28"><SelectValue /></SelectTrigger>
                   <SelectContent>{unidades.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}</SelectContent>
                 </Select>
-                <span className="text-xs text-primary font-semibold w-16 text-right">{calcIngredienteCal(ing)} kcal</span>
+                <span className="w-full text-left text-xs font-semibold text-primary sm:w-16 sm:text-right">{calcIngredienteCal(ing)} kcal</span>
                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeIngrediente(idx)}>
                   <X className="h-3.5 w-3.5" />
                 </Button>

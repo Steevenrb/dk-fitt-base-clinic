@@ -378,7 +378,7 @@ const Citas = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">Gestión de Citas</h1>
@@ -386,7 +386,7 @@ const Citas = () => {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as "all" | CitaStatus)}>
-              <SelectTrigger className="w-[155px] h-9 text-xs bg-card border-border">
+              <SelectTrigger className="h-9 w-full text-xs bg-card border-border sm:w-[155px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -397,13 +397,13 @@ const Citas = () => {
                 <SelectItem value="reprogramada">Reprogramada</SelectItem>
               </SelectContent>
             </Select>
-            <Button size="sm" className="gap-1.5 text-xs" onClick={openCreate}>
+            <Button size="sm" className="w-full gap-1.5 text-xs sm:w-auto" onClick={openCreate}>
               <Plus className="h-3.5 w-3.5" /> Agendar Cita
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { label: "Programadas", value: programadas, icon: CalendarCheck, accent: false },
             { label: "Atendidas", value: atendidas, icon: CheckCircle2, accent: false },
@@ -420,8 +420,8 @@ const Citas = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[auto_1fr]">
-          <div className="rounded-xl border border-border bg-card p-4">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[auto_1fr]">
+          <div className="overflow-x-auto rounded-xl border border-border bg-card p-2 sm:p-4">
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -444,12 +444,12 @@ const Citas = () => {
               {dayCitas.map((cita) => {
                 const sc = statusConfig[cita.status];
                 return (
-                  <div key={cita.id} className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-muted/30 transition-colors">
+                  <div key={cita.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
                       {cita.avatar}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-foreground">{cita.patient}</p>
                         {cita.hasEvaluation && <FileText className="h-3.5 w-3.5 text-primary" />}
                       </div>
@@ -478,7 +478,7 @@ const Citas = () => {
           <h3 className="text-sm font-semibold text-foreground mb-1">Historial de Citas</h3>
           <p className="text-xs text-muted-foreground mb-4">Todas las consultas registradas en el sistema</p>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
                   <th className="pb-3 text-xs font-medium text-muted-foreground">Paciente</th>
@@ -581,7 +581,7 @@ const Citas = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs">Fecha</Label>
                 <Input type="date" min={todayKey()} className="h-9 text-xs bg-background border-border" value={formDate} onChange={(e) => setFormDate(e.target.value)} />

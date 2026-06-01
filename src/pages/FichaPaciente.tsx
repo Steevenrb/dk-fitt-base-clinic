@@ -149,7 +149,7 @@ const FichaPaciente = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 min-w-0">
         {/* Back + header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -171,16 +171,18 @@ const FichaPaciente = () => {
           </div>
         </div>
         <Tabs defaultValue="resumen" className="space-y-6">
-          <TabsList className="bg-card border border-border p-1 h-auto flex-wrap">
-            <TabsTrigger value="resumen" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Resumen General</TabsTrigger>
-            <TabsTrigger value="perfil" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Perfil Clínico</TabsTrigger>
-            <TabsTrigger value="evaluaciones" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Evaluaciones Clínicas</TabsTrigger>
-            <TabsTrigger value="plan" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Plan Nutricional</TabsTrigger>
-            <TabsTrigger value="seguimiento" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Seguimiento</TabsTrigger>
-            <TabsTrigger value="consumo" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Consumo Adicional</TabsTrigger>
-            <TabsTrigger value="alertas" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Alertas</TabsTrigger>
-            <TabsTrigger value="citas" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Citas</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto pb-1">
+            <TabsList className="h-auto min-w-max bg-card border border-border p-1">
+              <TabsTrigger value="resumen" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Resumen General</TabsTrigger>
+              <TabsTrigger value="perfil" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Perfil Clínico</TabsTrigger>
+              <TabsTrigger value="evaluaciones" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Evaluaciones Clínicas</TabsTrigger>
+              <TabsTrigger value="plan" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Plan Nutricional</TabsTrigger>
+              <TabsTrigger value="seguimiento" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Seguimiento</TabsTrigger>
+              <TabsTrigger value="consumo" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Consumo Adicional</TabsTrigger>
+              <TabsTrigger value="alertas" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Alertas</TabsTrigger>
+              <TabsTrigger value="citas" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Citas</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="resumen"><TabResumen patientId={patientId} profileId={header.profileId} /></TabsContent>
           <TabsContent value="perfil"><TabPerfilClinico patientId={patientId} /></TabsContent>
