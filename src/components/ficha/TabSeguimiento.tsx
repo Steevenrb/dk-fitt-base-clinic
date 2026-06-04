@@ -62,9 +62,9 @@ function extractRows<T>(payload: unknown): T[] {
 }
 
 const getLevel = (pct: number) => {
-  if (pct >= 80) return { label: "Alta", className: "bg-primary/15 text-primary border-primary/30" };
-  if (pct >= 50) return { label: "Media", className: "bg-muted text-muted-foreground border-border" };
-  return { label: "Baja", className: "bg-accent/20 text-accent border-accent/30" };
+  if (pct >= 80) return { label: "Alta", className: "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50" };
+  if (pct >= 50) return { label: "Media", className: "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60" };
+  return { label: "Baja", className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" };
 };
 
 export function TabSeguimiento({ patientId, profileId }: { patientId: number; profileId?: number | null }) {
@@ -128,7 +128,7 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
           type="date"
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#F7CA5E]/50"
         />
       </div>
 
@@ -139,7 +139,7 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
         </div>
         <div className="flex items-center gap-4">
           <Progress value={mealAdherence} className="flex-1 h-3" />
-          <span className="text-lg font-bold text-primary">{generalAdherence}%</span>
+          <span className="text-lg font-bold text-[#8A6B1F]">{generalAdherence}%</span>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {mealsDone}/{meals.length} comidas cumplidas · {exercisesDone}/{exercises.length} ejercicios cumplidos
@@ -170,7 +170,7 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
               const mealName = [m.nombre_tiempo, m.nombre_plato].filter(Boolean).join(" - ") || "Comida registrada";
               return (
                 <div key={m.id_seguimiento_comida ?? m.id_menu_diario ?? mealName} className="flex items-center gap-3 px-5 py-3">
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${done ? "bg-emerald-500/15 text-emerald-400" : "bg-accent/15 text-accent"}`}>
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${done ? "bg-[#C5EB6F]/20 text-[#647F16]" : "bg-[#FA9C5C]/20 text-[#B7602B]"}`}>
                     {done ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -210,7 +210,7 @@ export function TabSeguimiento({ patientId, profileId }: { patientId: number; pr
               const duration = e.duracion_min ?? e.duracion_minutos;
               return (
                 <div key={e.id_seguimiento_ejercicio ?? e.id_ejercicio ?? exerciseName} className="flex items-center gap-3 px-5 py-3">
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${done ? "bg-emerald-500/15 text-emerald-400" : "bg-accent/15 text-accent"}`}>
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${done ? "bg-[#C5EB6F]/20 text-[#647F16]" : "bg-[#FA9C5C]/20 text-[#B7602B]"}`}>
                     {done ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
                   </div>
                   <div className="flex-1 min-w-0">

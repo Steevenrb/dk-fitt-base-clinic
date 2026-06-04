@@ -351,7 +351,7 @@ export default function MiPerfil() {
             <h1 className="text-xl font-bold text-foreground">Mi Perfil</h1>
             <p className="text-sm text-muted-foreground">Gestiona tu información personal y configuración de cuenta</p>
           </div>
-          <Badge className="bg-primary text-primary-foreground">Nutricionista</Badge>
+          <Badge className="bg-[#F7CA5E] text-[#253027]">Nutricionista</Badge>
         </div>
 
         {/* 2‑column layout */}
@@ -360,15 +360,15 @@ export default function MiPerfil() {
           <div className="space-y-6 self-start">
             <Card>
               <CardContent className="flex flex-col items-center gap-4 p-6">
-                <Avatar className="h-[120px] w-[120px] border-4 border-primary">
-                  <AvatarFallback className="bg-primary/20 text-2xl font-bold text-primary">{initials}</AvatarFallback>
+                <Avatar className="h-[120px] w-[120px] border-4 border-[#F7CA5E]">
+                  <AvatarFallback className="bg-[#F7CA5E]/25 text-2xl font-bold text-[#8A6B1F] dark:text-[#F7CA5E]">{initials}</AvatarFallback>
                 </Avatar>
 
                 <div className="mt-4 text-center space-y-1">
                   <h2 className="text-lg font-bold text-foreground">
                     {getTitleBySex(profile.sexo)} {profile.nombres} {profile.apellidos}
                   </h2>
-                  <Badge className="bg-primary text-primary-foreground">{getRoleLabelBySex(profile.sexo)}</Badge>
+                  <Badge className="bg-[#F7CA5E] text-[#253027]">{getRoleLabelBySex(profile.sexo)}</Badge>
                 </div>
 
                 <div className="w-full space-y-3 mt-2 text-sm">
@@ -381,7 +381,7 @@ export default function MiPerfil() {
                 <div className="w-full border-t border-border pt-3 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Estado</span>
-                    <Badge variant="outline" className="border-primary text-primary">Activo</Badge>
+                    <Badge variant="outline" className="border-[#C5EB6F]/60 bg-[#C5EB6F]/25 text-[#3F5512] dark:text-[#C5EB6F]">Activo</Badge>
                   </div>
                   <div className="flex justify-between">
                   </div>
@@ -402,9 +402,9 @@ export default function MiPerfil() {
 
           {/* ─── Right: Tabs ─── */}
           <Tabs defaultValue={defaultTab} className="w-full">
-            <TabsList className="w-full grid grid-cols-2">
-              <TabsTrigger value="info" className="gap-1.5"><User className="h-4 w-4" /> Información</TabsTrigger>
-              <TabsTrigger value="security" className="gap-1.5"><Shield className="h-4 w-4" /> Seguridad</TabsTrigger>
+            <TabsList className="w-full grid grid-cols-2 bg-card p-1">
+              <TabsTrigger value="info" className="gap-1.5 data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]"><User className="h-4 w-4" /> Información</TabsTrigger>
+              <TabsTrigger value="security" className="gap-1.5 data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]"><Shield className="h-4 w-4" /> Seguridad</TabsTrigger>
             </TabsList>
 
             {/* ════ TAB 1: Información Personal ════ */}
@@ -448,7 +448,7 @@ export default function MiPerfil() {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button onClick={saveProfile} disabled={isSaving} className="bg-primary text-primary-foreground">
+                    <Button onClick={saveProfile} disabled={isSaving} className="bg-[#F7CA5E] text-[#253027] hover:bg-[#F7CA5E]/90">
                       {isSaving ? "Guardando..." : "Guardar cambios"}
                     </Button>
                   </div>
@@ -471,11 +471,11 @@ export default function MiPerfil() {
                         <>
                           <div className="flex items-center gap-2">
                             <Progress value={strengthPercent[strength]} className="h-2 flex-1" />
-                            <span className={`text-xs font-medium ${strength <= 2 ? "text-destructive" : strength === 3 ? "text-accent" : "text-primary"}`}>{strengthLabel[strength]}</span>
+                            <span className={`text-xs font-medium ${strength <= 2 ? "text-destructive" : strength === 3 ? "text-[#A95F2F] dark:text-[#FA9C5C]" : "text-[#3F5512] dark:text-[#C5EB6F]"}`}>{strengthLabel[strength]}</span>
                           </div>
                           <ul className="space-y-1 text-xs">
                             {reqs.map((r) => (
-                              <li key={r.label} className={`flex items-center gap-1.5 ${r.ok ? "text-primary" : "text-muted-foreground"}`}>
+                              <li key={r.label} className={`flex items-center gap-1.5 ${r.ok ? "text-[#3F5512] dark:text-[#C5EB6F]" : "text-muted-foreground"}`}>
                                 {r.ok ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />} {r.label}
                               </li>
                             ))}
@@ -487,7 +487,7 @@ export default function MiPerfil() {
                     {pwConfirm && !pwMatch && <p className="text-xs text-destructive">Las contraseñas no coinciden</p>}
                   </div>
 
-                  <Button onClick={updatePasswordViaApi} disabled={!allReqsMet || !pwMatch || !pwCurrent || isUpdatingPassword} className="bg-primary text-primary-foreground">
+                  <Button onClick={updatePasswordViaApi} disabled={!allReqsMet || !pwMatch || !pwCurrent || isUpdatingPassword} className="bg-[#F7CA5E] text-[#253027] hover:bg-[#F7CA5E]/90">
                     {isUpdatingPassword ? "Actualizando..." : "Actualizar contraseña"}
                   </Button>
                 </CardContent>

@@ -69,7 +69,7 @@ export const recetaCatColors: Record<string, string> = {
   Desayuno: "bg-amber-500/15 text-amber-400 border-amber-500/30",
   "Refrigerio mañana": "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
   Almuerzo: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  "Refrigerio tarde": "bg-sky-500/15 text-sky-400 border-sky-500/30",
+  "Refrigerio tarde": "bg-[#EDE0FE] text-[#7C3AED] border-[#D8B4FE]",
   Cena: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30",
   Snack: "bg-pink-500/15 text-pink-400 border-pink-500/30",
   Bebida: "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
@@ -80,7 +80,7 @@ export const tiempoComidaConfig: Record<string, { icon: string; bgColor: string;
   Desayuno: { icon: "Sun", bgColor: "bg-yellow-100 dark:bg-yellow-950/30", iconColor: "text-yellow-600 dark:text-yellow-400" },
   "Media mañana": { icon: "Apple", bgColor: "bg-green-100 dark:bg-green-950/30", iconColor: "text-green-600 dark:text-green-400" },
   Almuerzo: { icon: "UtensilsCrossed", bgColor: "bg-orange-100 dark:bg-orange-950/30", iconColor: "text-orange-600 dark:text-orange-400" },
-  "Media tarde": { icon: "Cookie", bgColor: "bg-blue-100 dark:bg-blue-950/30", iconColor: "text-blue-600 dark:text-blue-400" },
+  "Media tarde": { icon: "Cookie", bgColor: "bg-[#EDE0FE] dark:bg-[#EDE0FE]/20", iconColor: "text-[#7C3AED] dark:text-[#EDE0FE]" },
   Cena: { icon: "Moon", bgColor: "bg-violet-100 dark:bg-violet-950/30", iconColor: "text-violet-600 dark:text-violet-400" },
 };
 

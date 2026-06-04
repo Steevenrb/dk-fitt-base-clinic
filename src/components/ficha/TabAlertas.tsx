@@ -32,11 +32,11 @@ type TabAlertasProps = {
 };
 
 const typeConfig: Record<AlertType, { label: string; icon: ElementType; className: string }> = {
-  adherencia: { label: "Adherencia", icon: Activity, className: "bg-primary/15 text-primary border-primary/30" },
-  peso: { label: "Peso", icon: Scale, className: "bg-violet-500/15 text-violet-400 border-violet-500/30" },
-  consumo_adicional: { label: "Consumo adicional", icon: UtensilsCrossed, className: "bg-sky-500/15 text-sky-400 border-sky-500/30" },
-  inactividad: { label: "Inactividad", icon: Timer, className: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
-  exceso_calorico: { label: "Exceso calorico", icon: Flame, className: "bg-accent/20 text-accent border-accent/30" },
+  adherencia: { label: "Adherencia", icon: Activity, className: "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60" },
+  peso: { label: "Peso", icon: Scale, className: "bg-[#E6E6E6]/50 text-foreground border-border" },
+  consumo_adicional: { label: "Consumo adicional", icon: UtensilsCrossed, className: "bg-[#F7CA5E]/20 text-foreground border-[#F7CA5E]/50" },
+  inactividad: { label: "Inactividad", icon: Timer, className: "bg-[#FA9C5C]/18 text-foreground border-[#FA9C5C]/50" },
+  exceso_calorico: { label: "Exceso calorico", icon: Flame, className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" },
 };
 
 function normalizeName(value?: string): string {
@@ -127,7 +127,7 @@ export function TabAlertas({ patientId, profileId, patientName }: TabAlertasProp
     <div className="space-y-6">
       <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-accent" />
+          <AlertTriangle className="h-5 w-5 text-[#B7602B]" />
           <div>
             <h3 className="text-sm font-semibold text-foreground">Alertas del paciente</h3>
             <p className="text-xs text-muted-foreground">
@@ -150,14 +150,14 @@ export function TabAlertas({ patientId, profileId, patientName }: TabAlertasProp
           const Icon = cfg.icon;
           const isPending = !alert.revisada;
           return (
-            <div key={alert.id_alerta_sistema} className={`flex items-start gap-4 px-5 py-4 ${isPending ? "border-l-2 border-l-accent" : ""}`}>
-              <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isPending ? "bg-accent/15 text-accent" : "bg-muted text-muted-foreground"}`}>
+            <div key={alert.id_alerta_sistema} className={`flex items-start gap-4 px-5 py-4 ${isPending ? "bg-[#FA9C5C]/8" : ""}`}>
+              <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isPending ? "bg-[#FA9C5C]/20 text-[#B7602B]" : "bg-muted text-muted-foreground"}`}>
                 <Icon className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Badge variant="outline" className={`text-[10px] ${cfg.className}`}>{cfg.label}</Badge>
-                  <Badge variant="outline" className={`text-[10px] ${isPending ? "bg-primary/15 text-primary border-primary/30" : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"}`}>
+                  <Badge variant="outline" className={`text-[10px] ${isPending ? "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60" : "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50"}`}>
                     {isPending ? "Sin revisar" : "Revisada"}
                   </Badge>
                 </div>

@@ -156,12 +156,19 @@ const getDayIndex = (dateKey = formatLocalDate(new Date())) => {
 };
 
 const getLevel = (pct: number) => {
-  if (pct >= 80) return { label: "Alta", className: "bg-primary/15 text-primary border-primary/30" };
-  if (pct >= 50) return { label: "Media", className: "bg-muted text-muted-foreground border-border" };
-  return { label: "Baja", className: "bg-accent/20 text-accent border-accent/30" };
+  if (pct >= 80) return { label: "Alta", className: "bg-[#C5EB6F]/25 text-[#3F5512] border-[#C5EB6F]/60 dark:text-[#C5EB6F]" };
+  if (pct >= 50) return { label: "Media", className: "bg-[#F7CA5E]/25 text-[#8A6B1F] border-[#F7CA5E]/60 dark:text-[#F7CA5E]" };
+  return { label: "Baja", className: "bg-[#FA9C5C]/20 text-[#A95F2F] border-[#FA9C5C]/55 dark:text-[#FA9C5C]" };
 };
 
-const pctColor = (pct: number) => (pct >= 70 ? "text-primary" : "text-accent");
+const avatarColorClasses = [
+  "border-[#F7CA5E]/70 bg-[#F7CA5E]/30 text-[#8A6B1F] dark:text-[#F7CA5E]",
+  "border-[#C5EB6F]/70 bg-[#C5EB6F]/30 text-[#3F5512] dark:text-[#C5EB6F]",
+  "border-[#FA9C5C]/65 bg-[#FA9C5C]/25 text-[#A95F2F] dark:text-[#FA9C5C]",
+  "border-[#A8D1E7]/70 bg-[#A8D1E7]/30 text-[#376378] dark:text-[#A8D1E7]",
+];
+
+const pctColor = (pct: number) => (pct >= 70 ? "text-[#3F5512] dark:text-[#C5EB6F]" : "text-[#A95F2F] dark:text-[#FA9C5C]");
 
 const ChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload) return null;
@@ -371,12 +378,10 @@ const Seguimiento = () => {
   const totalDoneExercises = dailyData.reduce((sum, item) => sum + item.exercises.filter((exercise) => exercise.done).length, 0);
 
   const kpis = [
-    { label: "Cumplimiento Alimentario", value: `${weekMealAvg}%`, icon: Utensils, high: weekMealAvg >= 70 },
-    { label: "Cumplimiento Ejercicio", value: `${weekExerciseAvg}%`, icon: Activity, high: weekExerciseAvg >= 70 },
-    { label: "Comidas Cumplidas", value: `${totalDoneMeals}/${totalMeals}`, icon: Check, high: totalMeals > 0 && totalDoneMeals / totalMeals >= 0.7 },
-    { label: "Ejercicios Cumplidos", value: `${totalDoneExercises}/${totalExercises}`, icon: Activity, high: totalExercises > 0 && totalDoneExercises / totalExercises >= 0.7 },
-    { label: "Calorias Registradas", value: `${weekCalories.toLocaleString()} kcal`, icon: Flame, high: true },
-    { label: "Dias con Registro", value: `${dailyData.filter((item) => item.meals.length > 0 || item.exercises.length > 0).length}/5`, icon: CalendarDays, high: true },
+    { label: "Cumplimiento Alimentario", value: `${weekMealAvg}%`, detail: `${totalDoneMeals}/${totalMeals} comidas cumplidas`, icon: Utensils, color: "bg-[#FA9C5C]", shadow: "shadow-[#FA9C5C]/20" },
+    { label: "Cumplimiento Ejercicio", value: `${weekExerciseAvg}%`, detail: `${totalDoneExercises}/${totalExercises} ejercicios cumplidos`, icon: Activity, color: "bg-[#F7CA5E]", shadow: "shadow-[#F7CA5E]/20" },
+    { label: "Calorias Registradas", value: `${weekCalories.toLocaleString()} kcal`, detail: "registradas esta semana", icon: Flame, color: "bg-[#C5EB6F]", shadow: "shadow-[#C5EB6F]/20" },
+    { label: "Dias con Registro", value: `${dailyData.filter((item) => item.meals.length > 0 || item.exercises.length > 0).length}/5`, detail: "dias con actividad", icon: CalendarDays, color: "bg-[#E6E6E6]", shadow: "shadow-black/10" },
   ];
 
   const chartData = dailyData.map((item) => ({
@@ -411,51 +416,52 @@ const Seguimiento = () => {
             <div className="border-b border-border px-5 py-4">
               <p className="text-xs text-muted-foreground">{filteredPatients.length} pacientes disponibles</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Paciente</th>
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Estado</th>
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Adherencia</th>
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Ultima Evaluacion</th>
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Accion</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loadingPatients && (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted-foreground">Cargando pacientes...</td>
-                    </tr>
-                  )}
-                  {!loadingPatients && filteredPatients.map((patient) => (
-                    <tr key={patient.id} className="border-b border-border transition-colors last:border-0 hover:bg-muted/30">
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8 border border-border">
-                            <AvatarFallback className="bg-muted text-xs font-semibold text-foreground">{patient.initials}</AvatarFallback>
-                          </Avatar>
-                          <p className="font-medium text-foreground">{patient.name}</p>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3"><Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[11px]">{patient.status}</Badge></td>
-                      <td className="px-5 py-3"><Badge variant="outline" className={`text-[11px] ${getLevel(patient.adherence === "Alta" ? 90 : patient.adherence === "Media" ? 60 : 30).className}`}>{patient.adherence}</Badge></td>
-                      <td className="px-5 py-3 text-muted-foreground">{patient.lastEvaluation}</td>
-                      <td className="px-5 py-3">
-                        <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-primary" onClick={() => setSelectedPatient(patient)}>
-                          <Eye className="h-3.5 w-3.5" />
-                          Ver seguimiento
-                        </Button>
-                      </td>
-                    </tr>
+            <div className="p-5">
+              {loadingPatients && (
+                <div className="py-12 text-center text-sm text-muted-foreground">Cargando pacientes...</div>
+              )}
+              {!loadingPatients && filteredPatients.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7">
+                  {filteredPatients.map((patient, index) => (
+                    <div
+                      key={patient.id}
+                      className="rounded-2xl border border-border bg-background/55 p-3 text-center transition-colors hover:border-[#F7CA5E]/70 hover:bg-[#F7CA5E]/10"
+                    >
+                      <Avatar className="mx-auto h-14 w-14">
+                        <AvatarFallback className={`border text-sm font-bold ${avatarColorClasses[index % avatarColorClasses.length]}`}>{patient.initials}</AvatarFallback>
+                      </Avatar>
+                      <p className="mt-2 min-h-[2.25rem] text-sm font-semibold leading-tight text-foreground">{patient.name}</p>
+                      <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${
+                            patient.status.toLowerCase() === "activo"
+                              ? "bg-[#C5EB6F]/25 text-[#3F5512] border-[#C5EB6F]/60 dark:text-[#C5EB6F]"
+                              : "bg-[#F7CA5E]/25 text-[#8A6B1F] border-[#F7CA5E]/60 dark:text-[#F7CA5E]"
+                          }`}
+                        >
+                          Estado {patient.status}
+                        </Badge>
+                        <Badge variant="outline" className={`text-[10px] ${getLevel(patient.adherence === "Alta" ? 90 : patient.adherence === "Media" ? 60 : 30).className}`}>
+                          Adherencia {patient.adherence}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 h-8 w-full gap-1.5 border-[#F7CA5E]/60 bg-card text-[11px] text-[#8A6B1F] hover:bg-[#F7CA5E]/20 dark:text-[#F7CA5E]"
+                        onClick={() => setSelectedPatient(patient)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Ver seguimiento
+                      </Button>
+                    </div>
                   ))}
-                  {!loadingPatients && filteredPatients.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-12 text-center text-sm text-muted-foreground">No se encontraron pacientes.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                </div>
+              )}
+              {!loadingPatients && filteredPatients.length === 0 && (
+                <div className="py-12 text-center text-sm text-muted-foreground">No se encontraron pacientes.</div>
+              )}
             </div>
           </div>
         </div>
@@ -474,7 +480,7 @@ const Seguimiento = () => {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold text-foreground">Seguimiento - {selectedPatient.name}</h1>
-                <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[11px]">{selectedPatient.status}</Badge>
+                <Badge variant="outline" className="bg-[#F7CA5E]/25 text-[#8A6B1F] border-[#F7CA5E]/60 text-[11px] dark:text-[#F7CA5E]">{selectedPatient.status}</Badge>
                 <Badge variant="outline" className={`text-[11px] ${getLevel(weekMealAvg).className}`}>{getLevel(weekMealAvg).label}</Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-0.5">
@@ -483,15 +489,19 @@ const Seguimiento = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={weekDates[selectedDay]}
-              onChange={(e) => {
-                setWeekDates(getWeekDates(e.target.value));
-                setSelectedDay(getDayIndex(e.target.value));
-              }}
-              className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+            <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border bg-card text-muted-foreground hover:text-[#8A6B1F] dark:hover:text-[#F7CA5E]">
+              <CalendarDays className="h-4 w-4" />
+              <input
+                aria-label="Seleccionar fecha de seguimiento"
+                type="date"
+                value={weekDates[selectedDay]}
+                onChange={(e) => {
+                  setWeekDates(getWeekDates(e.target.value));
+                  setSelectedDay(getDayIndex(e.target.value));
+                }}
+                className="absolute inset-0 cursor-pointer opacity-0"
+              />
+            </div>
             <div className="text-right mr-2">
               <p className={`text-3xl font-bold ${pctColor(weekMealAvg)}`}>{weekMealAvg}%</p>
               <p className="text-[11px] text-muted-foreground">adherencia semanal</p>
@@ -510,14 +520,15 @@ const Seguimiento = () => {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {kpis.map((k) => (
-            <div key={k.label} className="rounded-xl border border-border bg-card p-5">
+            <div key={k.label} className={`rounded-2xl border border-border ${k.color} p-5 text-[#253027] shadow-lg ${k.shadow}`}>
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{k.label}</p>
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${k.high ? "bg-primary/15 text-primary" : "bg-accent/15 text-accent"}`}>
+                <p className="text-xs font-semibold text-[#253027]/75">{k.label}</p>
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/70 text-[#253027]">
                   <k.icon className="h-4 w-4" />
                 </div>
               </div>
-              <p className={`mt-3 text-3xl font-bold ${k.high ? "text-foreground" : "text-accent"}`}>{k.value}</p>
+              <p className="mt-3 text-3xl font-bold text-[#253027]">{k.value}</p>
+              <p className="mt-1 text-xs font-medium text-[#253027]/70">{k.detail}</p>
             </div>
           ))}
         </div>
@@ -527,33 +538,42 @@ const Seguimiento = () => {
         )}
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="rounded-xl border border-border bg-card xl:col-span-2">
+          <div className="rounded-2xl border border-border bg-card shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)] xl:col-span-2">
             <div className="border-b border-border px-5 py-4">
               <h3 className="text-sm font-semibold text-foreground">Comidas del Dia</h3>
               <p className="text-xs text-muted-foreground">{day.meals.filter((m) => m.done).length} de {day.meals.length} cumplidas</p>
             </div>
-            <div className="divide-y divide-border">
+            <div className="p-5">
               {day.meals.length === 0 ? (
-                <div className="px-5 py-8 text-center text-sm text-muted-foreground">No hay registros de comidas para este dia.</div>
-              ) : day.meals.map((meal, index) => (
-                <div key={`${meal.name}-${index}`} className="flex items-center gap-3 px-5 py-3">
-                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${meal.done ? "bg-emerald-500/15 text-emerald-400" : "bg-accent/15 text-accent"}`}>
-                    {meal.done ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                <div className="py-8 text-center text-sm text-muted-foreground">No hay registros de comidas para este dia.</div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border border-border">
+                  <div className="grid grid-cols-[1fr_88px_88px] gap-3 bg-muted/45 px-4 py-2 text-xs font-semibold text-foreground">
+                    <span>Comida</span>
+                    <span className="text-center">Kcal</span>
+                    <span className="text-center">Hora</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${meal.done ? "text-foreground" : "text-muted-foreground"}`}>{meal.name}</p>
-                    <p className="text-[11px] text-muted-foreground">{meal.plate}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-medium text-foreground">{meal.calories} kcal</p>
-                    <p className="text-[11px] text-muted-foreground">{meal.actual ?? "--:--"}</p>
-                  </div>
+                  {day.meals.map((meal, index) => (
+                    <div key={`${meal.name}-${index}`} className="grid grid-cols-[1fr_88px_88px] items-center gap-3 border-t border-border/50 px-4 py-3 text-sm">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${meal.done ? "bg-[#C5EB6F]/25 text-[#3F5512] dark:text-[#C5EB6F]" : "bg-[#FA9C5C]/20 text-[#A95F2F] dark:text-[#FA9C5C]"}`}>
+                          {meal.done ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`truncate text-sm font-medium ${meal.done ? "text-foreground" : "text-muted-foreground"}`}>{meal.name}</p>
+                          <p className="truncate text-[11px] text-muted-foreground">{meal.plate}</p>
+                        </div>
+                      </div>
+                      <span className="justify-self-center rounded-full bg-[#C5EB6F]/25 px-3 py-1 text-xs font-semibold text-[#3F5512] dark:text-[#C5EB6F]">{meal.calories} kcal</span>
+                      <span className="justify-self-center rounded-full bg-[#F7CA5E]/25 px-3 py-1 text-xs font-semibold text-[#8A6B1F] dark:text-[#F7CA5E]">{meal.actual ?? "--:--"}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+          <div className="rounded-2xl border border-border bg-card p-5 space-y-5 shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
             <h3 className="text-sm font-semibold text-foreground">Indicadores de Adherencia</h3>
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -600,7 +620,7 @@ const Seguimiento = () => {
                 >
                   <span className="text-[11px] text-muted-foreground w-16 text-left shrink-0">{dd.shortLabel}</span>
                   <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className={`h-full rounded-full ${dd.mealPct >= 70 ? "bg-primary" : "bg-accent"}`} style={{ width: `${dd.mealPct}%` }} />
+                    <div className={`h-full rounded-full ${dd.mealPct >= 70 ? "bg-[#C5EB6F]" : "bg-[#FA9C5C]"}`} style={{ width: `${dd.mealPct}%` }} />
                   </div>
                   <span className={`text-[11px] font-medium w-8 text-right ${pctColor(dd.mealPct)}`}>{dd.mealPct}%</span>
                   <span className={`text-[11px] font-medium w-8 text-right ${pctColor(dd.exercisePct)}`}>{dd.exercisePct}%</span>
@@ -621,8 +641,8 @@ const Seguimiento = () => {
                 <YAxis tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} domain={[0, 100]} unit="%" />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="Adherencia alimentos" name="Adherencia alimentos" stroke="#e5b106" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="Adherencia ejercicio" name="Adherencia ejercicio" stroke="#22c55e" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="Adherencia alimentos" name="Adherencia alimentos" stroke="#F7CA5E" strokeWidth={3} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="Adherencia ejercicio" name="Adherencia ejercicio" stroke="#A8D1E7" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -637,8 +657,8 @@ const Seguimiento = () => {
                 <YAxis tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend verticalAlign="top" align="right" iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="Planificadas" fill="#e5b106" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                <Bar dataKey="Registradas" fill="#cc8c02" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="Planificadas" fill="#C5EB6F" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="Registradas" fill="#FA9C5C" radius={[4, 4, 0, 0]} maxBarSize={28} />
               </BarChart>
             </ResponsiveContainer>
           </div>

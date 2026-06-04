@@ -42,7 +42,7 @@ const AlimentosRecetas = () => {
           {activeTab === "alimentos" && (
             <div className="flex w-full gap-2 sm:w-auto">
               <Button
-                className="w-full sm:w-auto"
+                className="w-full bg-[#F7CA5E] text-[#253027] hover:bg-[#F7CA5E]/90 sm:w-auto"
                 onClick={() => {
                   setActiveTab("alimentos");
                   setOpenCreateFoodSignal((prev) => prev + 1);
@@ -57,10 +57,10 @@ const AlimentosRecetas = () => {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <div className="w-full overflow-x-auto pb-1">
-            <TabsList className="h-auto min-w-max bg-card border border-border">
-              <TabsTrigger value="alimentos"><Apple className="h-4 w-4 mr-2" /> Alimentos</TabsTrigger>
-              <TabsTrigger value="recetas"><BookOpen className="h-4 w-4 mr-2" /> Recetas</TabsTrigger>
-              <TabsTrigger value="constructor"><ChefHat className="h-4 w-4 mr-2" /> Constructor</TabsTrigger>
+            <TabsList className="h-auto min-w-max border border-border bg-card p-1">
+              <TabsTrigger value="alimentos" className="data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]"><Apple className="h-4 w-4 mr-2" /> Alimentos</TabsTrigger>
+              <TabsTrigger value="recetas" className="data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]"><BookOpen className="h-4 w-4 mr-2" /> Recetas</TabsTrigger>
+              <TabsTrigger value="constructor" className="data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]"><ChefHat className="h-4 w-4 mr-2" /> Constructor</TabsTrigger>
             </TabsList>
           </div>
 

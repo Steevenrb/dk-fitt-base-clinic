@@ -74,9 +74,9 @@ type AdditionalIntakeCard = {
 };
 
 const impactConfig = {
-  bajo: { label: "Bajo", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-  moderado: { label: "Moderado", className: "bg-primary/15 text-primary border-primary/30" },
-  alto: { label: "Alto", className: "bg-accent/20 text-accent border-accent/30" },
+  bajo: { label: "Bajo", className: "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50" },
+  moderado: { label: "Moderado", className: "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60" },
+  alto: { label: "Alto", className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" },
 };
 
 const ChartTooltip = ({ active, payload, label }: any) => {
@@ -269,7 +269,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
   const impactClass = buildImpactClass(impact?.clasificacion_impacto);
   const deviationLevel = weekTotalCals > 1200 ? "Alto" : weekTotalCals > 600 ? "Medio" : "Bajo";
   const dayImpactLevel = dayTotalCals > 1200 ? "Alto" : dayTotalCals > 600 ? "Medio" : "Bajo";
-  const deviationColor = deviationLevel === "Alto" ? "text-accent" : deviationLevel === "Medio" ? "text-primary" : "text-emerald-400";
+  const deviationColor = deviationLevel === "Alto" ? "text-[#B7602B]" : deviationLevel === "Medio" ? "text-[#8A6B1F]" : "text-[#647F16]";
   const totalConfirmed = dayItems.filter((item) => item.confirmed).length;
   const totalDiscarded = dayItems.filter((item) => !item.confirmed).length;
   const dayPctConfirmation = dayItems.length > 0 ? Math.round((totalConfirmed / dayItems.length) * 100) : 0;
@@ -300,7 +300,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary sm:w-auto"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#F7CA5E]/50 sm:w-auto"
           />
         </div>
       </div>
@@ -314,10 +314,10 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
         ].map((kpi) => (
           <div key={kpi.label} className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2 mb-2">
-              <kpi.icon className={`h-4 w-4 ${kpi.accent ? "text-accent" : "text-primary"}`} />
+              <kpi.icon className={`h-4 w-4 ${kpi.accent ? "text-[#B7602B]" : "text-[#8A6B1F]"}`} />
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{kpi.label}</p>
             </div>
-            <p className={`text-xl font-bold ${kpi.accent ? "text-accent" : "text-foreground"}`}>{kpi.value}</p>
+            <p className={`text-xl font-bold ${kpi.accent ? "text-[#B7602B]" : "text-foreground"}`}>{kpi.value}</p>
           </div>
         ))}
       </div>
@@ -358,7 +358,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
             {dayItems.map((item) => {
               const itemImpact = impactConfig[item.impact];
               return (
-                <div key={item.id} className="rounded-xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-lg hover:shadow-primary/5">
+                <div key={item.id} className="rounded-xl border border-border bg-card overflow-hidden transition-[border-color] hover:border-[#F7CA5E]/60">
                   <Dialog>
                     <DialogTrigger asChild>
                       <img src={item.imageUrl} alt={item.name} className="h-32 w-full object-cover cursor-pointer hover:opacity-90 transition-opacity" />
@@ -374,10 +374,10 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <Badge variant="outline" className={`text-[10px] ${item.confirmed ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : "bg-muted text-muted-foreground border-border"}`}>
+                      <Badge variant="outline" className={`text-[10px] ${item.confirmed ? "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50" : "bg-muted text-muted-foreground border-border"}`}>
                         {item.confirmed ? "Confirmado" : "Pendiente"}
                       </Badge>
-                      <Badge variant="outline" className={`text-[10px] ${item.summed ? "bg-sky-500/15 text-sky-400 border-sky-500/30" : "bg-muted text-muted-foreground border-border"}`}>
+                      <Badge variant="outline" className={`text-[10px] ${item.summed ? "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60" : "bg-muted text-muted-foreground border-border"}`}>
                         {item.summed ? "Sumado" : "No sumado"}
                       </Badge>
                     </div>
@@ -433,7 +433,7 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
                         <span className={`text-xs font-medium ${cls.className}`}>{cls.label}</span>
-                        <span className={`text-xs font-medium ${row.confirmed ? "text-emerald-400" : "text-muted-foreground"}`}>{row.confirmed ? "Confirmado" : "Pendiente"}</span>
+                        <span className={`text-xs font-medium ${row.confirmed ? "text-[#647F16]" : "text-muted-foreground"}`}>{row.confirmed ? "Confirmado" : "Pendiente"}</span>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from "react";
+﻿import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { User, Activity, HeartPulse, AlertTriangle, Apple } from "lucide-react";
+import { User, Activity, HeartPulse, AlertTriangle, Apple, CalendarDays, Cake, Mail, UserRound, BadgeInfo, Utensils, Wheat, Milk, Salad, Trash2, Scale, Ruler, Percent, Dumbbell, Droplets, Gauge, Bone } from "lucide-react";
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const PROFILE_ENDPOINTS = ["/api/patient-profile", "/patient-profile"];
@@ -142,12 +142,54 @@ const baseAllergyOptions = [
 ];
 
 const prefCategories = [
-  { key: "proteinas", label: "Proteinas", icon: "🥩" },
-  { key: "carbohidratos", label: "Carbohidratos", icon: "🌾" },
-  { key: "lacteos", label: "Lacteos", icon: "🥛" },
-  { key: "vegetales", label: "Vegetales", icon: "🥦" },
-  { key: "frutas", label: "Frutas", icon: "🍎" },
+  { key: "proteinas", label: "Proteinas", icon: "ðŸ¥©" },
+  { key: "carbohidratos", label: "Carbohidratos", icon: "ðŸŒ¾" },
+  { key: "lacteos", label: "Lacteos", icon: "ðŸ¥›" },
+  { key: "vegetales", label: "Vegetales", icon: "ðŸ¥¦" },
+  { key: "frutas", label: "Frutas", icon: "ðŸŽ" },
 ] as const;
+
+const preferenceCategoryTone = {
+  proteinas: {
+    pill: "bg-[#FA9C5C]",
+    panel: "border-[#FA9C5C]/70 bg-[#FA9C5C]/15",
+    chip: "border-[#FA9C5C]/50 bg-white/70",
+  },
+  carbohidratos: {
+    pill: "bg-[#F7CA5E]",
+    panel: "border-[#F7CA5E]/70 bg-[#F7CA5E]/20",
+    chip: "border-[#F7CA5E]/50 bg-white/70",
+  },
+  lacteos: {
+    pill: "bg-[#A8D1E7]",
+    panel: "border-[#A8D1E7]/75 bg-[#A8D1E7]/20",
+    chip: "border-[#A8D1E7]/55 bg-white/70",
+  },
+  vegetales: {
+    pill: "bg-[#C5EB6F]",
+    panel: "border-[#C5EB6F]/75 bg-[#C5EB6F]/20",
+    chip: "border-[#C5EB6F]/55 bg-white/70",
+  },
+  frutas: {
+    pill: "bg-[#F49C9C]",
+    panel: "border-[#F49C9C]/75 bg-[#F49C9C]/20",
+    chip: "border-[#F49C9C]/55 bg-white/70",
+  },
+  noDeseados: {
+    pill: "bg-[#E6E6E6]",
+    panel: "border-[#D2D2D2] bg-[#E6E6E6]/45",
+    chip: "border-[#D2D2D2] bg-white/70",
+  },
+} as const;
+
+const preferenceCategoryIcon = {
+  proteinas: Utensils,
+  carbohidratos: Wheat,
+  lacteos: Milk,
+  vegetales: Salad,
+  frutas: Apple,
+  noDeseados: Trash2,
+} as const;
 
 const OPTION_WIDTH_CLASS = "w-full sm:w-[15.5rem]";
 
@@ -165,6 +207,15 @@ function normalizeText(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function splitFoodList(value: string): string[] {
+  const cleaned = value.trim();
+  if (!cleaned || cleaned === "---") return [];
+  return cleaned
+    .split(/[,;\n]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function formatDate(value?: string): string {
@@ -516,10 +567,10 @@ function estimateMetabolicAge(chronologicalAge: number, bmi: number, bodyFatPct:
 
 function classifyImc(value: number): { label: string; className: string } {
   if (value < 18.5) return { label: "BAJO PESO", className: "text-sky-500" };
-  if (value < 25) return { label: "NORMAL", className: "text-emerald-500" };
+  if (value < 25) return { label: "NORMAL", className: "text-[#647F16]" };
   if (value < 30) return { label: "SOBREPESO", className: "text-amber-500" };
   if (value < 35) return { label: "OBESIDAD 1", className: "text-orange-500" };
-  if (value < 40) return { label: "OBESIDAD 2", className: "text-rose-500" };
+  if (value < 40) return { label: "OBESIDAD 2", className: "text-[#B7602B]" };
   return { label: "OBESIDAD 3", className: "text-red-600" };
 }
 
@@ -871,6 +922,8 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
     }
   };
 
+  const unwantedFoods = splitFoodList(profile.dislikesOrRestrictions);
+
   return (
     <div className="space-y-6">
       {loading && (
@@ -884,23 +937,23 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
           <Card className="border-border">
             <CardHeader className="pb-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <User className="h-4 w-4 text-primary" /> Datos Personales
+                <User className="h-4 w-4 text-[#8A6B1F]" /> Datos Personales
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col sm:flex-row gap-6">
                 <div className="flex flex-col items-center gap-2">
-                  <Avatar className="h-28 w-28 border-2 border-primary">
-                    <AvatarFallback className="text-3xl font-bold bg-primary/15 text-primary">{initials}</AvatarFallback>
+                  <Avatar className="h-28 w-28 border-2 border-[#F7CA5E]">
+                    <AvatarFallback className="text-3xl font-bold bg-[#F7CA5E]/25 text-foreground">{initials}</AvatarFallback>
                   </Avatar>
                 </div>
 
                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Info label="Nombre completo" value={profile.fullName} />
-                  <Info label="Sexo" value={profile.sex} />
-                  <Info label="Fecha de nacimiento" value={profile.birthDate} />
-                  <Info label="Edad" value={profile.age} />
-                  <Info label="Correo electronico" value={profile.email} />
+                  <Info label="Nombre completo" value={profile.fullName} icon={<UserRound className="h-4 w-4" />} />
+                  <Info label="Sexo" value={profile.sex} icon={<BadgeInfo className="h-4 w-4" />} />
+                  <Info label="Fecha de nacimiento" value={profile.birthDate} icon={<CalendarDays className="h-4 w-4" />} />
+                  <Info label="Edad" value={profile.age} icon={<Cake className="h-4 w-4" />} />
+                  <Info label="Correo electronico" value={profile.email} icon={<Mail className="h-4 w-4" />} />
                 </div>
               </div>
             </CardContent>
@@ -909,7 +962,7 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
           <Card className="border-border">
             <CardHeader className="pb-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" /> Actividad Fisica
+                <Activity className="h-4 w-4 text-[#8A6B1F]" /> Actividad Fisica
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -922,7 +975,7 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
                       key={level.key}
                       className={`rounded-lg border p-3 text-center transition-colors ${
                         active
-                          ? "border-primary bg-primary/15 text-primary"
+                          ? "border-[#F7CA5E] bg-[#F7CA5E]/25 text-foreground"
                           : "border-border bg-card text-muted-foreground"
                       }`}
                     >
@@ -938,7 +991,7 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
                 <div className="flex flex-wrap gap-1.5">
                   {profile.sports.length > 0 ? (
                     profile.sports.map((sport) => (
-                      <Badge key={sport} variant="outline" className="bg-primary/15 text-primary border-primary/30 text-xs">
+                      <Badge key={sport} variant="outline" className="bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60 text-xs">
                         {sport}
                       </Badge>
                     ))
@@ -957,116 +1010,149 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
             </CardContent>
           </Card>
 
-          <Card className="border-border">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <HeartPulse className="h-4 w-4 text-primary" /> Condiciones Medicas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content] gap-y-2 sm:gap-x-2 sm:justify-start">
-                {medicalOptions.map((condition) => {
-                  const active = selectedConditionSet.has(normalizeText(condition));
-                  return (
-                    <div key={condition} className="justify-self-start">
-                      <span
-                      className={`${OPTION_WIDTH_CLASS} inline-flex rounded-md border px-2.5 py-1.5 text-xs leading-none ${
-                        active
-                          ? "border-accent/50 bg-accent/15 text-accent font-semibold"
-                          : "border-border text-muted-foreground"
-                      }`}
-                      >
-                        {condition}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Observacion / Descripcion</label>
-                {profile.medicalConditions.length > 0 ? (
-                  <div className="space-y-1.5">
-                    {profile.medicalConditions.map((condition) => (
-                      <div key={`${condition.id_condicion || condition.nombre || "obs"}`} className="rounded-md border border-border bg-muted/20 px-3 py-2">
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          <span className="font-semibold text-foreground">{condition.nombre || "Condicion"}: </span>
-                          {condition.descripcion || "---"}
-                        </p>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <Card className="border-border">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <HeartPulse className="h-4 w-4 text-[#8A6B1F]" /> Condiciones Medicas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content] xl:grid-cols-1 2xl:grid-cols-[max-content_max-content] gap-y-2 sm:gap-x-2 sm:justify-start">
+                  {medicalOptions.map((condition) => {
+                    const active = selectedConditionSet.has(normalizeText(condition));
+                    return (
+                      <div key={condition} className="justify-self-start">
+                        <span
+                        className={`${OPTION_WIDTH_CLASS} inline-flex rounded-md border px-2.5 py-1.5 text-xs leading-none ${
+                          active
+                            ? "border-[#FA9C5C]/50 bg-[#FA9C5C]/15 text-foreground font-semibold"
+                            : "border-border text-muted-foreground"
+                        }`}
+                        >
+                          {condition}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
+                    );
+                  })}
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Observacion / Descripcion</label>
+                  {profile.medicalConditions.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {profile.medicalConditions.map((condition) => (
+                        <div key={`${condition.id_condicion || condition.nombre || "obs"}`} className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            <span className="font-semibold text-foreground">{condition.nombre || "Condicion"}: </span>
+                            {condition.descripcion || "---"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                      <p className="text-xs text-muted-foreground leading-relaxed">---</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-[#B7602B]" /> Alergias e Intolerancias
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content] xl:grid-cols-1 2xl:grid-cols-[max-content_max-content] gap-y-2 sm:gap-x-2 sm:justify-start">
+                  {allergyOptions.map((allergy) => {
+                    const active = selectedAllergySet.has(normalizeText(allergy));
+                    return (
+                      <div key={allergy} className="justify-self-start">
+                        <span
+                        className={`${OPTION_WIDTH_CLASS} inline-flex rounded-md border px-2.5 py-1.5 text-xs leading-none ${
+                          active
+                            ? "border-[#FA9C5C]/50 bg-[#FA9C5C]/15 text-foreground font-semibold"
+                            : "border-border text-muted-foreground"
+                        }`}
+                        >
+                          {allergy}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Descripcion</label>
                   <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
-                    <p className="text-xs text-muted-foreground leading-relaxed">---</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{profile.allergiesRaw}</p>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           <Card className="border-border">
             <CardHeader className="pb-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-primary" /> Alergias e Intolerancias
+                <Apple className="h-4 w-4 text-[#8A6B1F]" /> Preferencias Alimenticias
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-[max-content_max-content] gap-y-2 sm:gap-x-2 sm:justify-start">
-                {allergyOptions.map((allergy) => {
-                  const active = selectedAllergySet.has(normalizeText(allergy));
+            <CardContent>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+                {prefCategories.map((category) => {
+                  const tone = preferenceCategoryTone[category.key];
+                  const CategoryIcon = preferenceCategoryIcon[category.key];
+
                   return (
-                    <div key={allergy} className="justify-self-start">
-                      <span
-                      className={`${OPTION_WIDTH_CLASS} inline-flex rounded-md border px-2.5 py-1.5 text-xs leading-none ${
-                        active
-                          ? "border-accent/50 bg-accent/15 text-accent font-semibold"
-                          : "border-border text-muted-foreground"
-                      }`}
-                      >
-                        {allergy}
-                      </span>
+                    <div key={category.key} className="space-y-2">
+                      <div className="flex justify-center">
+                        <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-[#253027] ${tone.pill}`}>
+                          <CategoryIcon className="h-3.5 w-3.5" />
+                          {category.label}
+                        </div>
+                      </div>
+                      <div className={`min-h-[92px] rounded-xl border p-3 ${tone.panel}`}>
+                        <div className="flex flex-col gap-1.5">
+                          {(foodsByCategory[category.key] || []).length > 0 ? (
+                            foodsByCategory[category.key].map((food) => (
+                              <Badge key={`${category.key}-${food}`} variant="outline" className={`w-fit text-[10px] text-[#253027] ${tone.chip}`}>
+                                {food}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-[#253027]/70">---</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
-              </div>
 
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Descripcion</label>
-                <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
-                  <p className="text-xs text-muted-foreground leading-relaxed">{profile.allergiesRaw}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Apple className="h-4 w-4 text-primary" /> Preferencias Alimenticias
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {prefCategories.map((category) => (
-                <div key={category.key} className="rounded-lg border border-border bg-muted/20 p-3">
-                  <p className="text-xs font-semibold mb-2">{category.icon} {category.label}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(foodsByCategory[category.key] || []).length > 0 ? (
-                      foodsByCategory[category.key].map((food) => (
-                        <Badge key={`${category.key}-${food}`} variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px]">
-                          {food}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-xs text-muted-foreground">---</span>
-                    )}
+                <div className="space-y-2">
+                  <div className="flex justify-center">
+                    <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-[#253027] ${preferenceCategoryTone.noDeseados.pill}`}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Alimentos no deseados
+                    </div>
+                  </div>
+                  <div className={`min-h-[92px] rounded-xl border p-3 ${preferenceCategoryTone.noDeseados.panel}`}>
+                    <div className="flex flex-col gap-1.5">
+                      {unwantedFoods.length > 0 ? (
+                        unwantedFoods.map((food) => (
+                          <Badge key={`unwanted-${food}`} variant="outline" className={`w-fit text-[10px] text-[#253027] ${preferenceCategoryTone.noDeseados.chip}`}>
+                            {food}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-[#253027]/70">---</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              ))}
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Alimentos que no le gustan / restricciones</label>
-                <p className="text-xs text-muted-foreground bg-muted/30 rounded-md p-3">{profile.dislikesOrRestrictions}</p>
               </div>
             </CardContent>
           </Card>
@@ -1074,33 +1160,37 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
           <Card className="border-border">
             <CardHeader className="pb-4">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <HeartPulse className="h-4 w-4 text-primary" /> Registro de Evaluacion Clinica
+                <HeartPulse className="h-4 w-4 text-[#8A6B1F]" /> Registro de Evaluacion Clinica
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <CardContent className="space-y-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">Fecha de evaluacion *</label>
-                    <Input
-                      type="date"
-                      value={evaluationForm.fecha_evaluacion}
-                      onChange={(e) => handleEvaluationFieldChange("fecha_evaluacion", e.target.value)}
-                    />
-                  </div>
+                  <MetricInput
+                    label="Fecha de evaluacion *"
+                    value={evaluationForm.fecha_evaluacion}
+                    onChange={(value) => handleEvaluationFieldChange("fecha_evaluacion", value)}
+                    type="date"
+                    icon={<CalendarDays className="h-4 w-4" />}
+                  />
                   <MetricInput
                     label="Peso (kg) *"
                     value={evaluationForm.peso_kg}
                     onChange={(value) => handleEvaluationFieldChange("peso_kg", value)}
                     step="0.1"
                     min="0"
+                    icon={<Scale className="h-4 w-4" />}
                   />
+                </div>
+
+                <div className="space-y-3">
                   <MetricInput
                     label="Altura (cm) *"
                     value={evaluationForm.altura_cm}
                     onChange={(value) => handleEvaluationFieldChange("altura_cm", value)}
                     step="0.1"
                     min="0"
+                    icon={<Ruler className="h-4 w-4" />}
                   />
                   <MetricInput
                     label="Porcentaje grasa (%) *"
@@ -1108,6 +1198,7 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
                     onChange={(value) => handleEvaluationFieldChange("porcentaje_grasa", value)}
                     step="0.1"
                     min="0"
+                    icon={<Percent className="h-4 w-4" />}
                   />
                 </div>
 
@@ -1118,6 +1209,7 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
                     onChange={(value) => handleEvaluationFieldChange("masa_muscular_kg", value)}
                     step="0.1"
                     min="0"
+                    icon={<Dumbbell className="h-4 w-4" />}
                   />
                   <MetricInput
                     label="Agua corporal (%) *"
@@ -1125,13 +1217,18 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
                     onChange={(value) => handleEvaluationFieldChange("agua_corporal_pct", value)}
                     step="0.1"
                     min="0"
+                    icon={<Droplets className="h-4 w-4" />}
                   />
+                </div>
+
+                <div className="space-y-3">
                   <MetricInput
                     label="Grasa visceral *"
                     value={evaluationForm.grasa_visceral}
                     onChange={(value) => handleEvaluationFieldChange("grasa_visceral", value)}
                     step="0.1"
                     min="0"
+                    icon={<Gauge className="h-4 w-4" />}
                   />
                   <MetricInput
                     label="Masa osea (kg) *"
@@ -1139,19 +1236,19 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
                     onChange={(value) => handleEvaluationFieldChange("masa_osea_kg", value)}
                     step="0.1"
                     min="0"
+                    icon={<Bone className="h-4 w-4" />}
                   />
                 </div>
+              </div>
 
-                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-foreground">Datos calculados</p>
-                  <CalculatedInfo label="Indice de Masa Corporal (IMC)" value={calculatedMetrics.imc !== "---" ? calculatedMetrics.imc : estimatedCalculatedMetrics.imc} />
-                  <CalculatedInfo label="Tasa Metabólica Basal (TMB)" value={calculatedMetrics.tmb !== "---" ? calculatedMetrics.tmb : estimatedCalculatedMetrics.tmb} />
-                  <CalculatedInfo label="Gasto Energetico Total (GET)" value={calculatedMetrics.get !== "---" ? calculatedMetrics.get : estimatedCalculatedMetrics.get} />
-                  <CalculatedInfo label="Calorias Diarias Recomendadas" value={calculatedMetrics.calorias !== "---" ? calculatedMetrics.calorias : estimatedCalculatedMetrics.calorias} />
-                  <CalculatedInfo label="Edad Metabolica" value={calculatedMetrics.edadMetabolica !== "---" ? calculatedMetrics.edadMetabolica : estimatedCalculatedMetrics.edadMetabolica} />
-                  <p className="text-[11px] text-muted-foreground pt-1">
-                    Estos valores se calculan y guardan al registrar la evaluacion.
-                  </p>
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold tracking-wide text-foreground">DATOS CALCULADOS</h4>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <CalculatedInfo label="Indice de Masa Corporal (IMC)" value={calculatedMetrics.imc !== "---" ? calculatedMetrics.imc : estimatedCalculatedMetrics.imc} imageSrc="/iconos/imc.webp" />
+                  <CalculatedInfo label="Tasa Metabólica Basal (TMB)" value={calculatedMetrics.tmb !== "---" ? calculatedMetrics.tmb : estimatedCalculatedMetrics.tmb} imageSrc="/iconos/tmb.webp" />
+                  <CalculatedInfo label="Gasto Energetico Total (GET)" value={calculatedMetrics.get !== "---" ? calculatedMetrics.get : estimatedCalculatedMetrics.get} imageSrc="/iconos/get.webp" />
+                  <CalculatedInfo label="Calorias Diarias Recomendadas" value={calculatedMetrics.calorias !== "---" ? calculatedMetrics.calorias : estimatedCalculatedMetrics.calorias} imageSrc="/iconos/calorias.webp" />
+                  <CalculatedInfo label="Edad Metabolica" value={calculatedMetrics.edadMetabolica !== "---" ? calculatedMetrics.edadMetabolica : estimatedCalculatedMetrics.edadMetabolica} imageSrc="/iconos/edad.webp" />
                 </div>
               </div>
 
@@ -1168,11 +1265,18 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function Info({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      <p className="text-sm text-foreground">{value || "---"}</p>
+    <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-card px-4 py-3 shadow-[0_8px_18px_rgba(37,48,39,0.08)]">
+      {icon ? (
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F7CA5E]/30 text-[#253027]">
+          {icon}
+        </div>
+      ) : null}
+      <div className="min-w-0 space-y-1">
+        <label className="text-xs font-medium text-muted-foreground">{label}</label>
+        <p className="break-words text-sm font-semibold text-foreground">{value || "---"}</p>
+      </div>
     </div>
   );
 }
@@ -1183,26 +1287,53 @@ function MetricInput({
   onChange,
   step,
   min,
+  type = "number",
+  icon,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  step: string;
-  min: string;
+  step?: string;
+  min?: string;
+  type?: "date" | "number";
+  icon?: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      <Input type="number" inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} step={step} min={min} />
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+        {icon ? (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F7CA5E]/25 text-[#253027]">
+            {icon}
+          </div>
+        ) : null}
+        <Input
+          type={type}
+          inputMode={type === "number" ? "decimal" : undefined}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          step={step}
+          min={min}
+          className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+        />
+      </div>
     </div>
   );
 }
 
-function CalculatedInfo({ label, value }: { label: string; value: ReactNode }) {
+function CalculatedInfo({ label, value, imageSrc }: { label: string; value: ReactNode; imageSrc: string }) {
   return (
-    <div className="rounded-md border border-border bg-card px-2.5 py-2">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium text-foreground">{value || "---"}</p>
+    <div className="relative min-h-[112px] overflow-hidden rounded-xl border border-border bg-card p-4 shadow-[0_10px_22px_rgba(37,48,39,0.08)]">
+      <img
+        src={imageSrc}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute right-2 top-2 h-12 w-12 object-contain opacity-85"
+      />
+      <div className="relative z-10 pr-12">
+        <p className="text-[11px] font-medium leading-snug text-muted-foreground">{label}</p>
+        <p className="mt-3 text-lg font-bold text-foreground">{value || "---"}</p>
+      </div>
     </div>
   );
 }

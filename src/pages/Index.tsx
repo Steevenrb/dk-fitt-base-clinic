@@ -529,32 +529,49 @@ const Index = () => {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">{formatWeekSubtitle(weekDates)}</p>
+      <div className="mx-auto w-full max-w-[1480px] space-y-5">
+        <div className="flex flex-col gap-4 rounded-xl border border-border/70 bg-card/70 p-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <div className="inline-flex w-fit items-center rounded-full border border-[#F7CA5E]/50 bg-[#F7CA5E]/15 px-3 py-1 text-xs font-semibold text-foreground">
+              Seguimiento nutricional
+            </div>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Dashboard</h1>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">{formatWeekSubtitle(weekDates)}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:min-w-[280px]">
+            <div className="rounded-xl bg-background/55 px-3.5 py-2.5">
+              <p className="text-xs font-medium text-muted-foreground">Pacientes</p>
+              <p className="mt-1 text-xl font-bold text-foreground">{loadingMain ? "..." : patients.length}</p>
+            </div>
+            <div className="rounded-xl bg-background/55 px-3.5 py-2.5">
+              <p className="text-xs font-medium text-muted-foreground">Alertas</p>
+              <p className="mt-1 text-xl font-bold text-foreground">{loadingMain ? "..." : panelAlerts.length}</p>
+            </div>
+          </div>
         </div>
+
         <KpiCards kpis={kpis} loading={loadingMain} />
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <WeightChart
-            data={weightData}
-            series={weightSeries}
-            loading={loadingWeight}
-            patients={weightPatientOptions}
-            selectedPatientIds={selectedWeightPatientIds}
-            onTogglePatient={toggleWeightPatient}
-          />
-          <CaloriesChart
-            data={calorieData}
-            loading={loadingCalories}
-            weekLabel={formatCompactWeekLabel(weekDates)}
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="xl:col-span-2">
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.6fr)]">
+          <div className="space-y-4">
+            <WeightChart
+              data={weightData}
+              series={weightSeries}
+              loading={loadingWeight}
+              patients={weightPatientOptions}
+              selectedPatientIds={selectedWeightPatientIds}
+              onTogglePatient={toggleWeightPatient}
+            />
             <PatientsTable patients={tablePatients} loading={loadingMain} />
           </div>
-          <AlertsPanel alerts={panelAlerts} loading={loadingMain} />
+          <div className="space-y-4">
+            <CaloriesChart
+              data={calorieData}
+              loading={loadingCalories}
+              weekLabel={formatCompactWeekLabel(weekDates)}
+            />
+            <AlertsPanel alerts={panelAlerts} loading={loadingMain} />
+          </div>
         </div>
       </div>
     </AppLayout>

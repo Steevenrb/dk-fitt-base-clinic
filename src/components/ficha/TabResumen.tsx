@@ -472,7 +472,7 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
         backgroundColor: "rgba(24, 24, 27, 0.98)",
         borderColor: "rgba(255, 255, 255, 0.08)",
         textStyle: { color: "#f4f4f5", fontSize: 12 },
-        axisPointer: { type: "line", lineStyle: { color: "#e5b106", width: 1 } },
+        axisPointer: { type: "line", lineStyle: { color: "#F7CA5E", width: 1 } },
         formatter: (params) => {
           const point = Array.isArray(params) ? params[0] : params;
           const value = Array.isArray(params) ? params[0]?.data?.[1] : point?.data?.[1];
@@ -504,8 +504,8 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
           symbol: "circle",
           symbolSize: 9,
           showSymbol: true,
-          lineStyle: { width: 3, color: "#e5b106" },
-          itemStyle: { color: "#e5b106" },
+          lineStyle: { width: 3, color: "#F7CA5E" },
+          itemStyle: { color: "#F7CA5E" },
           areaStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
               { offset: 0, color: "rgba(229, 177, 6, 0.28)" },
@@ -534,29 +534,59 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
     };
   }, [chartData, themeKey]);
 
+  const metricCardStyle = (label: string) => {
+    if (label === "Peso Actual") return "border-[#C5EB6F] bg-[#C5EB6F]";
+    if (label.includes("Grasa Corporal")) return "border-[#F7CA5E] bg-[#F7CA5E]";
+    if (label === "Masa Muscular") return "border-[#FA9C5C] bg-[#FA9C5C]";
+    if (label === "Adherencia General") return "border-[#E6E6E6] bg-[#E6E6E6]";
+    return "border-border bg-card";
+  };
+
+  const metricCardImage = (label: string) => {
+    if (label === "Peso Actual") return "/bascula.webp";
+    if (label.includes("Grasa Corporal")) return "/medidor_grasa.webp";
+    if (label === "Masa Muscular") return "/pesas.webp";
+    if (label === "Adherencia General") return "/adherencia.webp";
+    return "";
+  };
+
+  const metricCardImageStyle = (label: string) => {
+    if (label === "Peso Actual") return "-bottom-3 right-4 h-28 w-28 opacity-85 sm:h-32 sm:w-32";
+    if (label.includes("Grasa Corporal")) return "bottom-0 right-5 h-24 w-24 opacity-80 sm:h-28 sm:w-28";
+    if (label === "Adherencia General") return "-bottom-3 right-4 h-28 w-28 opacity-85 sm:h-32 sm:w-32";
+    return "bottom-0 right-0 h-24 w-24 opacity-80 sm:h-28 sm:w-28";
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metricCards.map((metric) => {
           const isPositive = metric.trend === metric.positiveWhen;
-          const changeClass = metric.change === "Sin comparación" ? "text-muted-foreground" : isPositive ? "text-emerald-500" : "text-rose-500";
+          const changeClass = metric.change === "Sin comparación" ? "text-[#253027]/70" : "text-[#253027]/80";
+
+          const imageSrc = metricCardImage(metric.label);
 
           return (
-            <div key={metric.label} className="rounded-xl border border-border bg-card p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{metric.label}</p>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                  <metric.icon className="h-4 w-4" />
-                </div>
+            <div key={metric.label} className={`relative overflow-hidden rounded-xl border p-5 text-[#253027] ${metricCardStyle(metric.label)}`}>
+              {imageSrc ? (
+                <img
+                  src={imageSrc}
+                  alt=""
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute object-contain ${metricCardImageStyle(metric.label)}`}
+                />
+              ) : null}
+              <div className="relative z-10 flex items-center justify-between">
+                <p className="max-w-[70%] text-xs font-medium uppercase tracking-wider text-[#253027]/70">{metric.label}</p>
               </div>
-              <p className="mt-3 text-3xl font-bold text-foreground">{metric.value}</p>
-              <div className="mt-2 flex items-center gap-1.5">
+              <p className="relative z-10 mt-3 text-3xl font-bold text-[#253027]">{metric.value}</p>
+              <div className="relative z-10 mt-2 flex items-center gap-1.5">
                 {metric.change === "Sin comparación" ? (
-                  <TrendingUp className="h-3.5 w-3.5 text-muted-foreground" />
+                  <TrendingUp className="h-3.5 w-3.5 text-[#253027]/60" />
                 ) : isPositive ? (
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                  <TrendingUp className="h-3.5 w-3.5 text-[#253027]/80" />
                 ) : (
-                  <TrendingDown className="h-3.5 w-3.5 text-rose-500" />
+                  <TrendingDown className="h-3.5 w-3.5 text-[#253027]/80" />
                 )}
                 <span className={`text-xs font-medium ${changeClass}`}>{metric.change}</span>
               </div>
@@ -597,9 +627,9 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
             { label: "Calorías Consumidas", value: summary.balance.consumed, sub: "Promedio real semanal" },
             { label: "Balance", value: summary.balance.balanceLabel, sub: summary.balance.balanceSub, highlight: summary.balance.highlight },
           ].map((item) => (
-            <div key={item.label} className={`rounded-lg border p-4 ${item.highlight ? "border-accent/40 bg-accent/5" : "border-border bg-muted/30"}`}>
+            <div key={item.label} className={`rounded-lg border p-4 ${item.highlight ? "border-[#FA9C5C]/50 bg-[#FA9C5C]/10" : "border-border bg-muted/30"}`}>
               <p className="text-xs text-muted-foreground">{item.label}</p>
-              <p className={`mt-1 text-lg font-bold ${item.highlight ? "text-accent" : "text-foreground"}`}>{item.value}</p>
+              <p className={`mt-1 text-lg font-bold ${item.highlight ? "text-[#B7602B]" : "text-foreground"}`}>{item.value}</p>
               <p className="text-xs text-muted-foreground">{item.sub}</p>
             </div>
           ))}

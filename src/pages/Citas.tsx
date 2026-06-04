@@ -63,10 +63,10 @@ type PatientOption = {
 };
 
 const statusConfig: Record<CitaStatus, { label: string; className: string; icon: React.ElementType }> = {
-  programada: { label: "Programada", className: "bg-primary/15 text-primary border-primary/30", icon: CalendarDays },
-  atendida: { label: "Atendida", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: CheckCircle2 },
-  cancelada: { label: "Cancelada", className: "bg-accent/20 text-accent border-accent/30", icon: XCircle },
-  reprogramada: { label: "Reprogramada", className: "bg-violet-500/15 text-violet-400 border-violet-500/30", icon: Clock },
+  programada: { label: "Programada", className: "bg-[#F7CA5E]/25 text-[#8A6B1F] border-[#F7CA5E]/60 dark:text-[#F7CA5E]", icon: CalendarDays },
+  atendida: { label: "Atendida", className: "bg-[#C5EB6F]/25 text-[#3F5512] border-[#C5EB6F]/60 dark:text-[#C5EB6F]", icon: CheckCircle2 },
+  cancelada: { label: "Cancelada", className: "bg-[#FA9C5C]/20 text-[#A95F2F] border-[#FA9C5C]/55 dark:text-[#FA9C5C]", icon: XCircle },
+  reprogramada: { label: "Reprogramada", className: "bg-[#A8D1E7]/25 text-[#376378] border-[#A8D1E7]/60 dark:text-[#A8D1E7]", icon: Clock },
 };
 
 function isPendingStatus(status: CitaStatus) {
@@ -191,6 +191,8 @@ const Citas = () => {
   const [attendingCita, setAttendingCita] = useState<Cita | null>(null);
   const [editingCita, setEditingCita] = useState<Cita | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | CitaStatus>("all");
+  const [pendingPage, setPendingPage] = useState(1);
+  const [closedPage, setClosedPage] = useState(1);
 
   const [formPatient, setFormPatient] = useState("");
   const [formDate, setFormDate] = useState(formatLocalDate(new Date()));
@@ -241,6 +243,11 @@ const Citas = () => {
     void fetchData();
   }, [filterStatus]);
 
+  useEffect(() => {
+    setPendingPage(1);
+    setClosedPage(1);
+  }, [filterStatus, citas.length]);
+
   const programadas = citas.filter((c) => c.status === "programada").length;
   const atendidas = citas.filter((c) => c.status === "atendida").length;
   const canceladas = citas.filter((c) => c.status === "cancelada").length;
@@ -257,6 +264,19 @@ const Citas = () => {
     () => [...citas].sort((a, b) => b.date.localeCompare(a.date) || a.time.localeCompare(b.time)),
     [citas]
   );
+  const pendingHistory = useMemo(
+    () => allSorted.filter((c) => c.status === "programada" || c.status === "reprogramada"),
+    [allSorted]
+  );
+  const closedHistory = useMemo(
+    () => allSorted.filter((c) => c.status === "atendida" || c.status === "cancelada"),
+    [allSorted]
+  );
+  const historyPageSize = 10;
+  const pendingTotalPages = Math.max(1, Math.ceil(pendingHistory.length / historyPageSize));
+  const closedTotalPages = Math.max(1, Math.ceil(closedHistory.length / historyPageSize));
+  const pendingPageItems = pendingHistory.slice((pendingPage - 1) * historyPageSize, pendingPage * historyPageSize);
+  const closedPageItems = closedHistory.slice((closedPage - 1) * historyPageSize, closedPage * historyPageSize);
 
   const citaDates = useMemo(() => citas.filter((c) => c.date).map((c) => parseISO(c.date)), [citas]);
 
@@ -397,7 +417,7 @@ const Citas = () => {
                 <SelectItem value="reprogramada">Reprogramada</SelectItem>
               </SelectContent>
             </Select>
-            <Button size="sm" className="w-full gap-1.5 text-xs sm:w-auto" onClick={openCreate}>
+            <Button size="sm" className="w-full gap-1.5 bg-[#F7CA5E] text-[#253027] hover:bg-[#F7CA5E]/90 text-xs sm:w-auto" onClick={openCreate}>
               <Plus className="h-3.5 w-3.5" /> Agendar Cita
             </Button>
           </div>
@@ -405,17 +425,17 @@ const Citas = () => {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: "Programadas", value: programadas, icon: CalendarCheck, accent: false },
-            { label: "Atendidas", value: atendidas, icon: CheckCircle2, accent: false },
-            { label: "Canceladas", value: canceladas, icon: CalendarX, accent: canceladas > 0 },
-            { label: "Pendientes", value: pendientes, icon: Timer, accent: false },
+            { label: "Programadas", value: programadas, icon: CalendarCheck, color: "bg-[#FA9C5C]", shadow: "shadow-[#FA9C5C]/20" },
+            { label: "Atendidas", value: atendidas, icon: CheckCircle2, color: "bg-[#C5EB6F]", shadow: "shadow-[#C5EB6F]/20" },
+            { label: "Canceladas", value: canceladas, icon: CalendarX, color: "bg-[#F49C9C]", shadow: "shadow-[#F49C9C]/20" },
+            { label: "Pendientes", value: pendientes, icon: Timer, color: "bg-[#A8D1E7]", shadow: "shadow-[#A8D1E7]/20" },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <kpi.icon className={`h-4 w-4 ${kpi.accent ? "text-accent" : "text-primary"}`} />
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{kpi.label}</p>
+            <div key={kpi.label} className={`rounded-xl border border-border ${kpi.color} p-4 text-[#253027] shadow-lg ${kpi.shadow}`}>
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[#253027]/70">{kpi.label}</p>
+                <kpi.icon className="h-6 w-6 text-[#253027]" />
               </div>
-              <p className={`text-xl font-bold ${kpi.accent ? "text-accent" : "text-foreground"}`}>{kpi.value}</p>
+              <p className="text-xl font-bold text-[#253027]">{kpi.value}</p>
             </div>
           ))}
         </div>
@@ -429,14 +449,15 @@ const Citas = () => {
               locale={es}
               className={cn("p-3 pointer-events-auto")}
               modifiers={{ hasCita: citaDates }}
-              modifiersClassNames={{ hasCita: "bg-primary/20 font-semibold text-primary" }}
+              modifiersClassNames={{ hasCita: "bg-[#F7CA5E]/30 font-semibold text-[#8A6B1F] dark:text-[#F7CA5E]" }}
             />
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-1">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+            <h3 className="mb-1 text-sm font-bold uppercase text-foreground">Citas Programadas para el Dia</h3>
+            <p className="text-xs font-medium text-muted-foreground">
               {selectedDate ? format(selectedDate, "EEEE d 'de' MMMM, yyyy", { locale: es }) : "Selecciona un día"}
-            </h3>
+            </p>
             <p className="text-xs text-muted-foreground mb-4">
               {loading ? "Cargando citas..." : dayCitas.length === 0 ? "Sin citas para este día" : `${dayCitas.length} cita(s) programada(s)`}
             </p>
@@ -451,7 +472,7 @@ const Citas = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-foreground">{cita.patient}</p>
-                        {cita.hasEvaluation && <FileText className="h-3.5 w-3.5 text-primary" />}
+                        {cita.hasEvaluation && <FileText className="h-3.5 w-3.5 text-[#8A6B1F] dark:text-[#F7CA5E]" />}
                       </div>
                       <p className="text-xs text-muted-foreground">{cita.time} · {cita.notes || "Sin notas"}</p>
                     </div>
@@ -460,7 +481,7 @@ const Citas = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="text-[11px] h-7 gap-1 border-primary/30 text-primary hover:bg-primary/10 shrink-0"
+                        className="text-[11px] h-7 gap-1 border-[#F7CA5E]/60 text-[#8A6B1F] hover:bg-[#F7CA5E]/20 dark:text-[#F7CA5E] shrink-0"
                         disabled={submitting}
                         onClick={() => { setAttendingCita(cita); setShowAttendDialog(true); }}
                       >
@@ -474,89 +495,107 @@ const Citas = () => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-1">Historial de Citas</h3>
-          <p className="text-xs text-muted-foreground mb-4">Todas las consultas registradas en el sistema</p>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="pb-3 text-xs font-medium text-muted-foreground">Paciente</th>
-                  <th className="pb-3 text-xs font-medium text-muted-foreground">Fecha</th>
-                  <th className="pb-3 text-xs font-medium text-muted-foreground">Hora</th>
-                  <th className="pb-3 text-xs font-medium text-muted-foreground">Estado</th>
-                  <th className="pb-3 text-xs font-medium text-muted-foreground text-center">Eval.</th>
-                  <th className="pb-3 text-xs font-medium text-muted-foreground text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">Cargando citas...</td>
-                  </tr>
-                )}
-                {!loading && allSorted.map((cita) => {
-                  const sc = statusConfig[cita.status];
-                  return (
-                    <tr key={cita.id} className="border-b border-border last:border-0">
-                      <td className="py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-                            {cita.avatar}
-                          </div>
-                          <span className="text-xs font-medium text-foreground">{cita.patient}</span>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+            <h3 className="text-sm font-semibold text-foreground mb-1">Citas programadas y reprogramadas</h3>
+            <p className="text-xs text-muted-foreground mb-4">Consultas pendientes de gestion.</p>
+            <div className="space-y-3">
+              {loading && <div className="py-10 text-center text-sm text-muted-foreground">Cargando citas...</div>}
+              {!loading && pendingPageItems.map((cita) => {
+                const sc = statusConfig[cita.status];
+                return (
+                  <div key={cita.id} className="rounded-xl border border-border bg-background/55 p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F7CA5E]/25 text-xs font-bold text-[#8A6B1F] dark:text-[#F7CA5E]">
+                        {cita.avatar}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-foreground">{cita.patient}</p>
+                          {cita.hasEvaluation && <FileText className="h-3.5 w-3.5 text-[#8A6B1F] dark:text-[#F7CA5E]" />}
                         </div>
-                      </td>
-                      <td className="py-3 text-xs text-muted-foreground">
-                        {cita.date ? format(parseISO(cita.date), "dd MMM yyyy", { locale: es }) : "---"}
-                      </td>
-                      <td className="py-3 text-xs text-muted-foreground">{cita.time || "--:--"}</td>
-                      <td className="py-3">
-                        <Badge variant="outline" className={`text-[10px] ${sc.className}`}>{sc.label}</Badge>
-                      </td>
-                      <td className="py-3 text-center">
-                        {cita.hasEvaluation && <FileText className="h-3.5 w-3.5 text-primary mx-auto" />}
-                      </td>
-                      <td className="py-3">
-                        <div className="flex items-center gap-1 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => openEdit(cita)}
-                            disabled={submitting || cita.status === "atendida"}
-                            title={cita.status === "atendida" ? "No se puede editar una cita atendida" : "Editar cita"}
-                          >
-                            <Edit className="h-3.5 w-3.5 text-muted-foreground" />
-                          </Button>
-                          {isPendingStatus(cita.status) && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0"
-                                disabled={submitting}
-                                onClick={() => { setAttendingCita(cita); setShowAttendDialog(true); }}
-                              >
-                                <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={submitting} onClick={() => void changeStatus(cita.id, "cancelada")}>
-                                <XCircle className="h-3.5 w-3.5 text-accent" />
-                              </Button>
-                            </>
-                          )}
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span>{cita.date ? format(parseISO(cita.date), "dd MMM yyyy", { locale: es }) : "---"}</span>
+                          <span>{cita.time || "--:--"}</span>
+                          <Badge variant="outline" className={`text-[10px] ${sc.className}`}>{sc.label}</Badge>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!loading && allSorted.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">No hay citas para mostrar.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => openEdit(cita)}
+                        disabled={submitting || cita.status === "atendida"}
+                        title={cita.status === "atendida" ? "No se puede editar una cita atendida" : "Editar cita"}
+                      >
+                        <Edit className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        disabled={submitting}
+                        onClick={() => { setAttendingCita(cita); setShowAttendDialog(true); }}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-[#3F5512] dark:text-[#C5EB6F]" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled={submitting} onClick={() => void changeStatus(cita.id, "cancelada")}>
+                        <XCircle className="h-3.5 w-3.5 text-[#A95F2F] dark:text-[#FA9C5C]" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              {!loading && pendingHistory.length === 0 && (
+                <div className="py-10 text-center text-sm text-muted-foreground">No hay citas pendientes.</div>
+              )}
+            </div>
+            {!loading && pendingHistory.length > 0 && (
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <Button variant="outline" size="sm" className="h-8 text-xs" disabled={pendingPage <= 1} onClick={() => setPendingPage((prev) => Math.max(1, prev - 1))}>Anterior</Button>
+                <span className="text-xs font-medium text-muted-foreground">{pendingPage} / {pendingTotalPages}</span>
+                <Button variant="outline" size="sm" className="h-8 text-xs" disabled={pendingPage >= pendingTotalPages} onClick={() => setPendingPage((prev) => Math.min(pendingTotalPages, prev + 1))}>Siguiente</Button>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-5 shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+            <h3 className="text-sm font-semibold text-foreground mb-1">Citas atendidas y canceladas</h3>
+            <p className="text-xs text-muted-foreground mb-4">Historial cerrado de consultas.</p>
+            <div className="space-y-3">
+              {loading && <div className="py-10 text-center text-sm text-muted-foreground">Cargando citas...</div>}
+              {!loading && closedPageItems.map((cita) => {
+                const sc = statusConfig[cita.status];
+                return (
+                  <div key={cita.id} className="rounded-xl border border-border bg-background/55 p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#A8D1E7]/25 text-xs font-bold text-[#376378] dark:text-[#A8D1E7]">
+                        {cita.avatar}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground">{cita.patient}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span>{cita.date ? format(parseISO(cita.date), "dd MMM yyyy", { locale: es }) : "---"}</span>
+                          <Badge variant="outline" className={`text-[10px] ${sc.className}`}>{sc.label}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {!loading && closedHistory.length === 0 && (
+                <div className="py-10 text-center text-sm text-muted-foreground">No hay citas atendidas o canceladas.</div>
+              )}
+            </div>
+            {!loading && closedHistory.length > 0 && (
+              <div className="mt-4 flex items-center justify-between gap-2">
+                <Button variant="outline" size="sm" className="h-8 text-xs" disabled={closedPage <= 1} onClick={() => setClosedPage((prev) => Math.max(1, prev - 1))}>Anterior</Button>
+                <span className="text-xs font-medium text-muted-foreground">{closedPage} / {closedTotalPages}</span>
+                <Button variant="outline" size="sm" className="h-8 text-xs" disabled={closedPage >= closedTotalPages} onClick={() => setClosedPage((prev) => Math.min(closedTotalPages, prev + 1))}>Siguiente</Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -598,7 +637,7 @@ const Citas = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowForm(false)} disabled={submitting}>Cancelar</Button>
-            <Button size="sm" className="text-xs" onClick={handleSave} disabled={submitting || !formDate || !formTime || (!editingCita && !formPatient)}>
+            <Button size="sm" className="bg-[#F7CA5E] text-[#253027] hover:bg-[#F7CA5E]/90 text-xs" onClick={handleSave} disabled={submitting || !formDate || !formTime || (!editingCita && !formPatient)}>
               Guardar cita
             </Button>
           </DialogFooter>
@@ -619,7 +658,7 @@ const Citas = () => {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-start gap-2 text-xs h-10 border-primary/30 text-primary hover:bg-primary/10"
+                className="w-full justify-start gap-2 text-xs h-10 border-[#C5EB6F]/60 text-[#3F5512] hover:bg-[#C5EB6F]/20 dark:text-[#C5EB6F]"
                 disabled={submitting || !attendingCita || !canMarkAsAttended(attendingCita)}
                 title={attendingCita && canMarkAsAttended(attendingCita) ? "Marcar atendida" : "Disponible el dia y hora de la cita"}
                 onClick={() => attendingCita && void changeStatus(attendingCita.id, "atendida")}
@@ -640,7 +679,7 @@ const Citas = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-start gap-2 text-xs h-10 text-accent"
+                className="w-full justify-start gap-2 text-xs h-10 text-[#A95F2F] hover:bg-[#FA9C5C]/15 dark:text-[#FA9C5C]"
                 disabled={submitting}
                 onClick={() => attendingCita && void changeStatus(attendingCita.id, "cancelada")}
               >

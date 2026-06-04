@@ -41,10 +41,10 @@ type TabCitasProps = {
 };
 
 const statusConfig: Record<AppointmentStatus, { label: string; className: string; icon: typeof Clock }> = {
-  programada: { label: "Programada", className: "bg-primary/15 text-primary border-primary/30", icon: Clock },
-  atendida: { label: "Atendida", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", icon: CheckCircle },
-  cancelada: { label: "Cancelada", className: "bg-accent/20 text-accent border-accent/30", icon: XCircle },
-  reprogramada: { label: "Reprogramada", className: "bg-violet-500/15 text-violet-400 border-violet-500/30", icon: RotateCcw },
+  programada: { label: "Programada", className: "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60", icon: Clock },
+  atendida: { label: "Atendida", className: "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50", icon: CheckCircle },
+  cancelada: { label: "Cancelada", className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50", icon: XCircle },
+  reprogramada: { label: "Reprogramada", className: "bg-[#E6E6E6]/50 text-foreground border-border", icon: RotateCcw },
 };
 
 function formatDateParts(value: string) {
@@ -160,7 +160,7 @@ export function TabCitas({ patientId, profileId }: TabCitasProps) {
         ].map((item) => (
           <div key={item.label} className="rounded-xl border border-border bg-card p-4">
             <div className="mb-2 flex items-center gap-2">
-              <item.icon className="h-4 w-4 text-primary" />
+              <item.icon className="h-4 w-4 text-[#8A6B1F]" />
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{item.label}</p>
             </div>
             <p className="text-xl font-bold text-foreground">{item.value}</p>
@@ -173,7 +173,7 @@ export function TabCitas({ patientId, profileId }: TabCitasProps) {
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Resumen</p>
           <p className="mt-1 text-sm text-foreground">{stats.mensaje}</p>
           {stats.clasificacion && (
-            <Badge variant="outline" className="mt-3 bg-primary/15 text-primary border-primary/30 text-[11px]">
+            <Badge variant="outline" className="mt-3 bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60 text-[11px]">
               {stats.clasificacion}
             </Badge>
           )}
@@ -198,7 +198,7 @@ export function TabCitas({ patientId, profileId }: TabCitasProps) {
               <div className="flex flex-col items-center shrink-0 w-14 text-center">
                 <p className="text-xs font-bold text-foreground">{date.day}</p>
                 <p className="text-[11px] text-muted-foreground">{date.rest}</p>
-                <p className="text-[11px] text-primary font-medium mt-1">{date.time}</p>
+                <p className="text-[11px] text-[#8A6B1F] font-medium mt-1">{date.time}</p>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">

@@ -223,7 +223,7 @@ export function TopBar({ children }: TopBarProps) {
 
   return (
     <>
-      <header className="flex h-16 min-w-0 items-center justify-between border-b border-border bg-card px-4 shadow-sm md:px-6">
+      <header className="sticky top-0 z-20 flex h-16 min-w-0 items-center justify-between border-b border-border/70 bg-card/95 px-4 shadow-[0_8px_24px_hsl(var(--soft-shadow)/0.06)] backdrop-blur md:px-6">
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <SidebarTrigger className="relative z-20 shrink-0 text-muted-foreground hover:text-foreground" />
           {children}
@@ -232,7 +232,7 @@ export function TopBar({ children }: TopBarProps) {
         <div className="flex items-center gap-3 shrink-0 ml-4">
           <DropdownMenu onOpenChange={(open) => { if (open) void loadAlerts(true); }}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+              <Button variant="ghost" size="icon" className="relative rounded-full text-muted-foreground hover:text-primary">
                 <Bell className="h-5 w-5" />
                 {pendingAlerts > 0 && (
                   <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -315,7 +315,7 @@ export function TopBar({ children }: TopBarProps) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-3 rounded-lg px-2 py-1 hover:bg-accent/50 transition-colors cursor-pointer">
+              <button className="flex cursor-pointer items-center gap-3 rounded-full border border-transparent px-2 py-1 hover:border-border hover:bg-primary/10">
                 <Avatar className="h-8 w-8 border border-border">
                   <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
                     {user?.avatar || "NK"}

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -21,6 +22,7 @@ import {
   AlertTriangle,
   Users,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   UtensilsCrossed,
   Activity,
@@ -57,11 +59,11 @@ type AlertsResponse = {
 };
 
 const typeConfig: Record<AlertType, { label: string; icon: React.ElementType; className: string }> = {
-  adherencia: { label: "Adherencia", icon: Activity, className: "bg-primary/15 text-primary border-primary/30" },
-  peso: { label: "Peso", icon: Scale, className: "bg-violet-500/15 text-violet-400 border-violet-500/30" },
-  consumo_adicional: { label: "Consumo adicional", icon: UtensilsCrossed, className: "bg-sky-500/15 text-sky-400 border-sky-500/30" },
-  inactividad: { label: "Inactividad", icon: Timer, className: "bg-orange-500/15 text-orange-400 border-orange-500/30" },
-  exceso_calorico: { label: "Exceso calórico", icon: Flame, className: "bg-accent/20 text-accent border-accent/30" },
+  adherencia: { label: "Adherencia", icon: Activity, className: "bg-[#C5EB6F]/25 text-[#3F5512] border-[#C5EB6F]/60 dark:text-[#C5EB6F]" },
+  peso: { label: "Peso", icon: Scale, className: "bg-[#A8D1E7]/25 text-[#376378] border-[#A8D1E7]/60 dark:text-[#A8D1E7]" },
+  consumo_adicional: { label: "Consumo adicional", icon: UtensilsCrossed, className: "bg-[#F7CA5E]/25 text-[#8A6B1F] border-[#F7CA5E]/60 dark:text-[#F7CA5E]" },
+  inactividad: { label: "Inactividad", icon: Timer, className: "bg-[#E6E6E6]/25 text-[#5F5F5F] border-[#D2D2D2] dark:text-[#E6E6E6]" },
+  exceso_calorico: { label: "Exceso calórico", icon: Flame, className: "bg-[#FA9C5C]/20 text-[#A95F2F] border-[#FA9C5C]/55 dark:text-[#FA9C5C]" },
 };
 
 function formatDate(value?: string): string {
@@ -75,6 +77,49 @@ function formatDate(value?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatDateOnly(value?: string): string {
+  if (!value) return "---";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "---";
+  return date.toLocaleDateString("es-EC", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
+}
+
+function extractPercent(value: string): number | null {
+  const match = value.match(/(\d{1,3})\s*%/);
+  if (!match) return null;
+  return Math.max(0, Math.min(100, Number(match[1])));
+}
+
+function alertSummary(alert: ApiAlert): { title: string; description: string } {
+  const summaries: Record<AlertType, { title: string; description: string }> = {
+    adherencia: {
+      title: "Baja Adherencia",
+      description: "Se ha detectado que el paciente no completó el plan nutricional del día, situando su adherencia por debajo del objetivo.",
+    },
+    peso: {
+      title: "Variación de Peso",
+      description: "El registro de peso más reciente muestra una fluctuación inusual que sale de la curva de progreso esperada.",
+    },
+    consumo_adicional: {
+      title: "Consumo Adicional",
+      description: "El paciente reportó alimentos no contemplados en el plan original, lo que podría alterar el balance de macronutrientes.",
+    },
+    inactividad: {
+      title: "Inactividad Prolongada",
+      description: "No se ha detectado registro de actividad física o cumplimiento de la rutina de ejercicios recientemente.",
+    },
+    exceso_calorico: {
+      title: "Exceso Calórico",
+      description: "La ingesta total registrada hoy ha superado el límite de calorías y el margen establecido para este paciente.",
+    },
+  };
+  return summaries[alert.tipo] ?? { title: "Alerta clínica", description: alert.mensaje };
 }
 
 function initials(name: string): string {
@@ -109,6 +154,7 @@ const Alertas = () => {
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
   const [filterPatient, setFilterPatient] = useState<string>(initialPatient);
   const [selectedAlert, setSelectedAlert] = useState<ApiAlert | null>(null);
+  const [page, setPage] = useState(1);
 
   const fetchAlerts = async () => {
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -154,6 +200,10 @@ const Alertas = () => {
     if (patient) setFilterPatient(patient);
   }, [searchParams]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [filterType, filterStatus, filterPatient]);
+
   const patients = useMemo(() => [...new Set(alerts.map((alert) => alert.nombre_paciente).filter(Boolean))], [alerts]);
 
   const filtered = useMemo(() => {
@@ -163,15 +213,18 @@ const Alertas = () => {
       list = list.filter((alert) => normalizeName(alert.nombre_paciente) === patientKey);
     }
     list.sort((a, b) => {
-      if (a.revisada !== b.revisada) return a.revisada ? 1 : -1;
       return new Date(b.fecha_generacion).getTime() - new Date(a.fecha_generacion).getTime();
     });
     return list;
   }, [alerts, filterPatient]);
 
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedAlerts = filtered.slice((page - 1) * pageSize, page * pageSize);
   const total = meta.total ?? alerts.length;
   const pendingCount = meta.sin_revisar ?? alerts.filter((alert) => !alert.revisada).length;
   const reviewedCount = Math.max(total - pendingCount, 0);
+  const reviewedPct = total > 0 ? Math.round((reviewedCount / total) * 100) : 0;
   const patientsWithAlerts = new Set(alerts.filter((alert) => !alert.revisada).map((alert) => alert.nombre_paciente)).size;
   const highAttentionCount = alerts.filter((alert) => !alert.revisada && (alert.tipo === "adherencia" || alert.tipo === "exceso_calorico")).length;
 
@@ -255,17 +308,40 @@ const Alertas = () => {
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[
-            { label: "Alertas sin revisar", value: pendingCount, icon: Bell, accent: pendingCount > 0 },
-            { label: "Alta atención", value: highAttentionCount, icon: AlertTriangle, accent: highAttentionCount > 0 },
-            { label: "Pacientes con alertas", value: patientsWithAlerts, icon: Users, accent: false },
-            { label: "Revisadas / Total", value: `${reviewedCount} / ${total}`, icon: CheckCircle2, accent: false },
+            { label: "Alertas sin revisar", value: pendingCount, icon: Bell, color: "bg-[#FA9C5C]", shadow: "shadow-[#FA9C5C]/20" },
+            { label: "Alta atención", value: highAttentionCount, icon: AlertTriangle, color: "bg-[#F7CA5E]", shadow: "shadow-[#F7CA5E]/20" },
+            { label: "Pacientes con alertas", value: patientsWithAlerts, icon: Users, color: "bg-[#A8D1E7]", shadow: "shadow-[#A8D1E7]/20" },
+            { label: "Revisadas / Total", value: `${reviewedCount} / ${total}`, icon: CheckCircle2, color: "bg-card", shadow: "shadow-[hsl(var(--soft-shadow)/0.08)]", reviewChart: true },
           ].map((kpi) => (
-            <div key={kpi.label} className="rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <kpi.icon className={`h-4 w-4 ${kpi.accent ? "text-accent" : "text-primary"}`} />
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{kpi.label}</p>
-              </div>
-              <p className={`text-xl font-bold ${kpi.accent ? "text-accent" : "text-foreground"}`}>{kpi.value}</p>
+            <div key={kpi.label} className={`rounded-2xl border border-border ${kpi.color} p-4 shadow-lg ${kpi.shadow}`}>
+              {kpi.reviewChart ? (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-foreground">Alertas revisadas</p>
+                    <CheckCircle2 className="h-4 w-4 text-[#376378] dark:text-[#A8D1E7]" />
+                  </div>
+                  <div className="relative mx-auto mt-3 h-20 w-36">
+                    <svg viewBox="0 0 120 70" className="h-full w-full">
+                      <path d="M 15 60 A 45 45 0 0 1 105 60" fill="none" stroke="hsl(var(--muted))" strokeWidth="12" strokeLinecap="round" />
+                      <path d="M 15 60 A 45 45 0 0 1 105 60" fill="none" stroke="#A8D1E7" strokeWidth="12" strokeLinecap="round" pathLength={100} strokeDasharray={`${reviewedPct} 100`} />
+                    </svg>
+                    <div className="absolute inset-x-0 bottom-1 text-center">
+                      <p className="text-xl font-bold text-foreground">{reviewedCount}/{total}</p>
+                      <p className="text-[10px] text-muted-foreground">{reviewedPct}% revisadas</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="text-xs font-semibold text-[#253027]/75">{kpi.label}</p>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/70 text-[#253027]">
+                      <kpi.icon className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold text-[#253027]">{kpi.value}</p>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -277,23 +353,24 @@ const Alertas = () => {
             </div>
           )}
 
-          {!loading && filtered.map((alert) => {
+          {!loading && paginatedAlerts.map((alert) => {
             const tc = typeConfig[alert.tipo] ?? typeConfig.adherencia;
             const TypeIcon = tc.icon;
             const isPending = !alert.revisada;
             const isHighPending = isPending && (alert.tipo === "adherencia" || alert.tipo === "exceso_calorico");
+            const summary = alertSummary(alert);
 
             return (
               <div
                 key={alert.id_alerta_sistema}
-                className={`rounded-xl border bg-card p-4 transition-all cursor-pointer hover:shadow-lg hover:shadow-primary/5 ${
-                  isHighPending ? "border-accent/40 bg-accent/[0.03]" : "border-border"
+                className={`rounded-xl border bg-card p-4 transition-all cursor-pointer hover:shadow-lg hover:shadow-[hsl(var(--soft-shadow)/0.08)] ${
+                  isHighPending ? "border-[#FA9C5C]/45 bg-[#FA9C5C]/5" : "border-border"
                 }`}
                 onClick={() => setSelectedAlert(alert)}
               >
                 <div className="flex items-start gap-4">
                   <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    isHighPending ? "bg-accent/20 text-accent" : "bg-muted text-muted-foreground"
+                    isHighPending ? "bg-[#FA9C5C]/20 text-[#A95F2F] dark:text-[#FA9C5C]" : "bg-muted text-muted-foreground"
                   }`}>
                     {initials(alert.nombre_paciente)}
                   </div>
@@ -305,33 +382,32 @@ const Alertas = () => {
                         <TypeIcon className="h-3 w-3 mr-1" />{tc.label}
                       </Badge>
                       {alert.revisada ? (
-                        <Badge variant="outline" className="text-[10px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                        <Badge variant="outline" className="text-[10px] bg-[#A8D1E7]/25 text-[#376378] border-[#A8D1E7]/60 dark:text-[#A8D1E7]">
                           <CheckCircle2 className="h-3 w-3 mr-1" />Revisada
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] bg-primary/15 text-primary border-primary/30">Sin revisar</Badge>
+                        <Badge variant="outline" className="text-[10px] bg-red-500/15 text-red-600 border-red-500/40 dark:text-red-300">Sin revisar</Badge>
                       )}
                     </div>
-                    <p className={`text-xs ${isPending ? "text-foreground" : "text-muted-foreground"}`}>{alert.mensaje}</p>
-                    <p className="text-[11px] text-muted-foreground">{formatDate(alert.fecha_generacion)}</p>
+                    <div className="space-y-0.5">
+                      <p className={`text-xs font-semibold ${isPending ? "text-foreground" : "text-muted-foreground"}`}>{summary.title}</p>
+                      <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{summary.description}</p>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">{formatDateOnly(alert.fecha_generacion)}</p>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    {isPending && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={markingId === alert.id_alerta_sistema}
-                        className="text-[11px] h-7 gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void markReviewed(alert.id_alerta_sistema);
-                        }}
-                      >
-                        <CheckCircle2 className="h-3 w-3" /> Revisar
-                      </Button>
-                    )}
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-[11px] border-[#F7CA5E]/60 text-[#8A6B1F] hover:bg-[#F7CA5E]/20 dark:text-[#F7CA5E]"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedAlert(alert);
+                      }}
+                    >
+                      Ver detalle <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -344,6 +420,37 @@ const Alertas = () => {
               <p className="text-sm text-muted-foreground">No se encontraron alertas con los filtros seleccionados</p>
             </div>
           )}
+
+          {!loading && filtered.length > 0 && (
+            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-muted-foreground">
+                Mostrando {paginatedAlerts.length} de {filtered.length} alertas
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={page <= 1}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                >
+                  <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Anterior
+                </Button>
+                <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground">
+                  {page} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                >
+                  Siguiente <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -353,12 +460,13 @@ const Alertas = () => {
             const tc = typeConfig[selectedAlert.tipo] ?? typeConfig.adherencia;
             const TypeIcon = tc.icon;
             const isPending = !selectedAlert.revisada;
+            const adherencePercent = extractPercent(selectedAlert.mensaje);
             return (
               <>
                 <SheetHeader className="space-y-3 pb-4 border-b border-border">
                   <div className="flex items-center gap-3">
                     <div className={`flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold ${
-                      isPending ? "bg-accent/20 text-accent" : "bg-muted text-muted-foreground"
+                      isPending ? "bg-[#FA9C5C]/20 text-[#A95F2F] dark:text-[#FA9C5C]" : "bg-muted text-muted-foreground"
                     }`}>
                       {initials(selectedAlert.nombre_paciente)}
                     </div>
@@ -372,7 +480,7 @@ const Alertas = () => {
                       <TypeIcon className="h-3 w-3 mr-1" />{tc.label}
                     </Badge>
                     <Badge variant="outline" className={`text-[10px] ${
-                      isPending ? "bg-primary/15 text-primary border-primary/30" : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                      isPending ? "bg-red-500/15 text-red-600 border-red-500/40 dark:text-red-300" : "bg-[#A8D1E7]/25 text-[#376378] border-[#A8D1E7]/60 dark:text-[#A8D1E7]"
                     }`}>
                       {isPending ? "Sin revisar" : "Revisada"}
                     </Badge>
@@ -380,14 +488,53 @@ const Alertas = () => {
                 </SheetHeader>
 
                 <div className="space-y-5 pt-5">
-                  <div>
+                  <div className="rounded-2xl border border-border bg-background/55 p-4">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Mensaje</p>
                     <p className="text-sm text-foreground">{selectedAlert.mensaje}</p>
                   </div>
+
+                  <div className="rounded-2xl border border-border bg-card p-4 shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+                    <p className="mb-3 text-sm font-semibold text-foreground">Información de la alerta</p>
+                    <div className="grid gap-3">
+                      <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2">
+                        <span className="flex items-center gap-2 text-xs text-muted-foreground"><TypeIcon className="h-3.5 w-3.5" />Tipo</span>
+                        <span className="text-xs font-semibold text-foreground">{tc.label}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2">
+                        <span className="flex items-center gap-2 text-xs text-muted-foreground"><Bell className="h-3.5 w-3.5" />Estado</span>
+                        <span className="text-xs font-semibold text-foreground">{isPending ? "Pendiente de revisión" : "Revisada"}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2">
+                        <span className="flex items-center gap-2 text-xs text-muted-foreground"><Timer className="h-3.5 w-3.5" />Fecha</span>
+                        <span className="text-xs font-semibold text-foreground">{formatDate(selectedAlert.fecha_generacion)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {adherencePercent !== null && (
+                    <div className="rounded-2xl border border-border bg-card p-4 shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+                      <div className="mb-2 flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-2 font-semibold text-foreground"><Activity className="h-3.5 w-3.5" />Adherencia detectada</span>
+                        <span className="font-bold text-foreground">{adherencePercent}%</span>
+                      </div>
+                      <Progress value={adherencePercent} className="h-3" />
+                      {adherencePercent === 0 && (
+                        <p className="mt-3 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-300">
+                          El paciente no siguió el plan en ese día.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <div className="rounded-lg bg-muted/50 border border-border p-4">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Nota</p>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       Esta alerta corresponde a un evento automatico generado por el sistema.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-[#F7CA5E]/45 bg-[#F7CA5E]/15 p-4">
+                    <p className="text-xs font-semibold text-[#8A6B1F] dark:text-[#F7CA5E]">
+                      Considera revisar el plan del paciente, o agendar una cita.
                     </p>
                   </div>
 

@@ -160,7 +160,7 @@ const FichaPaciente = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl font-bold text-foreground">{loadingHeader ? "" : header.name}</h1>
                 {header.status && (
-                  <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-[11px]">{header.status}</Badge>
+                  <Badge variant="outline" className="bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60 text-[11px]">{header.status}</Badge>
                 )}
                 {header.adherence && (
                   <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-[11px]">{header.adherence}</Badge>
@@ -173,14 +173,14 @@ const FichaPaciente = () => {
         <Tabs defaultValue="resumen" className="space-y-6">
           <div className="w-full overflow-x-auto pb-1">
             <TabsList className="h-auto min-w-max bg-card border border-border p-1">
-              <TabsTrigger value="resumen" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Resumen General</TabsTrigger>
-              <TabsTrigger value="perfil" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Perfil Clínico</TabsTrigger>
-              <TabsTrigger value="evaluaciones" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Evaluaciones Clínicas</TabsTrigger>
-              <TabsTrigger value="plan" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Plan Nutricional</TabsTrigger>
-              <TabsTrigger value="seguimiento" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Seguimiento</TabsTrigger>
-              <TabsTrigger value="consumo" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Consumo Adicional</TabsTrigger>
-              <TabsTrigger value="alertas" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Alertas</TabsTrigger>
-              <TabsTrigger value="citas" className="text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Citas</TabsTrigger>
+              <TabsTrigger value="resumen" className="text-xs data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]">Resumen General</TabsTrigger>
+              <TabsTrigger value="perfil" className="text-xs data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]">Perfil Clínico</TabsTrigger>
+              <TabsTrigger value="evaluaciones" className="text-xs data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]">Evaluaciones Clínicas</TabsTrigger>
+              <TabsTrigger value="plan" className="text-xs data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]">Plan Nutricional</TabsTrigger>
+              <TabsTrigger value="seguimiento" className="text-xs data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]">Seguimiento</TabsTrigger>
+              <TabsTrigger value="consumo" className="text-xs data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]">Consumo Adicional</TabsTrigger>
+              <TabsTrigger value="alertas" className="text-xs data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]">Alertas</TabsTrigger>
+              <TabsTrigger value="citas" className="text-xs data-[state=active]:bg-[#F7CA5E] data-[state=active]:text-[#253027]">Citas</TabsTrigger>
             </TabsList>
           </div>
 

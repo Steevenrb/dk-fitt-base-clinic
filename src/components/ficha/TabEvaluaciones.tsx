@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import * as echarts from "echarts";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { Activity, Bone, ChevronLeft, ChevronRight, Droplets, Dumbbell, Flame, Gauge, Percent, Ruler, Scale, Zap } from "lucide-react";
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
+const EVALUATIONS_PER_PAGE = 4;
 const DASHBOARD_PATIENT_ENDPOINTS = ["/api/dashboard/patient", "/dashboard/patient"];
 const CLINICAL_EVALUATION_ENDPOINTS = [
   "/api/clinical-evaluations",
@@ -111,26 +113,26 @@ function formatMetric(value: number | undefined, suffix = "", digits = 2): strin
 
 function statusBadge(value: number | undefined, isGood: (value: number) => boolean): { label: string; className: string } {
   if (value === undefined || Number.isNaN(value)) return { label: "Sin datos", className: "bg-muted/40 text-muted-foreground border-border" };
-  if (isGood(value)) return { label: "Bien", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" };
-  return { label: "Mal", className: "bg-rose-500/15 text-rose-600 border-rose-500/30" };
+  if (isGood(value)) return { label: "Bien", className: "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50" };
+  return { label: "Mal", className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" };
 }
 
 function classifyImc(value: number): { label: string; className: string } {
   if (value < 16) return { label: "DESNUTRICION", className: "bg-sky-500/15 text-sky-600 border-sky-500/30" };
   if (value < 18.5) return { label: "BAJO PESO", className: "bg-cyan-500/15 text-cyan-600 border-cyan-500/30" };
-  if (value < 25) return { label: "NORMAL", className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" };
-  if (value < 30) return { label: "SOBREPESO", className: "bg-amber-500/15 text-amber-600 border-amber-500/30" };
-  if (value < 35) return { label: "OBESIDAD 1", className: "bg-orange-500/15 text-orange-600 border-orange-500/30" };
-  return { label: "OBESIDAD 2+", className: "bg-rose-500/15 text-rose-600 border-rose-500/30" };
+  if (value < 25) return { label: "NORMAL", className: "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50" };
+  if (value < 30) return { label: "SOBREPESO", className: "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60" };
+  if (value < 35) return { label: "OBESIDAD 1", className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" };
+  return { label: "OBESIDAD 2+", className: "bg-[#FA9C5C]/25 text-foreground border-[#FA9C5C]/60" };
 }
 
 function imcRangeColor(imc: number): string {
   if (imc < 16) return "#1d9bf0";
   if (imc < 18.5) return "#4cd3ff";
-  if (imc < 25) return "#60c14b";
-  if (imc < 30) return "#f4e14c";
-  if (imc < 35) return "#ff8a34";
-  return "#e11d48";
+  if (imc < 25) return "#C5EB6F";
+  if (imc < 30) return "#F7CA5E";
+  if (imc < 35) return "#FA9C5C";
+  return "#B7602B";
 }
 
 function imcGaugeStops(min: number, max: number): Array<[number, string]> {
@@ -138,10 +140,10 @@ function imcGaugeStops(min: number, max: number): Array<[number, string]> {
   return [
     [toPercent(16), "#1d9bf0"],
     [toPercent(18.5), "#4cd3ff"],
-    [toPercent(25), "#60c14b"],
-    [toPercent(30), "#f4e14c"],
-    [toPercent(35), "#ff8a34"],
-    [1, "#e11d48"],
+    [toPercent(25), "#C5EB6F"],
+    [toPercent(30), "#F7CA5E"],
+    [toPercent(35), "#FA9C5C"],
+    [1, "#B7602B"],
   ];
 }
 
@@ -288,6 +290,7 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
   const [evaluations, setEvaluations] = useState<EvaluationRow[]>([]);
   const [adherenceValue, setAdherenceValue] = useState<number | null>(null);
   const [balanceSeries, setBalanceSeries] = useState<BalancePoint[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -359,6 +362,19 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
   }, [patientId, profileId, toast]);
 
   const latestEvaluation = useMemo(() => (evaluations.length ? evaluations[evaluations.length - 1] : null), [evaluations]);
+  const historyEvaluations = useMemo(
+    () => [...evaluations].sort((left, right) => new Date(right.fechaRaw).getTime() - new Date(left.fechaRaw).getTime()),
+    [evaluations],
+  );
+  const historyPageCount = Math.max(1, Math.ceil(evaluations.length / EVALUATIONS_PER_PAGE));
+  const paginatedEvaluations = useMemo(() => {
+    const start = (historyPage - 1) * EVALUATIONS_PER_PAGE;
+    return historyEvaluations.slice(start, start + EVALUATIONS_PER_PAGE);
+  }, [historyEvaluations, historyPage]);
+
+  useEffect(() => {
+    if (historyPage > historyPageCount) setHistoryPage(historyPageCount);
+  }, [historyPage, historyPageCount]);
 
   useEffect(() => {
     if (!trendRef.current) return undefined;
@@ -366,16 +382,43 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
     const styles = getComputedStyle(document.documentElement);
     const borderColor = styles.getPropertyValue("--border").trim() || "0 0% 16%";
     const mutedForeground = styles.getPropertyValue("--muted-foreground").trim() || "0 0% 60%";
+    const trendColors = {
+      grasa: "#FA9C5C",
+      peso: "#A8D1E7",
+      musculo: "#E6E6E6",
+    };
 
     const trendOption: echarts.EChartsOption = {
       backgroundColor: "transparent",
-      tooltip: { trigger: "axis" },
-      legend: { top: 0, right: 0, textStyle: { color: `hsl(${mutedForeground})`, fontSize: 11 } },
-      grid: { left: 8, right: 16, top: 28, bottom: 24, containLabel: true },
+      color: [trendColors.peso, trendColors.grasa, trendColors.musculo],
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: "rgba(255, 255, 255, 0.96)",
+        borderColor: "rgba(37, 48, 39, 0.08)",
+        borderWidth: 1,
+        padding: [10, 12],
+        textStyle: { color: "#253027", fontSize: 12 },
+        extraCssText: "box-shadow: 0 10px 24px rgba(37, 48, 39, 0.10); border-radius: 12px;",
+        axisPointer: {
+          type: "line",
+          lineStyle: { color: "rgba(37, 48, 39, 0.18)", width: 1.5, type: "dashed" },
+        },
+      },
+      legend: {
+        top: 0,
+        right: 0,
+        itemWidth: 18,
+        itemHeight: 8,
+        icon: "roundRect",
+        itemGap: 16,
+        textStyle: { color: `hsl(${mutedForeground})`, fontSize: 11, fontWeight: 600 },
+      },
+      grid: { left: 8, right: 16, top: 42, bottom: 28, containLabel: true },
       xAxis: {
         type: "category",
         data: evaluations.map((item) => item.fecha),
-        axisLine: { lineStyle: { color: `hsl(${borderColor} / 0.55)` } },
+        boundaryGap: false,
+        axisLine: { lineStyle: { color: `hsl(${borderColor} / 0.35)` } },
         axisTick: { show: false },
         axisLabel: { color: `hsl(${mutedForeground})`, fontSize: 11, margin: 14 },
       },
@@ -383,45 +426,60 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
         type: "value",
         axisLine: { show: false },
         axisTick: { show: false },
-        splitLine: { lineStyle: { color: `hsl(${borderColor} / 0.35)`, type: "dashed" } },
+        splitLine: { lineStyle: { color: `hsl(${borderColor} / 0.28)`, type: "dashed" } },
         axisLabel: { color: `hsl(${mutedForeground})`, fontSize: 11 },
       },
       series: [
         {
           name: "Peso",
           type: "line",
-          stack: "total",
           smooth: true,
           data: evaluations.map((item) => item.peso),
-          lineStyle: { width: 2, color: "#4cd3ff" },
-          itemStyle: { color: "#1d4ed8" },
-          areaStyle: { color: "rgba(76, 211, 255, 0.12)" },
+          lineStyle: { width: 3, color: trendColors.peso },
+          itemStyle: { color: trendColors.peso, borderColor: "#ffffff", borderWidth: 2 },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: "rgba(168, 209, 231, 0.28)" },
+              { offset: 1, color: "rgba(168, 209, 231, 0.03)" },
+            ]),
+          },
           symbol: "circle",
-          symbolSize: 6,
+          symbolSize: 7,
+          emphasis: { focus: "series", scale: 1.25 },
         },
         {
-          name: "% Grasa",
+          name: "Grasa",
           type: "line",
-          stack: "total",
           smooth: true,
           data: evaluations.map((item) => item.grasa),
-          lineStyle: { width: 2, color: "#f4e14c" },
-          itemStyle: { color: "#7c4a1f" },
-          areaStyle: { color: "rgba(244, 225, 76, 0.12)" },
+          lineStyle: { width: 3, color: trendColors.grasa },
+          itemStyle: { color: trendColors.grasa, borderColor: "#ffffff", borderWidth: 2 },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: "rgba(250, 156, 92, 0.24)" },
+              { offset: 1, color: "rgba(250, 156, 92, 0.03)" },
+            ]),
+          },
           symbol: "circle",
-          symbolSize: 6,
+          symbolSize: 7,
+          emphasis: { focus: "series", scale: 1.25 },
         },
         {
           name: "Músculo",
           type: "line",
-          stack: "total",
           smooth: true,
           data: evaluations.map((item) => item.musculo),
-          lineStyle: { width: 2, color: "#9ca3af" },
-          itemStyle: { color: "#111827" },
-          areaStyle: { color: "rgba(156, 163, 175, 0.12)" },
+          lineStyle: { width: 3, color: trendColors.musculo },
+          itemStyle: { color: trendColors.musculo, borderColor: "#253027", borderWidth: 1.5 },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: "rgba(230, 230, 230, 0.34)" },
+              { offset: 1, color: "rgba(230, 230, 230, 0.04)" },
+            ]),
+          },
           symbol: "circle",
-          symbolSize: 6,
+          symbolSize: 7,
+          emphasis: { focus: "series", scale: 1.25 },
         },
       ],
       graphic: evaluations.length === 0
@@ -489,13 +547,13 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
       series: [
         {
           type: "gauge",
-          progress: { show: true, width: 12, itemStyle: { color: "#e5b106" } },
+          progress: { show: true, width: 12, itemStyle: { color: "#F7CA5E" } },
           axisLine: { lineStyle: { width: 12, color: [[1, "rgba(163, 163, 163, 0.2)"]] } },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: { show: false },
           pointer: { show: true },
-          detail: { formatter: (value: number) => value.toFixed(1), fontSize: 18, color: "#e5b106", offsetCenter: [0, "45%"] },
+          detail: { formatter: (value: number) => value.toFixed(1), fontSize: 18, color: "#8A6B1F", offsetCenter: [0, "45%"] },
           data: [{ value: visceralValue }],
           min: 0,
           max: 30,
@@ -518,13 +576,13 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
           type: "gauge",
           startAngle: 225,
           endAngle: -45,
-          progress: { show: true, width: 10, itemStyle: { color: "#22c55e" } },
-          axisLine: { lineStyle: { width: 10, color: [[1, "rgba(34, 197, 94, 0.2)"]] } },
+          progress: { show: true, width: 10, itemStyle: { color: "#F7CA5E" } },
+          axisLine: { lineStyle: { width: 10, color: [[1, "rgba(247, 202, 94, 0.22)"]] } },
           pointer: { show: true },
           axisTick: { show: false },
           splitLine: { show: false },
           axisLabel: { show: false },
-          detail: { formatter: (v: number) => `${Math.round(v)}%`, fontSize: 18, color: "#22c55e", offsetCenter: [0, "45%"] },
+          detail: { formatter: (v: number) => `${Math.round(v)}%`, fontSize: 18, color: "#8A6B1F", offsetCenter: [0, "45%"] },
           data: [{ value }],
           min: 0,
           max: 100,
@@ -557,7 +615,15 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
           ].join("");
         },
       },
-      grid: { left: 8, right: 16, top: 16, bottom: isMobile ? 36 : 24, containLabel: true },
+      legend: {
+        top: 0,
+        right: 0,
+        itemWidth: 14,
+        itemHeight: 8,
+        itemGap: 14,
+        textStyle: { color: `hsl(${mutedForeground})`, fontSize: 11, fontWeight: 600 },
+      },
+      grid: { left: 8, right: 16, top: 38, bottom: isMobile ? 36 : 24, containLabel: true },
       xAxis: {
         type: "category",
         data: balanceSeries.map((item) => item.fecha),
@@ -565,13 +631,26 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
         axisTick: { show: false },
         axisLabel: { color: `hsl(${mutedForeground})`, fontSize: 11 },
       },
-      yAxis: {
-        type: "value",
-        axisLine: { show: false },
-        axisTick: { show: false },
-        splitLine: { lineStyle: { color: `hsl(${borderColor} / 0.35)`, type: "dashed" } },
-        axisLabel: { color: `hsl(${mutedForeground})`, fontSize: 11 },
-      },
+      yAxis: [
+        {
+          type: "value",
+          name: "kcal",
+          nameTextStyle: { color: `hsl(${mutedForeground})`, fontSize: 10, padding: [0, 0, 0, 24] },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { lineStyle: { color: `hsl(${borderColor} / 0.35)`, type: "dashed" } },
+          axisLabel: { color: `hsl(${mutedForeground})`, fontSize: 11 },
+        },
+        {
+          type: "value",
+          name: "balance",
+          nameTextStyle: { color: `hsl(${mutedForeground})`, fontSize: 10 },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false },
+          axisLabel: { color: `hsl(${mutedForeground})`, fontSize: 11 },
+        },
+      ],
       dataZoom: balanceSeries.length > 5
         ? [
           { type: "inside" },
@@ -581,31 +660,29 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
       series: [
         {
           name: "Objetivo",
-          type: "line",
-          smooth: true,
+          type: "bar",
           data: balanceSeries.map((item) => item.objetivo),
-          lineStyle: { width: 2, color: "#4cd3ff" },
-          symbol: "circle",
-          symbolSize: 6,
+          barMaxWidth: 26,
+          itemStyle: { color: "#C5EB6F", borderRadius: [8, 8, 2, 2] },
         },
         {
           name: "Consumidas",
-          type: "line",
-          smooth: true,
+          type: "bar",
           data: balanceSeries.map((item) => item.consumidas),
-          lineStyle: { width: 2, color: "#e5b106" },
-          symbol: "circle",
-          symbolSize: 6,
-          areaStyle: { color: "rgba(229, 177, 6, 0.10)" },
+          barMaxWidth: 26,
+          itemStyle: { color: "#FA9C5C", borderRadius: [8, 8, 2, 2] },
         },
         {
           name: "Balance",
-          type: "bar",
+          type: "line",
+          yAxisIndex: 1,
+          smooth: true,
           data: balanceSeries.map((item) => item.balance),
-          itemStyle: {
-            color: (params: any) => Number(params.value) > 0 ? "#e11d48" : "#22c55e",
-            borderRadius: [4, 4, 0, 0],
-          },
+          lineStyle: { width: 3, color: "#4cd3ff" },
+          itemStyle: { color: "#4cd3ff", borderColor: "#ffffff", borderWidth: 2 },
+          symbol: "circle",
+          symbolSize: 7,
+          emphasis: { focus: "series", scale: 1.2 },
         },
       ],
       graphic: balanceSeries.length === 0
@@ -624,10 +701,10 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
 
   return (
     <div className="space-y-6 min-w-0">
-      <div className="rounded-xl border border-border bg-card p-5">
+      <div className="rounded-xl border border-border bg-card p-5 shadow-[0_10px_22px_rgba(37,48,39,0.06)]">
         <h3 className="mb-1 text-sm font-semibold text-foreground">Tendencias Clínicas</h3>
         <p className="mb-5 text-xs text-muted-foreground">Evolución por fechas de atención</p>
-        <div ref={trendRef} className="h-[260px] w-full" />
+        <div ref={trendRef} className="h-[300px] w-full" />
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5">
@@ -672,58 +749,116 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
         <div className="flex flex-col gap-2 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold text-foreground">Historial de Evaluaciones</h3>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-sm">
-            <thead>
-              <tr className="border-b border-border text-left">
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Fecha</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Peso (kg)</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">% Grasa</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Masa Muscular (kg)</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">IMC</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Grasa visceral</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Altura (cm)</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">% Agua</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Masa osea (kg)</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">TMB (kcal)</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">GET (kcal)</th>
-                <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Edad metabolica</th>
-                
-              </tr>
-            </thead>
-            <tbody>
-              {evaluations.map((e) => (
-                <tr key={`${e.id}-${e.fechaRaw}`} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="px-5 py-3 font-medium text-foreground">{e.fecha}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.peso)}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.grasa, "%")}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.musculo)}</td>
-                  <td className="px-5 py-3">
-                    <Badge variant="outline" className={`text-[11px] ${e.imc >= 30 ? "bg-accent/20 text-accent border-accent/30" : "bg-primary/15 text-primary border-primary/30"}`}>
-                      {formatMetric(e.imc)}
-                    </Badge>
-                  </td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.grasaVisceral)}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.altura)}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.agua, "%")}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.masaOsea)}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.tmb)}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.get)}</td>
-                  <td className="px-5 py-3 text-foreground">{formatMetric(e.edadMetabolica, " años", 0)}</td>
-                  
-                </tr>
-              ))}
-              {evaluations.length === 0 && (
-                <tr>
-                  <td colSpan={13} className="px-5 py-6 text-center text-sm text-muted-foreground">
-                    Sin evaluaciones registradas.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="p-5">
+          {evaluations.length > 0 ? (
+            <>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+                {paginatedEvaluations.map((evaluation) => (
+                  <EvaluationHistoryCard key={`${evaluation.id}-${evaluation.fechaRaw}`} evaluation={evaluation} />
+                ))}
+              </div>
+
+              <div className="mt-5 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHistoryPage((page) => Math.max(1, page - 1))}
+                  disabled={historyPage === 1}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Pagina anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                {Array.from({ length: historyPageCount }, (_, index) => index + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setHistoryPage(page)}
+                    className={`h-8 min-w-8 rounded-full border px-2 text-xs font-semibold transition-colors ${
+                      page === historyPage
+                        ? "border-[#F7CA5E] bg-[#F7CA5E] text-[#253027]"
+                        : "border-border text-muted-foreground hover:bg-muted/40"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setHistoryPage((page) => Math.min(historyPageCount, page + 1))}
+                  disabled={historyPage === historyPageCount}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-40"
+                  aria-label="Pagina siguiente"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-dashed border-border bg-muted/20 px-5 py-8 text-center text-sm text-muted-foreground">
+              Sin evaluaciones registradas.
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
+function EvaluationHistoryCard({ evaluation }: { evaluation: EvaluationRow }) {
+  return (
+    <article className="rounded-2xl border border-border bg-card p-4 shadow-[0_10px_24px_rgba(37,48,39,0.08)] transition-transform duration-200 hover:-translate-y-0.5">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-lg font-bold text-foreground">{evaluation.fecha}</p>
+          <p className="text-xs text-muted-foreground">Evaluacion clinica</p>
+        </div>
+        <Badge variant="outline" className={`text-[11px] ${evaluation.imc >= 30 ? "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" : "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60"}`}>
+          IMC {formatMetric(evaluation.imc)}
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <FeaturedEvaluationMetric icon={<Scale className="h-5 w-5" />} label="Peso" value={formatMetric(evaluation.peso, " kg", 1)} tone="bg-[#A8D1E7]/35 text-[#253027]" />
+        <FeaturedEvaluationMetric icon={<Percent className="h-5 w-5" />} label="% Grasa" value={formatMetric(evaluation.grasa, "%", 1)} tone="bg-[#FA9C5C]/25 text-[#253027]" />
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <CompactEvaluationMetric icon={<Dumbbell className="h-4 w-4" />} label="Masa muscular" value={formatMetric(evaluation.musculo, " kg", 1)} />
+        <CompactEvaluationMetric icon={<Gauge className="h-4 w-4" />} label="Grasa visceral" value={formatMetric(evaluation.grasaVisceral, "", 1)} />
+        <CompactEvaluationMetric icon={<Ruler className="h-4 w-4" />} label="Altura" value={formatMetric(evaluation.altura, " cm", 1)} />
+        <CompactEvaluationMetric icon={<Droplets className="h-4 w-4" />} label="% Agua" value={formatMetric(evaluation.agua, "%", 1)} />
+        <CompactEvaluationMetric icon={<Bone className="h-4 w-4" />} label="Masa osea" value={formatMetric(evaluation.masaOsea, " kg", 1)} />
+        <CompactEvaluationMetric icon={<Flame className="h-4 w-4" />} label="TMB" value={formatMetric(evaluation.tmb, " kcal", 0)} />
+        <CompactEvaluationMetric icon={<Zap className="h-4 w-4" />} label="GET" value={formatMetric(evaluation.get, " kcal", 0)} />
+        <CompactEvaluationMetric icon={<Activity className="h-4 w-4" />} label="Edad metab." value={formatMetric(evaluation.edadMetabolica, " anos", 0)} />
+      </div>
+    </article>
+  );
+}
+
+function FeaturedEvaluationMetric({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: string }) {
+  return (
+    <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+      <div className={`mb-2 flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}>
+        {icon}
+      </div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-xl font-bold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function CompactEvaluationMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-muted/25 px-2.5 py-2">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#E6E6E6]/70 text-[#253027]">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-[10px] font-medium text-muted-foreground">{label}</p>
+        <p className="truncate text-xs font-bold text-foreground">{value}</p>
+      </div>
+    </div>
+  );
+}
+

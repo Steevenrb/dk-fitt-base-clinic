@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Soup } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -39,10 +39,10 @@ function normalizeStatus(value: unknown): TreatmentStatus {
 }
 
 const statusConfig: Record<TreatmentStatus, { label: string; className: string }> = {
-  activo: { label: "Activo", className: "bg-primary/15 text-primary border-primary/30" },
-  pendiente: { label: "Pendiente", className: "bg-muted text-muted-foreground border-border" },
-  suspendido: { label: "Suspendido", className: "bg-accent/20 text-accent border-accent/30" },
-  finalizado: { label: "Finalizado", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+  activo: { label: "Activo", className: "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60" },
+  pendiente: { label: "Pendiente", className: "bg-[#E6E6E6]/50 text-muted-foreground border-border" },
+  suspendido: { label: "Suspendido", className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" },
+  finalizado: { label: "Finalizado", className: "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50" },
   "sin-datos": { label: "---", className: "bg-muted text-muted-foreground border-border" },
 };
 
@@ -117,20 +117,19 @@ const PlanesIndex = () => {
         <div className="rounded-xl border border-border bg-card">
             <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-foreground">Pacientes</h3>
-                <p className="text-xs text-muted-foreground">{patients.length} registrados</p>
+                <h3 className="text-xl font-bold text-foreground">Planes Nutricionales</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Pacientes con seguimiento de plan</p>
+                <p className="mt-2 text-xs text-muted-foreground">{patients.length} registrados</p>
               </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[680px] text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left">
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Paciente</th>
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Estado</th>
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Fecha en
-                      
-                       que se Generó el Plan</th>
-                    <th className="px-5 py-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Acción</th>
+                  <tr className="border-b border-border bg-[#F7CA5E]/12">
+                    <th className="px-5 py-3 text-center text-xs font-bold text-foreground">Paciente</th>
+                    <th className="px-5 py-3 text-center text-xs font-bold text-foreground">Estado</th>
+                    <th className="px-5 py-3 text-center text-xs font-bold text-foreground">Fecha en que se Genero el Plan</th>
+                    <th className="px-5 py-3 text-center text-xs font-bold text-foreground">Accion</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -141,23 +140,31 @@ const PlanesIndex = () => {
                   )}
 
                   {!loading && patients.map((p) => (
-                    <tr key={p.id} className="border-b border-border transition-colors last:border-0 hover:bg-muted/30">
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8 border border-border">
-                            <AvatarFallback className="bg-muted text-xs font-semibold text-foreground">{p.initials}</AvatarFallback>
-                          </Avatar>
-                          <p className="font-medium text-foreground">{p.name}</p>
+                    <tr key={p.id} className="border-b border-border transition-colors last:border-0 hover:bg-[#F7CA5E]/8">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center justify-center gap-3">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F7CA5E]/25 text-xs font-bold text-foreground ring-1 ring-[#F7CA5E]/45">
+                            {p.initials}
+                          </span>
+                          <p className="min-w-[150px] text-left font-medium text-foreground">{p.name}</p>
                         </div>
                       </td>
-                      <td className="px-5 py-3">
+                      <td className="px-5 py-4 text-center">
                         <Badge variant="outline" className={`text-[11px] ${statusConfig[p.status].className}`}>
                           {statusConfig[p.status].label}
                         </Badge>
                       </td>
-                      <td className="px-5 py-3 text-muted-foreground">{p.lastRecord}</td>
-                      <td className="px-5 py-3">
-                        <Button size="sm" variant="ghost" onClick={() => navigate(`/planes/ver/${p.id}`)}>Ver Plan</Button>
+                      <td className="px-5 py-4 text-center text-muted-foreground">{p.lastRecord}</td>
+                      <td className="px-5 py-4 text-center">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1.5 text-xs text-muted-foreground hover:text-[#8A6B1F]"
+                          onClick={() => navigate(`/planes/ver/${p.id}`)}
+                        >
+                          <Soup className="h-3.5 w-3.5" />
+                          Ver Plan
+                        </Button>
                       </td>
                     </tr>
                   ))}

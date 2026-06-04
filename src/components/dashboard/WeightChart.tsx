@@ -28,27 +28,20 @@ export type WeightPatientOption = {
   name: string;
 };
 
-const defaultWeightData: DashboardWeightPoint[] = [
-  { semana: "Sem 1", "Maria G.": 82.5, "Carlos R.": 95.0, "Ana L.": 68.2 },
-  { semana: "Sem 2", "Maria G.": 81.8, "Carlos R.": 94.2, "Ana L.": 67.8 },
-  { semana: "Sem 3", "Maria G.": 81.2, "Carlos R.": 93.5, "Ana L.": 67.5 },
-  { semana: "Sem 4", "Maria G.": 80.5, "Carlos R.": 93.8, "Ana L.": 67.0 },
-  { semana: "Sem 5", "Maria G.": 79.8, "Carlos R.": 92.6, "Ana L.": 66.7 },
-  { semana: "Sem 6", "Maria G.": 79.3, "Carlos R.": 92.1, "Ana L.": 66.3 },
-  { semana: "Sem 7", "Maria G.": 78.9, "Carlos R.": 91.4, "Ana L.": 66.0 },
-  { semana: "Sem 8", "Maria G.": 78.2, "Carlos R.": 91.0, "Ana L.": 65.5 },
-];
-
-const colors = ["#e5b106", "#cc8c02", "#a3a3a3"];
+const colors = ["#F7CA5E", "#FA9C5C", "#C5EB6F"];
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload) return null;
   return (
-    <div className="rounded-lg border border-border bg-card p-3 shadow-lg">
-      <p className="mb-1 text-xs font-semibold text-foreground">{label}</p>
+    <div className="rounded-xl border border-border/70 bg-card p-3">
+      <p className="mb-2 text-xs font-semibold text-foreground">Registro {label}</p>
       {payload.map((entry: any) => (
-        <p key={entry.name} className="text-xs text-muted-foreground">
-          <span style={{ color: entry.color }}>o</span> {entry.name}: {entry.value} kg
+        <p key={entry.name} className="flex items-center justify-between gap-5 text-xs text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+            {entry.name}
+          </span>
+          <span className="font-semibold text-foreground">{entry.value} kg</span>
         </p>
       ))}
     </div>
@@ -56,7 +49,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export function WeightChart({
-  data = defaultWeightData,
+  data = [],
   series,
   loading = false,
   patients = [],
@@ -73,18 +66,31 @@ export function WeightChart({
   const chartSeries = series ?? Object.keys(data[0] || {}).filter((key) => key !== "semana").slice(0, 3);
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="mb-5 space-y-3">
+    <div className="overflow-hidden rounded-xl border border-border/70 bg-card transition-[border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-[#F7CA5E]/70">
+      <div className="flex flex-col gap-4 border-b border-border/60 bg-card p-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="mb-1 text-sm font-semibold text-foreground">Evolucion del Peso</h3>
-          <p className="text-xs text-muted-foreground">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#F7CA5E]" />
+            <h3 className="text-base font-semibold text-foreground">Evolucion del Peso</h3>
+          </div>
+          <p className="text-sm text-muted-foreground">
             {loading ? "Cargando registros de peso..." : `Registros diarios - ${chartSeries.length} pacientes seleccionados`}
           </p>
+          {!loading && chartSeries.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {chartSeries.slice(0, 3).map((name, index) => (
+                <span key={name} className="rounded-full bg-card/75 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
+                  <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />
+                  {name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         {!loading && patients.length > 0 && (
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 w-full justify-between text-xs sm:w-64">
+              <Button variant="outline" size="sm" className="h-9 w-full justify-between rounded-full text-xs sm:w-64">
                 {selectedPatientIds.length > 0 ? `${selectedPatientIds.length}/3 pacientes seleccionados` : "Seleccionar pacientes"}
                 <ChevronsUpDown className="h-3.5 w-3.5 opacity-60" />
               </Button>
@@ -108,7 +114,7 @@ export function WeightChart({
                         >
                           <Checkbox checked={checked} disabled={disabled} className="h-3.5 w-3.5" />
                           <span className="flex-1 truncate text-xs">{patient.name}</span>
-                          {checked && <Check className="h-3.5 w-3.5 text-primary" />}
+                          {checked && <Check className="h-3.5 w-3.5 text-[#7A9A18]" />}
                         </CommandItem>
                       );
                     })}
@@ -119,30 +125,32 @@ export function WeightChart({
           </Popover>
         )}
       </div>
-      {loading || data.length === 0 || chartSeries.length === 0 ? (
-        <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+      <div className="p-4">
+        {loading || data.length === 0 || chartSeries.length === 0 ? (
+        <div className="flex h-[280px] items-center justify-center rounded-xl bg-muted/25 text-sm text-muted-foreground">
           {loading ? "Cargando datos..." : "No hay registros de peso para la semana seleccionada."}
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 16%)" />
-            <XAxis dataKey="semana" tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: "hsl(0 0% 60%)" }} axisLine={false} tickLine={false} domain={["dataMin - 2", "dataMax + 2"]} unit=" kg" />
+          <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" opacity={0.42} />
+            <XAxis dataKey="semana" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} domain={["dataMin - 2", "dataMax + 2"]} unit=" kg" />
             <Tooltip content={<CustomTooltip />} />
             <Legend
               verticalAlign="top"
               align="right"
               iconType="circle"
               iconSize={8}
-              wrapperStyle={{ fontSize: 11, color: "hsl(0 0% 60%)" }}
+              wrapperStyle={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}
             />
             {chartSeries.map((name, index) => (
-              <Line key={name} type="monotone" dataKey={name} stroke={colors[index % colors.length]} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line key={name} type="monotone" dataKey={name} stroke={colors[index % colors.length]} strokeWidth={2.5} dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }} activeDot={{ r: 5, strokeWidth: 2 }} />
             ))}
           </LineChart>
         </ResponsiveContainer>
       )}
+      </div>
     </div>
   );
 }

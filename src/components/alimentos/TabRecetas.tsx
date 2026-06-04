@@ -6,15 +6,29 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell } from "recharts";
 import {
   AlertTriangle,
+  Beef,
   Check,
+  CircleDot,
   Clock,
+  Cookie,
   Edit,
+  Flame,
   Loader2,
   Moon,
   Plus,
@@ -23,6 +37,7 @@ import {
   Trash2,
   UtensilsCrossed,
   Users,
+  Wheat,
   X,
   Apple,
 } from "lucide-react";
@@ -144,9 +159,9 @@ const APTITUDES_CATALOGO = [
 ];
 
 const chartConfig = {
-  proteinas: { label: "Proteínas", color: "hsl(var(--primary))" },
-  carbohidratos: { label: "Carbohidratos", color: "hsl(38, 98%, 40%)" },
-  grasas: { label: "Grasas", color: "hsl(0, 84%, 60%)" },
+  proteinas: { label: "Proteínas", color: "#FA9C5C" },
+  carbohidratos: { label: "Carbohidratos", color: "#F7CA5E" },
+  grasas: { label: "Grasas", color: "#C5EB6F" },
 };
 
 const emptyManualForm: ManualFormState = {
@@ -190,7 +205,10 @@ const timeIconMap: Record<string, { icon: ComponentType<{ className?: string }>;
   cena: { icon: Moon, bg: "bg-sky-100", color: "text-sky-600" },
   snack: { icon: Apple, bg: "bg-emerald-100", color: "text-emerald-600" },
   "media mañana": { icon: Apple, bg: "bg-emerald-100", color: "text-emerald-600" },
-  "media tarde": { icon: Apple, bg: "bg-emerald-100", color: "text-emerald-600" },
+  "media tarde": { icon: Cookie, bg: "bg-[#EDE0FE]", color: "text-[#7C3AED]" },
+  media_tarde: { icon: Cookie, bg: "bg-[#EDE0FE]", color: "text-[#7C3AED]" },
+  merienda: { icon: Cookie, bg: "bg-[#EDE0FE]", color: "text-[#7C3AED]" },
+  "refrigerio tarde": { icon: Cookie, bg: "bg-[#EDE0FE]", color: "text-[#7C3AED]" },
 };
 
 const calcularMacros = (ingredientes: Ingrediente[]) => {
@@ -231,9 +249,9 @@ const buildMacroData = (totals: { proteinas: number; carbohidratos: number; gras
   const calGras = totals.grasas * 9;
   const total = calProt + calCarb + calGras || 1;
   return [
-    { name: "Proteínas", value: Math.round((calProt / total) * 100), fill: "hsl(var(--primary))" },
-    { name: "Carbohidratos", value: Math.round((calCarb / total) * 100), fill: "hsl(38, 98%, 40%)" },
-    { name: "Grasas", value: Math.round((calGras / total) * 100), fill: "hsl(0, 84%, 60%)" },
+    { name: "Proteínas", value: Math.round((calProt / total) * 100), fill: "#FA9C5C" },
+    { name: "Carbohidratos", value: Math.round((calCarb / total) * 100), fill: "#F7CA5E" },
+    { name: "Grasas", value: Math.round((calGras / total) * 100), fill: "#C5EB6F" },
   ];
 };
 
@@ -275,6 +293,15 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error) return error.message || fallback;
   return fallback;
 };
+
+const isForeignKeyViolation = (error: unknown) => {
+  if (!(error instanceof ApiError)) return false;
+  const payload = error.payload as { error?: { code?: string } } | null;
+  return error.status === 422 && payload?.error?.code === "FOREIGN_KEY_VIOLATION";
+};
+
+const USED_RECIPE_DELETE_MESSAGE =
+  "Esta receta ya fue usada en un plan nutricional. Para conservar el historial del paciente, no se puede eliminar del catalogo.";
 
 const getTiempoId = (item: TiempoComida) => item.id ?? item.id_tiempo_comida ?? null;
 const getTiempoNombre = (item: TiempoComida) => item.nombre || item.tiempo_comida_nombre || "";
@@ -320,6 +347,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
   const [modalCrearManual, setModalCrearManual] = useState(false);
   const [modalGenerarIA, setModalGenerarIA] = useState(false);
   const [recetaEditando, setRecetaEditando] = useState<Receta | null>(null);
+  const [recetaParaEliminar, setRecetaParaEliminar] = useState<RecetaDetalle | null>(null);
 
   const [busqueda, setBusqueda] = useState("");
   const [filtroTiempo, setFiltroTiempo] = useState<number | "todas">("todas");
@@ -549,7 +577,6 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
   };
 
   const handleDeactivate = async (receta: Receta) => {
-    if (!window.confirm("¿Deseas eliminar esta receta?")) return;
     const token = localStorage.getItem("dkfitt-access-token");
     if (!token) {
       toast.error("Sesion no valida");
@@ -566,10 +593,7 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
       setModalDetalle(false);
       setRecetaDetalle(null);
     } catch (error) {
-      const apiError = error instanceof ApiError ? error : null;
-      const payload = apiError?.payload as { error?: { code?: string; message?: string }; message?: string } | null;
-      const errorCode = payload?.error?.code;
-      if (apiError?.status === 422 && errorCode === "FOREIGN_KEY_VIOLATION") {
+      if (isForeignKeyViolation(error)) {
         try {
           await requestFirstOk(
             PLATOS_ENDPOINTS.map((base) => `${base}/${receta.id_plato}/force`),
@@ -581,12 +605,23 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
           setRecetaDetalle(null);
           return;
         } catch (forceError) {
+          if (isForeignKeyViolation(forceError)) {
+            toast.error(USED_RECIPE_DELETE_MESSAGE);
+            return;
+          }
           toast.error(getApiErrorMessage(forceError, "No se pudo eliminar la receta"));
           return;
         }
       }
       toast.error(getApiErrorMessage(error, "No se pudo eliminar la receta"));
     }
+  };
+
+  const confirmDeleteRecipe = async () => {
+    if (!recetaParaEliminar) return;
+    const selected = recetaParaEliminar;
+    setRecetaParaEliminar(null);
+    await handleDeactivate(selected);
   };
 
   const openCreateManual = () => {
@@ -832,6 +867,16 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
               grasas: r.grasas_totales,
             }
             : null;
+          const macroCalories = macros
+            ? {
+              proteinas: macros.proteinas * 4,
+              carbohidratos: macros.carbohidratos * 4,
+              grasas: macros.grasas * 9,
+            }
+            : null;
+          const macroTotal = macroCalories
+            ? Math.max(macroCalories.proteinas + macroCalories.carbohidratos + macroCalories.grasas, 1)
+            : 1;
           const isLoadingDetail = loadingDetalleId === r.id_plato;
           return (
             <Card
@@ -852,33 +897,50 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
                     )}
                   </div>
                 )}
-                <div className="p-4 space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
+                <div className="p-4 space-y-3">
+                  <div className="space-y-1.5">
                     <h3 className="font-semibold text-sm text-foreground leading-tight">{r.nombre}</h3>
-                    <Badge variant="outline" className="text-[10px] shrink-0">{timeName || "General"}</Badge>
+                    <Badge variant="outline" className="w-fit text-[10px] shrink-0">{timeName || "General"}</Badge>
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <div className="rounded-xl border border-border bg-background/55 p-3">
+                    <p className="text-[11px] font-semibold text-foreground">Preparación</p>
+                    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{r.tiempo_preparacion_min ?? "—"} min</span>
-                    <span className="flex items-center gap-1"><Users className="h-3 w-3" />1 porc.</span>
+                    </p>
                   </div>
 
-                  <div className="text-lg font-bold text-amber-500">{Math.round(r.calorias_totales)} kcal</div>
-
-                  <div className="flex gap-1.5">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground font-medium">
-                      P {macros ? `${macros.proteinas.toFixed(1)}g` : "—"}
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground font-medium">
-                      C {macros ? `${macros.carbohidratos.toFixed(1)}g` : "—"}
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground font-medium">
-                      G {macros ? `${macros.grasas.toFixed(1)}g` : "—"}
-                    </span>
+                  <div className="flex items-center gap-2 text-[#A95F2F] dark:text-[#FA9C5C]">
+                    <Flame className="h-4 w-4" />
+                    <span className="text-lg font-bold">{Math.round(r.calorias_totales)} kcal</span>
                   </div>
 
-                  <div className="text-[10px] text-muted-foreground">
-                    Usado {r.usos_totales ?? 0} veces
+                  <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                    {macros ? (
+                      <div className="flex h-full w-full">
+                        <span className="h-full bg-[#FA9C5C]" style={{ width: `${(macroCalories!.proteinas / macroTotal) * 100}%` }} />
+                        <span className="h-full bg-[#F7CA5E]" style={{ width: `${(macroCalories!.carbohidratos / macroTotal) * 100}%` }} />
+                        <span className="h-full bg-[#E6E6E6]" style={{ width: `${(macroCalories!.grasas / macroTotal) * 100}%` }} />
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg bg-card px-2 py-2 text-center shadow-sm ring-1 ring-border/70">
+                      <Beef className="mx-auto mb-1 h-3.5 w-3.5 text-[#A95F2F] dark:text-[#FA9C5C]" />
+                      <p className="text-[10px] text-muted-foreground">Prot.</p>
+                      <p className="text-[11px] font-semibold text-foreground">{macros ? `${macros.proteinas.toFixed(1)}g` : "—"}</p>
+                    </div>
+                    <div className="rounded-lg bg-card px-2 py-2 text-center shadow-sm ring-1 ring-border/70">
+                      <Wheat className="mx-auto mb-1 h-3.5 w-3.5 text-[#8A6B1F] dark:text-[#F7CA5E]" />
+                      <p className="text-[10px] text-muted-foreground">Carb.</p>
+                      <p className="text-[11px] font-semibold text-foreground">{macros ? `${macros.carbohidratos.toFixed(1)}g` : "—"}</p>
+                    </div>
+                    <div className="rounded-lg bg-card px-2 py-2 text-center shadow-sm ring-1 ring-border/70">
+                      <CircleDot className="mx-auto mb-1 h-3.5 w-3.5 text-muted-foreground" />
+                      <p className="text-[10px] text-muted-foreground">Grasa</p>
+                      <p className="text-[11px] font-semibold text-foreground">{macros ? `${macros.grasas.toFixed(1)}g` : "—"}</p>
+                    </div>
                   </div>
 
                   {r.tiene_restricciones && (
@@ -948,12 +1010,34 @@ export function TabRecetas({ onCreateManual, refreshSignal }: TabRecetasProps) {
                 setRecetaDetalle(null);
               }}
               onEdit={() => openEditManual(recetaDetalle)}
-              onDeactivate={() => handleDeactivate(recetaDetalle)}
+              onDeactivate={() => setRecetaParaEliminar(recetaDetalle)}
               onGenerateVariant={() => openGenerateModal({ id_tiempo_comida: recetaDetalle.id_tiempo_comida, calorias_totales: recetaDetalle.calorias_totales })}
             />
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!recetaParaEliminar} onOpenChange={(open) => {
+        if (!open) setRecetaParaEliminar(null);
+      }}>
+        <AlertDialogContent className="max-w-md border-border bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar receta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se intentara eliminar esta receta del catalogo. Si ya fue usada en un plan nutricional, se conservara para proteger el historial del paciente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void confirmDeleteRecipe()}
+            >
+              Eliminar receta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={modalCrearManual} onOpenChange={setModalCrearManual}>
         <DialogContent className="bg-card border-border max-w-xl">
@@ -1204,9 +1288,6 @@ export function RecetaDetailModal({
   readOnly?: boolean;
 }) {
   const timeName = receta.id_tiempo_comida ? tiemposMap[receta.id_tiempo_comida] : "General";
-  const normalized = normalizeTimeName(timeName);
-  const timeConfig = timeIconMap[normalized] || timeIconMap.snack;
-  const Icon = timeConfig.icon;
   const macros = receta.ingredientes.length > 0
     ? calcularMacros(receta.ingredientes)
     : receta.proteinas_totales != null || receta.carbohidratos_totales != null || receta.grasas_totales != null
@@ -1239,90 +1320,131 @@ export function RecetaDetailModal({
       </DialogHeader>
 
       <div className="space-y-5">
-        {receta.imagen_url ? (
-          <img src={receta.imagen_url} alt={receta.nombre} className="h-40 w-full object-cover rounded-lg" />
-        ) : (
-          <div className={`h-40 rounded-lg flex items-center justify-center ${timeConfig.bg}`}>
-            <Icon className={`h-14 w-14 ${timeConfig.color}`} />
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 flex-wrap">
-          <Badge variant="outline">{timeName || "General"}</Badge>
-          <span className="text-sm text-muted-foreground flex items-center gap-1"><Users className="h-3.5 w-3.5" />1 porción</span>
-          <span className="text-sm text-muted-foreground flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{receta.tiempo_preparacion_min ?? "—"} min</span>
-          {receta.generado_por_ia && (
-            <Badge className="bg-amber-400/90 text-amber-950 border border-amber-300">IA</Badge>
-          )}
-          <span className="text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="border-[#F7CA5E]/60 bg-[#F7CA5E]/25 text-[#8A6B1F] dark:text-[#F7CA5E]">{timeName || "General"}</Badge>
+          <Badge variant="outline" className="bg-card text-muted-foreground"><Users className="mr-1 h-3.5 w-3.5" />1 porción</Badge>
+          <Badge variant="outline" className="bg-card text-muted-foreground"><Clock className="mr-1 h-3.5 w-3.5" />{receta.tiempo_preparacion_min ?? "—"} min</Badge>
+          <Badge className={receta.generado_por_ia ? "bg-[#F7CA5E] text-[#253027]" : "bg-[#EDE0FE] text-[#7C3AED] border border-[#D8B4FE]"}>
+            {receta.generado_por_ia ? "Hecha con IA" : "Manual"}
+          </Badge>
+          <Badge variant="outline" className="bg-card text-muted-foreground">
             Generada el {createdAtDisplay}
-          </span>
+          </Badge>
         </div>
 
-        <Card className="border-border bg-muted/20">
-          <CardContent className="p-4 space-y-4">
-            <h4 className="font-semibold text-sm text-foreground">Información Nutricional</h4>
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">Información Completa</p>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Calorías</span><span className="font-bold text-amber-500">{caloriasDisplay ?? "—"} kcal</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Proteínas</span><span className="text-foreground">{macros ? `${macros.proteinas}g` : "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Carbohidratos</span><span className="text-foreground">{macros ? `${macros.carbohidratos}g` : "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Grasas</span><span className="text-foreground">{macros ? `${macros.grasas}g` : "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Fibra</span><span className="text-foreground">{macros ? `${macros.fibra}g` : "—"}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Sodio</span><span className="text-foreground">{macros ? `${macros.sodio}mg` : "—"}</span></div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center gap-6">
-              <ChartContainer config={chartConfig} className="aspect-square h-[120px]">
-                <PieChart>
-                  <Pie data={macroData} dataKey="value" nameKey="name" innerRadius={35} outerRadius={55} strokeWidth={2} stroke="hsl(var(--card))">
-                    {macroData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                  </Pie>
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                </PieChart>
-              </ChartContainer>
-              <div className="space-y-1.5">
-                {macroData.map((m) => (
-                  <div key={m.name} className="flex items-center gap-2 text-xs">
-                    <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: m.fill }} />
-                    <span className="text-muted-foreground">{m.name}</span>
-                    <span className="font-semibold text-foreground">{macros ? `${m.value}%` : "—"}</span>
+        <Card className="border-border bg-card shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+          <CardContent className="p-5 space-y-4">
+            <h4 className="font-semibold text-sm text-foreground">Información nutricional</h4>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="rounded-2xl border border-border bg-background/55 p-4">
+                <div className="flex items-center gap-3 text-[#A95F2F] dark:text-[#FA9C5C]">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#FA9C5C]/20">
+                    <Flame className="h-5 w-5" />
                   </div>
-                ))}
+                  <div>
+                    <p className="text-xs text-muted-foreground">Calorías</p>
+                    <p className="text-2xl font-bold text-foreground">{caloriasDisplay ?? "—"} kcal</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-2 text-sm">
+                  <div className="flex items-center justify-between rounded-full bg-muted/45 px-3 py-2">
+                    <span className="flex items-center gap-2 text-muted-foreground"><Apple className="h-3.5 w-3.5" />Fibra</span>
+                    <span className="font-semibold text-foreground">{macros ? `${macros.fibra}g` : "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-full bg-muted/45 px-3 py-2">
+                    <span className="flex items-center gap-2 text-muted-foreground"><CircleDot className="h-3.5 w-3.5" />Sodio</span>
+                    <span className="font-semibold text-foreground">{macros ? `${macros.sodio}mg` : "—"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <div className="rounded-xl bg-[#FA9C5C] px-4 py-3 text-[#253027]">
+                  <div className="space-y-1">
+                    <span className="flex items-center gap-2 text-sm font-semibold"><Beef className="h-4 w-4" />Proteínas</span>
+                    <p className="text-lg font-bold leading-tight">{macros ? `${macros.proteinas}g` : "—"}</p>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-[#F7CA5E] px-4 py-3 text-[#253027]">
+                  <div className="space-y-1">
+                    <span className="flex items-center gap-2 text-sm font-semibold"><Wheat className="h-4 w-4" />Carbohidratos</span>
+                    <p className="text-lg font-bold leading-tight">{macros ? `${macros.carbohidratos}g` : "—"}</p>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-[#C5EB6F] px-4 py-3 text-[#253027]">
+                  <div className="space-y-1">
+                    <span className="flex items-center gap-2 text-sm font-semibold"><CircleDot className="h-4 w-4" />Grasas</span>
+                    <p className="text-lg font-bold leading-tight">{macros ? `${macros.grasas}g` : "—"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-background/55 p-4">
+                <div className="flex items-center justify-center">
+                  <ChartContainer config={chartConfig} className="aspect-square h-[150px]">
+                    <PieChart>
+                      <Pie data={macroData} dataKey="value" nameKey="name" innerRadius={42} outerRadius={68} strokeWidth={3} stroke="hsl(var(--card))">
+                        {macroData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                      </Pie>
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                    </PieChart>
+                  </ChartContainer>
+                </div>
+                <div className="mt-2 grid gap-1.5">
+                  {macroData.map((m) => (
+                    <div key={m.name} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: m.fill }} />
+                        {m.name}
+                      </span>
+                      <span className="font-semibold text-foreground">{macros ? `${m.value}%` : "—"}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <div>
-          <h4 className="font-semibold text-sm text-foreground mb-2">Ingredientes</h4>
-          <div className="space-y-1.5">
-            {receta.ingredientes.length > 0 ? receta.ingredientes.map((ing, idx) => (
-              <div key={`${ing.id_alimento_detalle ?? ing.id_alimento ?? "ing"}-${idx}`} className="flex justify-between text-sm py-1 border-b border-border/30">
-                <span className="text-foreground">{ing.nombre}</span>
-                <span className="text-muted-foreground">{formatCantidad(ing.cantidad_g)} · {Math.round(ing.calorias_aportadas)} kcal</span>
+        <Card className="border-border bg-card shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+          <CardContent className="p-5 space-y-4">
+            <h4 className="font-semibold text-sm text-foreground">Ingredientes</h4>
+            {receta.ingredientes.length > 0 ? (
+              <div className="overflow-hidden rounded-2xl border border-border">
+                <div className="grid grid-cols-[1fr_96px_96px] gap-3 bg-muted/45 px-4 py-2 text-xs font-semibold text-foreground">
+                  <span>Alimentos</span>
+                  <span className="text-center">Porción</span>
+                  <span className="text-center">Kcal</span>
+                </div>
+                {receta.ingredientes.map((ing, idx) => (
+                  <div key={`${ing.id_alimento_detalle ?? ing.id_alimento ?? "ing"}-${idx}`} className="grid grid-cols-[1fr_96px_96px] items-center gap-3 border-t border-border/50 px-4 py-3 text-sm">
+                    <span className="font-medium text-foreground">{ing.nombre}</span>
+                    <span className="justify-self-center rounded-full bg-[#F7CA5E]/25 px-3 py-1 text-center text-xs font-semibold text-[#8A6B1F] dark:text-[#F7CA5E]">{formatCantidad(ing.cantidad_g)}</span>
+                    <span className="justify-self-center rounded-full bg-[#FA9C5C]/20 px-3 py-1 text-center text-xs font-semibold text-[#A95F2F] dark:text-[#FA9C5C]">{Math.round(ing.calorias_aportadas)} kcal</span>
+                  </div>
+                ))}
               </div>
-            )) : (
+            ) : (
               <p className="text-sm text-muted-foreground">Sin ingredientes registrados.</p>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div>
-          <h4 className="font-semibold text-sm text-foreground mb-2">Preparación</h4>
-          <ol className="space-y-2">
-            {pasos.length > 0 ? pasos.map((paso, i) => (
-              <li key={`${i}-${paso}`} className="flex gap-3 items-start text-sm">
-                <span className="shrink-0 h-5 w-5 rounded-full bg-amber-100 text-amber-700 text-xs flex items-center justify-center font-semibold">{i + 1}</span>
-                <span className="text-muted-foreground">{paso.replace(/^\d+\.\s*/, "")}</span>
-              </li>
-            )) : (
-              <li className="text-sm text-muted-foreground">Sin preparacion registrada.</li>
-            )}
-          </ol>
-        </div>
+        <Card className="border-border bg-card shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+          <CardContent className="p-5 space-y-4">
+            <h4 className="font-semibold text-sm text-foreground">Preparación</h4>
+            <ol className="space-y-3">
+              {pasos.length > 0 ? pasos.map((paso, i) => (
+                <li key={`${i}-${paso}`} className="flex gap-3 items-start text-sm">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#F7CA5E] text-xs font-semibold text-[#253027]">{i + 1}</span>
+                  <span className="text-muted-foreground">{paso.replace(/^\d+\.\s*/, "")}</span>
+                </li>
+              )) : (
+                <li className="text-sm text-muted-foreground">Sin preparación registrada.</li>
+              )}
+            </ol>
+          </CardContent>
+        </Card>
 
         {!receta.generado_por_ia && (
           <Card className="border-border bg-muted/20">
@@ -1366,15 +1488,12 @@ export function RecetaDetailModal({
         )}
 
         {!readOnly && (
-          <>
-            <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" className="text-destructive" onClick={onDeactivate}><Trash2 className="h-4 w-4 mr-2" /> Eliminar receta</Button>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={onClose}>Cerrar</Button>
-            </DialogFooter>
-          </>
+          <DialogFooter className="w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="outline" className="text-destructive" onClick={onDeactivate}>
+              <Trash2 className="h-4 w-4 mr-2" /> Eliminar receta
+            </Button>
+            <Button variant="outline" onClick={onClose}>Cerrar</Button>
+          </DialogFooter>
         )}
       </div>
     </div>

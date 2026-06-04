@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Shuffle, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Coffee, CupSoda, Moon, Salad, Shuffle, Sparkles, Utensils } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
@@ -34,6 +34,23 @@ const mealLabels: Record<MealKey, string> = {
   almuerzo: "Almuerzo",
   merienda: "Media Tarde",
   cena: "Cena",
+};
+
+const mealVisuals: Record<MealKey, { icon: typeof Coffee }> = {
+  desayuno: { icon: Coffee },
+  media_manana: { icon: CupSoda },
+  almuerzo: { icon: Utensils },
+  merienda: { icon: Salad },
+  cena: { icon: Moon },
+};
+
+const dayTone: Record<string, { pill: string; card: string; text: string }> = {
+  Lunes: { pill: "bg-[#C5EB6F]", card: "border-[#C5EB6F]/55 bg-[#C5EB6F]/20", text: "text-[#3F5512]" },
+  Martes: { pill: "bg-[#F7CA5E]", card: "border-[#F7CA5E]/55 bg-[#F7CA5E]/20", text: "text-[#8A6B1F]" },
+  Miércoles: { pill: "bg-[#FA9C5C]", card: "border-[#FA9C5C]/55 bg-[#FA9C5C]/20", text: "text-[#A95F2F]" },
+  Miercoles: { pill: "bg-[#FA9C5C]", card: "border-[#FA9C5C]/55 bg-[#FA9C5C]/20", text: "text-[#A95F2F]" },
+  Jueves: { pill: "bg-[#A8D1E7]", card: "border-[#A8D1E7]/55 bg-[#A8D1E7]/20", text: "text-[#376378]" },
+  Viernes: { pill: "bg-[#F49C9C]", card: "border-[#F49C9C]/55 bg-[#F49C9C]/20", text: "text-[#9A4B4B]" },
 };
 
 const foodDatabase: FoodItem[] = [
@@ -129,6 +146,12 @@ export function WeeklyPlanGrid({
   const getMealKcal = (day: string, meal: MealKey) =>
     (plan[day]?.[meal] || []).reduce((s, f) => s + f.kcal, 0);
 
+  const getDayKcal = (day: string) =>
+    meals.reduce((sum, meal) => sum + getMealKcal(day, meal), 0);
+
+  const getDayTone = (day: string) =>
+    dayTone[day] ?? { pill: "bg-[#E6E6E6]", card: "border-[#E6E6E6]/70 bg-[#E6E6E6]/25", text: "text-[#5F5F5F]" };
+
   const openRecipeChange = (day: string, meal: MealKey, foods: FoodItem[], currentKcal: number, mode: "existing" | "ai") => {
     const food = foods[0];
     if (!food) return;
@@ -186,101 +209,120 @@ export function WeeklyPlanGrid({
 
   return (
     <div className="rounded-xl border border-border bg-card">
-      <div className="border-b border-border px-5 py-4 flex items-center justify-between">
+      <div className="border-b border-border px-5 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Plan Semanal</h3>
           <p className="text-xs text-muted-foreground">Asignación de alimentos por día y tiempo de comida</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">{getWeekDisplayLabel()}</span>
+        <div className="flex w-fit items-center gap-2 rounded-2xl border border-border bg-card px-3 py-2 shadow-[0_8px_18px_rgba(37,48,39,0.08)]">
           <button
             onClick={handlePreviousWeek}
             disabled={!canNavigateWeeks || localWeek === 0}
-            className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            className="rounded-full border border-border bg-background p-1.5 transition-colors hover:bg-[#F7CA5E]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-background"
             title="Semana anterior"
           >
             <ChevronLeft className="h-4 w-4 text-muted-foreground" />
           </button>
+          <span className="min-w-28 text-center text-xs font-semibold text-foreground">{getWeekDisplayLabel()}</span>
           <button
             onClick={handleNextWeek}
             disabled={!canNavigateWeeks || localWeek >= maxWeeks - 1}
-            className="p-1.5 rounded-lg border border-border hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            className="rounded-full border border-border bg-background p-1.5 transition-colors hover:bg-[#F7CA5E]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-background"
             title="Próxima semana"
           >
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <div className="min-w-[900px]">
-          {/* Header */}
-          <div className="grid border-b border-border" style={{ gridTemplateColumns: `140px repeat(${days.length}, 1fr)` }}>
-            <div className="px-3 py-2.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">Comida</div>
-            {days.map((d) => (
-              <div key={d} className="px-3 py-2.5 text-xs font-semibold text-primary text-center border-l border-border">{d}</div>
-            ))}
-          </div>
-
-          {/* Rows */}
-          {meals.map((meal) => (
-            <div
-              key={meal}
-              className="grid border-b border-border last:border-0"
-              style={{ gridTemplateColumns: `140px repeat(${days.length}, 1fr)` }}
-            >
-              <div className="px-3 py-3 text-xs font-medium text-foreground flex items-start pt-3">
-                {mealLabels[meal]}
-              </div>
-              {days.map((day) => {
-                const foods = plan[day]?.[meal] || [];
-                const totalKcal = getMealKcal(day, meal);
-                const recipeName = getRecipeName(foods);
-                const isEmpty = foods.length === 0;
-                return (
-                  <div key={day} className="px-2 py-2 border-l border-border min-h-[100px]">
-                    <div className="h-full rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5 flex flex-col justify-between gap-2">
-                      <button
-                        type="button"
-                        disabled={isEmpty}
-                        onClick={() => !isEmpty && void openRecipeInfo(foods[0])}
-                        className={`text-left text-xs font-medium leading-tight ${isEmpty ? "text-muted-foreground cursor-default" : "text-foreground hover:text-primary"} line-clamp-2`}
-                      >
-                        {recipeName}
-                      </button>
-                      {!isEmpty && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-semibold text-primary">{totalKcal} kcal</span>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button className="text-muted-foreground hover:text-primary transition-colors" title="Cambiar receta">
-                                <Shuffle className="h-3.5 w-3.5" />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-52 p-2" align="end">
-                              <button
-                                onClick={() => openRecipeChange(day, meal, foods, totalKcal, "existing")}
-                                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted hover:text-primary"
-                              >
-                                <Shuffle className="mr-2 inline h-3.5 w-3.5" />
-                                Seleccionar existente
-                              </button>
-                              <button
-                                onClick={() => openRecipeChange(day, meal, foods, totalKcal, "ai")}
-                                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-foreground hover:bg-muted hover:text-primary"
-                              >
-                                <Sparkles className="mr-2 inline h-3.5 w-3.5" />
-                                Generar con IA
-                              </button>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      )}
-                    </div>
+      <div className="overflow-x-auto p-4">
+        <div className="min-w-[980px]">
+          <div className="grid gap-3" style={{ gridTemplateColumns: `170px repeat(${days.length}, minmax(150px, 1fr))` }}>
+            <div />
+            {days.map((day) => {
+              const tone = getDayTone(day);
+              return (
+                <div key={`${day}-header`} className="flex justify-center">
+                  <div className={`rounded-full px-4 py-2 text-center text-xs font-bold text-[#253027] ${tone.pill}`}>
+                    <span className="block">{day}</span>
+                    <span className="text-[11px] font-semibold">{getDayKcal(day).toLocaleString()} kcal</span>
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                </div>
+              );
+            })}
+
+            {meals.map((meal) => {
+              const MealIcon = mealVisuals[meal].icon;
+              return (
+                <div key={meal} className="contents">
+                  <div className="flex min-h-[108px] items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-[0_8px_18px_rgba(37,48,39,0.06)]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F7CA5E]/25 text-[#253027]">
+                      <MealIcon className="h-4 w-4" />
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">{mealLabels[meal]}</p>
+                  </div>
+
+                  {days.map((day) => {
+                    const foods = plan[day]?.[meal] || [];
+                    const totalKcal = getMealKcal(day, meal);
+                    const recipeName = getRecipeName(foods);
+                    const isEmpty = foods.length === 0;
+                    const tone = getDayTone(day);
+
+                    return (
+                      <div key={`${day}-${meal}`} className={`min-h-[108px] rounded-2xl border p-3 ${tone.card}`}>
+                        {isEmpty ? (
+                          <div className="flex h-full min-h-[82px] items-center justify-center rounded-xl border border-dashed border-border/70 bg-white/30 text-xs text-muted-foreground dark:bg-background/25">
+                            ---
+                          </div>
+                        ) : (
+                          <div className="flex h-full flex-col justify-between gap-3 rounded-xl bg-white/45 p-3 dark:bg-background/35">
+                            <button
+                              type="button"
+                              onClick={() => void openRecipeInfo(foods[0])}
+                              className="line-clamp-2 text-left text-xs font-semibold leading-relaxed text-foreground transition-colors hover:text-[#8A6B1F] dark:hover:text-[#F7CA5E]"
+                            >
+                              {recipeName}
+                            </button>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`w-fit rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-bold ${tone.text} dark:bg-background/70`}>
+                                {totalKcal.toLocaleString()} kcal
+                              </span>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-muted-foreground transition-colors hover:bg-[#F7CA5E] hover:text-[#253027] dark:bg-background/70"
+                                    title="Cambiar receta"
+                                  >
+                                    <Shuffle className="h-3.5 w-3.5" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-52 p-2" align="end">
+                                  <button
+                                    onClick={() => openRecipeChange(day, meal, foods, totalKcal, "existing")}
+                                    className="w-full rounded-md px-2 py-1.5 text-left text-xs text-foreground hover:bg-[#F7CA5E]/20 hover:text-[#8A6B1F] dark:hover:text-[#F7CA5E]"
+                                  >
+                                    <Shuffle className="mr-2 inline h-3.5 w-3.5" />
+                                    Seleccionar existente
+                                  </button>
+                                  <button
+                                    onClick={() => openRecipeChange(day, meal, foods, totalKcal, "ai")}
+                                    className="w-full rounded-md px-2 py-1.5 text-left text-xs text-foreground hover:bg-[#C5EB6F]/20 hover:text-[#5F7428] dark:hover:text-[#C5EB6F]"
+                                  >
+                                    <Sparkles className="mr-2 inline h-3.5 w-3.5" />
+                                    Generar con IA
+                                  </button>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
       <Dialog open={!!selectedRecipe} onOpenChange={(open) => {
@@ -293,7 +335,7 @@ export function WeeklyPlanGrid({
           {modalRecipe && (
             <RecetaDetailModal
               receta={modalRecipe}
-              tiemposMap={{ 1: "Desayuno", 2: "Media MaÃ±ana", 3: "Almuerzo", 4: "Media Tarde", 5: "Cena" }}
+              tiemposMap={{ 1: "Desayuno", 2: "Media Mañana", 3: "Almuerzo", 4: "Media Tarde", 5: "Cena" }}
               onClose={() => setSelectedRecipe(null)}
               readOnly
             />

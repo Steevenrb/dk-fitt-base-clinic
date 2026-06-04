@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Save, Search, Edit, Eye, Trash2, Upload } from "lucide-react";
+import { Activity, Apple, Bone, Circle, Droplets, Edit, Eye, Flame, Gauge, Heart, Leaf, Pill, Save, Search, Shield, Trash2, Upload, Wheat, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { Alimento, catColors } from "./alimentosData";
+import { Alimento } from "./alimentosData";
 import { apiRequest } from "@/lib/api";
 import * as XLSX from "xlsx";
 
@@ -64,6 +64,16 @@ type ApiListResponse = {
 const DETALLE_ENDPOINTS = ["/api/alimentos-detalle", "/alimentos-detalle"];
 const PAGE_SIZE = 50;
 const CATEGORY_OPTIONS: CategoriaDetalle[] = ["proteinas", "carbohidratos", "grasas", "lacteos", "frutas", "vegetales", "otros"];
+
+const categoryStyles: Record<CategoriaDetalle, string> = {
+  proteinas: "bg-[#FA9C5C]/20 text-[#A95F2F] border-[#FA9C5C]/55",
+  carbohidratos: "bg-[#F7CA5E]/25 text-[#8A6B1F] border-[#F7CA5E]/60",
+  grasas: "bg-[#E6E6E6]/70 text-[#5F5F5F] border-[#D2D2D2]",
+  lacteos: "bg-[#A8D1E7]/25 text-[#376378] border-[#A8D1E7]/60",
+  frutas: "bg-[#F49C9C]/22 text-[#9A4B4B] border-[#F49C9C]/55",
+  vegetales: "bg-[#C5EB6F]/25 text-[#3F5512] border-[#C5EB6F]/60",
+  otros: "bg-[#E6E6E6]/60 text-[#5F5F5F] border-[#D2D2D2]",
+};
 
 type DetailFormState = {
   nombre: string;
@@ -630,6 +640,29 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
     }
   };
 
+  const detailMetrics = detailItem ? [
+    { label: "Calorias", value: formatMetricValue(detailItem.calorias, "kcal"), icon: Flame, className: "bg-[#C5EB6F] text-[#253027] border-[#C5EB6F]" },
+    { label: "Proteinas", value: formatMetricValue(detailItem.proteinas, "g"), icon: Activity, className: "bg-[#FA9C5C] text-[#253027] border-[#FA9C5C]" },
+    { label: "Carbohidratos", value: formatMetricValue(detailItem.carbohidratos, "g"), icon: Wheat, className: "bg-[#F7CA5E] text-[#253027] border-[#F7CA5E]" },
+    { label: "Grasas", value: formatMetricValue(detailItem.grasas, "g"), icon: Droplets, className: "bg-[#E6E6E6] text-[#253027] border-[#D2D2D2]" },
+    { label: "Fibra", value: formatMetricValue(detailItem.fibra, "g"), icon: Leaf },
+    { label: "AGS", value: formatMetricValue(detailItem.ags, "g"), icon: Circle },
+    { label: "AGM", value: formatMetricValue(detailItem.agm, "g"), icon: Circle },
+    { label: "AGPI", value: formatMetricValue(detailItem.agpi, "g"), icon: Circle },
+    { label: "Colesterol", value: formatMetricValue(detailItem.colesterol, "mg"), icon: Heart },
+    { label: "Calcio", value: formatMetricValue(detailItem.calcio, "mg"), icon: Bone },
+    { label: "Fosforo", value: formatMetricValue(detailItem.fosforo, "mg"), icon: Zap },
+    { label: "Hierro", value: formatMetricValue(detailItem.hierro, "mg"), icon: Shield },
+    { label: "Potasio", value: formatMetricValue(detailItem.potasio, "mg"), icon: Gauge },
+    { label: "Sodio", value: formatMetricValue(detailItem.sodio, "mg"), icon: Droplets },
+    { label: "Zinc", value: formatMetricValue(detailItem.zinc, "mg"), icon: Shield },
+    { label: "Vitamina C", value: formatMetricValue(detailItem.vitamina_c, "mg"), icon: Apple },
+    { label: "Vitamina A", value: formatMetricValue(detailItem.vitamina_a, "mcg"), icon: Eye },
+    { label: "Folatos", value: formatMetricValue(detailItem.folatos, "mcg"), icon: Leaf },
+    { label: "Vitamina B12", value: formatMetricValue(detailItem.vitamina_b12, "mcg"), icon: Pill },
+    { label: "Fuente", value: formatPlainValue(detailItem.fuente), icon: Search },
+  ] : [];
+
   return (
     <div className="space-y-6">
       <Card className="border-border bg-card">
@@ -647,13 +680,13 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Filtrar por nombre..."
-                className="pl-9 h-8 text-xs"
+                className="h-8 pl-9 text-xs focus-visible:ring-[#F7CA5E]"
                 value={filtroNombre}
                 onChange={(e) => setFiltroNombre(e.target.value)}
               />
             </div>
             <Select value={filtroCategoria} onValueChange={(v) => setFiltroCategoria(v as "todas" | CategoriaDetalle)}>
-              <SelectTrigger className="w-full h-8 text-xs sm:w-40"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-8 w-full text-xs focus:ring-[#F7CA5E] sm:w-40"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todas</SelectItem>
                 {CATEGORY_OPTIONS.map((cat) => (
@@ -669,36 +702,36 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
               <TableHeader>
                 <TableRow className="border-border">
                   <TableHead>Alimento</TableHead>
-                  <TableHead className="text-right">Calorias</TableHead>
-                  <TableHead className="text-right">Proteinas</TableHead>
-                  <TableHead className="text-right">Carbohidratos</TableHead>
-                  <TableHead className="text-right">Grasas</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
+                  <TableHead className="text-center">Calorias</TableHead>
+                  <TableHead className="text-center">Proteinas</TableHead>
+                  <TableHead className="text-center">Carbohidratos</TableHead>
+                  <TableHead className="text-center">Grasas</TableHead>
+                  <TableHead className="text-center">Categoria</TableHead>
+                  <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {!loading && rows.map((a) => (
                   <TableRow key={a.id_alimento_detalle} className="border-border hover:bg-muted/30">
                     <TableCell className="font-medium text-foreground">{a.nombre}</TableCell>
-                    <TableCell className="text-right text-foreground">{a.calorias}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{a.proteinas}g</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{a.carbohidratos}g</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{a.grasas}g</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`text-[10px] ${catColors[categoryToLegacy(a.categoria)] || ""}`}>
+                    <TableCell className="text-center text-foreground">{a.calorias}</TableCell>
+                    <TableCell className="text-center text-muted-foreground">{a.proteinas}g</TableCell>
+                    <TableCell className="text-center text-muted-foreground">{a.carbohidratos}g</TableCell>
+                    <TableCell className="text-center text-muted-foreground">{a.grasas}g</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="outline" className={`text-[10px] ${categoryStyles[a.categoria]}`}>
                         {categoryLabel(a.categoria)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openEdit(a)}>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center gap-1">
+                        <Button size="sm" variant="ghost" className="h-7 text-xs hover:bg-[#C5EB6F]/20 hover:text-[#3F5512]" onClick={() => openEdit(a)}>
                           <Edit className="h-3 w-3 mr-1" /> Editar
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-xs"
+                          className="h-7 text-xs hover:bg-[#F7CA5E]/20 hover:text-[#8A6B1F]"
                           onClick={() => {
                             setDetailItem(a);
                             setDetailOpen(true);
@@ -706,7 +739,7 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
                         >
                           <Eye className="h-3 w-3 mr-1" /> Detalles
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => void handleDelete(a.id_alimento_detalle)}>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:bg-[#FA9C5C]/15" onClick={() => void handleDelete(a.id_alimento_detalle)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
@@ -807,12 +840,13 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
                   await handleCreate();
                   setCreateOpen(false);
                 }}
+                className="bg-[#F7CA5E] text-[#253027] hover:bg-[#F7CA5E]/90"
                 disabled={saving}
               >
                 <Save className="h-4 w-4 mr-2" /> Guardar alimento
               </Button>
             ) : (
-              <Button onClick={handleImport} disabled={importing || !importFile}>
+              <Button className="bg-[#C5EB6F] text-[#253027] hover:bg-[#C5EB6F]/90" onClick={handleImport} disabled={importing || !importFile}>
                 <Upload className="h-4 w-4 mr-2" /> Importar archivo
               </Button>
             )}
@@ -830,39 +864,36 @@ export function TabAlimentos({ setBase, openCreateSignal }: TabAlimentosProps) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
-            <Button onClick={handleEditSave} disabled={saving}><Save className="h-4 w-4 mr-2" /> Guardar</Button>
+            <Button className="bg-[#F7CA5E] text-[#253027] hover:bg-[#F7CA5E]/90" onClick={handleEditSave} disabled={saving}><Save className="h-4 w-4 mr-2" /> Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="bg-card border-border max-w-3xl">
+        <DialogContent className="bg-card border-border max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Detalle nutricional — {detailItem?.nombre}</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-[#253027] dark:text-foreground">Detalle nutricional</DialogTitle>
           </DialogHeader>
           {detailItem && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <DetailItem label="Categoria" value={categoryLabel(detailItem.categoria)} />
-              <DetailItem label="Calorias" value={formatMetricValue(detailItem.calorias, "kcal")} />
-              <DetailItem label="Proteinas" value={formatMetricValue(detailItem.proteinas, "g")} />
-              <DetailItem label="Carbohidratos" value={formatMetricValue(detailItem.carbohidratos, "g")} />
-              <DetailItem label="Grasas" value={formatMetricValue(detailItem.grasas, "g")} />
-              <DetailItem label="Fibra" value={formatMetricValue(detailItem.fibra, "g")} />
-              <DetailItem label="AGS" value={formatMetricValue(detailItem.ags, "g")} />
-              <DetailItem label="AGM" value={formatMetricValue(detailItem.agm, "g")} />
-              <DetailItem label="AGPI" value={formatMetricValue(detailItem.agpi, "g")} />
-              <DetailItem label="Colesterol" value={formatMetricValue(detailItem.colesterol, "mg")} />
-              <DetailItem label="Calcio" value={formatMetricValue(detailItem.calcio, "mg")} />
-              <DetailItem label="Fosforo" value={formatMetricValue(detailItem.fosforo, "mg")} />
-              <DetailItem label="Hierro" value={formatMetricValue(detailItem.hierro, "mg")} />
-              <DetailItem label="Potasio" value={formatMetricValue(detailItem.potasio, "mg")} />
-              <DetailItem label="Sodio" value={formatMetricValue(detailItem.sodio, "mg")} />
-              <DetailItem label="Zinc" value={formatMetricValue(detailItem.zinc, "mg")} />
-              <DetailItem label="Vitamina C" value={formatMetricValue(detailItem.vitamina_c, "mg")} />
-              <DetailItem label="Vitamina A" value={formatMetricValue(detailItem.vitamina_a, "mcg")} />
-              <DetailItem label="Folatos" value={formatMetricValue(detailItem.folatos, "mcg")} />
-              <DetailItem label="Vitamina B12" value={formatMetricValue(detailItem.vitamina_b12, "mcg")} />
-              <DetailItem label="Fuente" value={formatPlainValue(detailItem.fuente)} />
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm font-medium text-muted-foreground">{detailItem.nombre}</p>
+                <Badge variant="outline" className={`rounded-full px-3 py-1 text-[11px] ${categoryStyles[detailItem.categoria]}`}>
+                  {categoryLabel(detailItem.categoria)}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {detailMetrics.map((metric, index) => (
+                  <DetailItem
+                    key={metric.label}
+                    label={metric.label}
+                    value={metric.value}
+                    icon={metric.icon}
+                    className={index < 4 ? metric.className : undefined}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </DialogContent>
@@ -883,12 +914,12 @@ function DetailForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Nombre del alimento *</label>
-          <Input className="h-8 text-xs" value={form.nombre} onChange={(e) => onChange("nombre", e.target.value)} />
+          <Input className="h-8 text-xs focus-visible:ring-[#F7CA5E]" value={form.nombre} onChange={(e) => onChange("nombre", e.target.value)} />
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Categoria *</label>
           <Select value={form.categoria} onValueChange={(v) => onChange("categoria", v)}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-xs focus:ring-[#F7CA5E]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {CATEGORY_OPTIONS.map((cat) => (
                 <SelectItem key={cat} value={cat}>{categoryLabel(cat)}</SelectItem>
@@ -898,14 +929,14 @@ function DetailForm({
         </div>
       </div>
 
-      <p className="text-xs font-medium text-primary border-b border-border/50 pb-1">Valores por 100 g</p>
+      <p className="border-b border-border/50 pb-1 text-xs font-medium text-[#8A6B1F] dark:text-[#F7CA5E]">Valores por 100 g</p>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-2">
         {numericKeys.map((key) => (
           <div key={key} className="space-y-0.5 max-w-[170px]">
             <label className="text-[10px] text-muted-foreground">{key}</label>
             <Input
               type="number"
-              className="h-7 text-xs"
+              className="h-7 text-xs focus-visible:ring-[#F7CA5E]"
               value={form[key]}
               onChange={(e) => onChange(key, e.target.value)}
               min={0}
@@ -918,11 +949,30 @@ function DetailForm({
   );
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
+function DetailItem({
+  label,
+  value,
+  icon: Icon,
+  className,
+}: {
+  label: string;
+  value: string;
+  icon: React.ComponentType<{ className?: string }>;
+  className?: string;
+}) {
+  const isTinted = Boolean(className);
+
   return (
-    <div className="rounded-md border border-border bg-muted/20 p-2">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="text-sm text-foreground">{value}</p>
+    <div className={`rounded-xl border p-3 shadow-[0_8px_18px_rgba(37,48,39,0.08)] ${className ?? "border-border bg-white text-[#253027] dark:bg-background dark:text-foreground"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className={`text-[11px] font-medium ${isTinted ? "text-[#253027]/70" : "text-muted-foreground"}`}>{label}</p>
+          <p className="mt-1 text-base font-bold">{value}</p>
+        </div>
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isTinted ? "bg-white/65 text-[#253027]" : "bg-[#F7CA5E]/20 text-[#8A6B1F]"}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
     </div>
   );
 }
