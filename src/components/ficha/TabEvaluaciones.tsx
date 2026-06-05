@@ -8,6 +8,7 @@ import { Activity, Bone, ChevronLeft, ChevronRight, Droplets, Dumbbell, Flame, G
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const EVALUATIONS_PER_PAGE = 4;
 const DASHBOARD_PATIENT_ENDPOINTS = ["/api/dashboard/patient", "/dashboard/patient"];
+const PATIENT_DETAIL_ENDPOINTS = ["/api/patients", "/patients"];
 const CLINICAL_EVALUATION_ENDPOINTS = [
   "/api/clinical-evaluations",
   "/clinical-evaluations",
@@ -115,6 +116,25 @@ function statusBadge(value: number | undefined, isGood: (value: number) => boole
   if (value === undefined || Number.isNaN(value)) return { label: "Sin datos", className: "bg-muted/40 text-muted-foreground border-border" };
   if (isGood(value)) return { label: "Bien", className: "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50" };
   return { label: "Mal", className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" };
+}
+
+function normalizeAdherenceScore(value: unknown): number | undefined {
+  const numeric = parseNumber(value);
+  if (numeric !== undefined) {
+    const percent = numeric > 0 && numeric <= 1 ? numeric * 100 : numeric;
+    return Math.max(0, Math.min(100, percent));
+  }
+
+  const raw = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+  if (["alto", "alta", "high"].includes(raw) || raw.includes("alta") || raw.includes("alto")) return 90;
+  if (["medio", "media", "moderado", "moderada", "medium"].includes(raw) || raw.includes("media") || raw.includes("medio")) return 60;
+  if (["bajo", "baja", "low"].includes(raw) || raw.includes("baja") || raw.includes("bajo")) return 30;
+  return undefined;
 }
 
 function classifyImc(value: number): { label: string; className: string } {
@@ -264,6 +284,39 @@ function buildBalanceSeries(source: unknown): BalancePoint[] {
     .sort((left, right) => new Date(left.fechaRaw).getTime() - new Date(right.fechaRaw).getTime());
 }
 
+const ADHERENCE_KEYS = [
+  "adherencia_semana_actual.adherencia",
+  "adherencia_semana_actual.porcentaje",
+  "adherencia_semana_actual.nivel",
+  "adherencia_semana_actual.nivel_adherencia",
+  "adherencia_semana_actual.adherencia_nivel",
+  "adherencia_actual.porcentaje",
+  "adherencia_actual.adherencia",
+  "adherencia_actual.nivel",
+  "adherencia_actual.nivel_adherencia",
+  "adherencia_actual.adherencia_nivel",
+  "porcentaje_adherencia",
+  "adherencia_pct",
+  "nivel_adherencia",
+  "adherencia_nivel",
+  "adherence_level",
+  "adherencia",
+  "adherence",
+  "adherencia_actual",
+];
+
+function resolveAdherenceScore(...sources: unknown[]): number | undefined {
+  for (const source of sources) {
+    for (const key of ADHERENCE_KEYS) {
+      const value = findFirstValue(source, [key]);
+      const score = normalizeAdherenceScore(value);
+      if (score !== undefined) return score;
+    }
+  }
+
+  return undefined;
+}
+
 async function requestWithFallback(bases: string[], buildPath: (base: string) => string, token: string): Promise<unknown> {
   let lastError: unknown;
   for (const base of bases) {
@@ -314,9 +367,10 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
       const evaluationId = profileId ?? patientId;
       const calorieControlId = profileId ?? patientId;
 
-      const [evaluationResult, dashboardResult, weeklyResult, todayResult] = await Promise.allSettled([
+      const [evaluationResult, dashboardResult, patientDetailResult, weeklyResult, todayResult] = await Promise.allSettled([
         requestWithFallback(CLINICAL_EVALUATION_ENDPOINTS, (base) => `${base}/patient/${evaluationId}`, token),
         requestWithFallback(DASHBOARD_PATIENT_ENDPOINTS, (base) => `${base}/${patientId}`, token),
+        requestWithFallback(PATIENT_DETAIL_ENDPOINTS, (base) => `${base}/${patientId}`, token),
         requestWithFallback(CALORIE_CONTROL_PATIENT_ENDPOINTS, (base) => `${base}/${calorieControlId}/history`, token),
         requestWithFallback(CALORIE_CONTROL_PATIENT_ENDPOINTS, (base) => `${base}/${calorieControlId}/today`, token),
       ]);
@@ -325,11 +379,10 @@ export function TabEvaluaciones({ patientId, profileId }: { patientId: number; p
         setEvaluations(buildEvaluations(evaluationResult.value));
       }
 
-      if (dashboardResult.status === "fulfilled") {
-        const dashboard = unwrapData(dashboardResult.value);
-        const adherence = parseNumber(findFirstValue(dashboard, ["adherencia_semana_actual.adherencia", "adherencia_actual", "adherencia"]));
-        setAdherenceValue(typeof adherence === "number" ? adherence : null);
-      }
+      const dashboard = dashboardResult.status === "fulfilled" ? unwrapData(dashboardResult.value) : undefined;
+      const patientDetail = patientDetailResult.status === "fulfilled" ? unwrapData(patientDetailResult.value) : undefined;
+      const adherence = resolveAdherenceScore(dashboard, patientDetail);
+      setAdherenceValue(typeof adherence === "number" ? adherence : null);
 
       let balance = weeklyResult.status === "fulfilled" ? buildBalanceSeries(weeklyResult.value) : [];
       if (balance.length === 0 && todayResult.status === "fulfilled") {

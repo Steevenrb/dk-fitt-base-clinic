@@ -142,6 +142,7 @@ const PlanesNutricionales = () => {
   const [activeDays, setActiveDays] = useState(["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]);
   const [plan, setPlan] = useState<Record<DayKey, Record<MealKey, FoodItem[]>>>(defaultPlan);
   const [targetKcal, setTargetKcal] = useState<number | null>(null);
+  const [planGeneratedDate, setPlanGeneratedDate] = useState("--");
   const [activatingPlan, setActivatingPlan] = useState(false);
   const [modalActivar, setModalActivar] = useState(false);
   const [fechaActivacion, setFechaActivacion] = useState<string>(() => {
@@ -464,6 +465,51 @@ const PlanesNutricionales = () => {
     return `${day}/${month}/${year}`;
   };
 
+  const pickDateValue = (source: Record<string, unknown> | null | undefined, keys: string[]) => {
+    if (!source) return "";
+    for (const key of keys) {
+      const value = String(source[key] ?? "");
+      const date = value ? parseLocalDate(value) : null;
+      if (date && !Number.isNaN(date.getTime())) return value;
+    }
+    return "";
+  };
+
+  const pickEarliestDate = (rows: Record<string, unknown>[], keys: string[]) =>
+    rows
+      .map((row) => pickDateValue(row, keys))
+      .filter((value) => {
+        const date = parseLocalDate(value);
+        return date && !Number.isNaN(date.getTime());
+      })
+      .sort((a, b) => parseLocalDate(a).getTime() - parseLocalDate(b).getTime())[0] ?? "";
+
+  const getFirstPlanGeneratedDate = (planItem: Record<string, unknown> | null, weeks: Record<string, unknown>[]) => {
+    const planGenerated = pickDateValue(planItem, [
+      "fecha_generacion",
+      "fecha_generado",
+      "fecha_generada",
+      "generado_en",
+      "generated_at",
+    ]);
+    if (planGenerated) return formatWeekDate(planGenerated);
+
+    const weekGenerated = pickEarliestDate(weeks, [
+      "fecha_generacion",
+      "fecha_generado",
+      "fecha_generada",
+      "generado_en",
+      "generated_at",
+      "created_at",
+      "createdAt",
+      "fecha_creacion",
+    ]);
+    if (weekGenerated) return formatWeekDate(weekGenerated);
+
+    const planCreated = pickDateValue(planItem, ["created_at", "createdAt", "fecha_creacion"]);
+    return planCreated ? formatWeekDate(planCreated) : "--";
+  };
+
   const pickFirstNumber = (source: Record<string, unknown>, keys: string[]) => {
     for (const key of keys) {
       if (source[key] !== undefined) {
@@ -583,7 +629,8 @@ const PlanesNutricionales = () => {
         method: "GET",
         accessToken: token,
       });
-      const mapped = mapPlanWeeks(extractList(weeksRes));
+      const weeks = extractList(weeksRes);
+      const mapped = mapPlanWeeks(weeks);
       setPlanWeeks(mapped);
 
       if (selectedId) {
@@ -595,6 +642,7 @@ const PlanesNutricionales = () => {
         )[0];
         if (latestWeek && latestWeek.id) setWeekId(latestWeek.id);
       }
+      return weeks;
     } finally {
       setLoadingPlanWeeks(false);
     }
@@ -786,13 +834,18 @@ const PlanesNutricionales = () => {
           ? pickFirstNumber(activePlan, ["id_plan", "plan_id", "id_plan_nutricional", "plan_nutricional_id"])
           : null;
 
+        if (!resolvedPlanId) {
+          setPlanGeneratedDate("--");
+        }
+
         if (resolvedPlanId) {
           setPlanId(resolvedPlanId);
 
           try {
-            await refreshPlanWeeks(resolvedPlanId, token);
+            const weeks = await refreshPlanWeeks(resolvedPlanId, token);
+            setPlanGeneratedDate(getFirstPlanGeneratedDate(activePlan, weeks ?? []));
           } catch {
-            // no-op
+            setPlanGeneratedDate(getFirstPlanGeneratedDate(activePlan, []));
           }
         }
       } catch {
@@ -1189,7 +1242,7 @@ const PlanesNutricionales = () => {
                 <h1 className="text-xl font-bold text-foreground">Plan Nutricional — {patientName ?? "Paciente"}</h1>
                 <Badge variant="outline" className={`text-[11px] ${sc.className}`}>{sc.label}</Badge>
               </div>
-              <p className="text-sm text-muted-foreground mt-0.5">Inicio: 15 Ene 2026 · Objetivo: 1,750 kcal/día</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Fecha en la que empezó el tratamiento: {planGeneratedDate}</p>
             </div>
           </div>
         </div>

@@ -148,6 +148,28 @@ function formatDelta(value: number | undefined, unit = "", digits = 1): string {
   return `${sign}${formatNumber(value, unit, digits)}`;
 }
 
+function normalizeAdherenceLevel(value: unknown): "Alta" | "Media" | "Baja" | undefined {
+  const raw = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+  if (!raw) return undefined;
+  if (["alto", "alta", "high"].includes(raw)) return "Alta";
+  if (["medio", "media", "moderado", "moderada", "medium"].includes(raw)) return "Media";
+  if (["bajo", "baja", "low"].includes(raw)) return "Baja";
+
+  const numeric = parseNumber(value);
+  if (numeric !== undefined) {
+    if (numeric >= 80) return "Alta";
+    if (numeric >= 50) return "Media";
+    return "Baja";
+  }
+
+  return undefined;
+}
+
 function formatDateLabel(value: unknown): string {
   if (!value) return "---";
   const date = new Date(String(value));
@@ -278,8 +300,30 @@ function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, 
   const currentMuscle = parseNumber(findFirstValue(latest, ["masa_muscular", "masa_muscular_kg", "musculo", "muscle_mass_kg"]));
   const previousMuscle = parseNumber(findFirstValue(previous, ["masa_muscular", "masa_muscular_kg", "musculo", "muscle_mass_kg"]));
 
-  const currentAdherence = parseNumber(findFirstValue(latest, ["adherencia_general", "adherencia_pct", "adherence", "adherence_pct"]));
-  const previousAdherence = parseNumber(findFirstValue(previous, ["adherencia_general", "adherencia_pct", "adherence", "adherence_pct"]));
+  const adherenceSource = findFirstValue(dashboard, [
+    "nivel_adherencia",
+    "adherencia_nivel",
+    "adherence_level",
+    "adherencia_semana_actual.nivel",
+    "adherencia_semana_actual.nivel_adherencia",
+    "adherencia_semana_actual.adherencia_nivel",
+    "adherencia_actual.nivel",
+    "adherencia_actual.nivel_adherencia",
+    "adherencia_actual.adherencia_nivel",
+    "adherencia_general",
+    "adherencia_pct",
+    "porcentaje_adherencia",
+    "adherencia_semana_actual.adherencia",
+    "adherencia_semana_actual.porcentaje",
+    "adherencia_actual",
+    "adherencia",
+    "adherence",
+    "adherence_pct",
+  ]);
+  const previousAdherenceSource = findFirstValue(previous, ["adherencia_general", "adherencia_pct", "porcentaje_adherencia", "adherence", "adherence_pct"]);
+  const currentAdherence = parseNumber(adherenceSource);
+  const previousAdherence = parseNumber(previousAdherenceSource);
+  const currentAdherenceLevel = normalizeAdherenceLevel(adherenceSource);
 
   const metrics: SummaryMetric[] = [
     {
@@ -308,7 +352,7 @@ function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, 
     },
     {
       label: "Adherencia General",
-      value: formatNumber(currentAdherence, "%"),
+      value: currentAdherenceLevel ?? formatNumber(currentAdherence, "%"),
       change: formatDelta(currentAdherence !== undefined && previousAdherence !== undefined ? currentAdherence - previousAdherence : undefined, "%"),
       trend: "up",
       positiveWhen: "up",

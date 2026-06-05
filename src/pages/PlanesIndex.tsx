@@ -10,6 +10,10 @@ import { useToast } from "@/hooks/use-toast";
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const PATIENTS_ENDPOINTS = ["/api/patients", "/patients", "/api/pacientes"];
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function toInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "P";
@@ -25,6 +29,77 @@ function extractPatients(raw: unknown): Record<string, unknown>[] {
   if (Array.isArray(root.patients)) return root.patients as Record<string, unknown>[];
   if (Array.isArray(root.pacientes)) return root.pacientes as Record<string, unknown>[];
   return [];
+}
+
+function extractList(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) return raw.filter(isRecord);
+  if (!isRecord(raw)) return [];
+  if (Array.isArray(raw.data)) return raw.data.filter(isRecord);
+  if (Array.isArray(raw.items)) return raw.items.filter(isRecord);
+  if (Array.isArray(raw.results)) return raw.results.filter(isRecord);
+  if (Array.isArray(raw.planes)) return raw.planes.filter(isRecord);
+  if (isRecord(raw.data)) {
+    if (Array.isArray(raw.data.items)) return raw.data.items.filter(isRecord);
+    if (Array.isArray(raw.data.results)) return raw.data.results.filter(isRecord);
+    if (Array.isArray(raw.data.planes)) return raw.data.planes.filter(isRecord);
+    if (Array.isArray(raw.data.weeks)) return raw.data.weeks.filter(isRecord);
+  }
+  return [];
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^\d,.-]/g, "").replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function pickNumber(source: Record<string, unknown> | null | undefined, keys: string[]): number | null {
+  if (!source) return null;
+  for (const key of keys) {
+    const value = toNumber(source[key]);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function localDateKey(value?: string) {
+  return String(value || "").split("T")[0];
+}
+
+function parseLocalDate(value?: string) {
+  const raw = localDateKey(value);
+  const [year, month, day] = raw.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function formatDate(value?: string) {
+  const date = parseLocalDate(value);
+  if (!date) return "--";
+  return date.toLocaleDateString("es-EC", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function pickActivePlan(plans: Record<string, unknown>[]) {
+  return plans.find((plan) => String(plan.estado ?? plan.status ?? "").toLowerCase() === "activo") ?? plans[0] ?? null;
+}
+
+function pickDateValue(source: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!source) return "";
+  for (const key of keys) {
+    const value = String(source[key] ?? "");
+    if (parseLocalDate(value)) return value;
+  }
+  return "";
+}
+
+function pickEarliestDate(rows: Record<string, unknown>[], keys: string[]) {
+  return rows
+    .map((row) => pickDateValue(row, keys))
+    .filter((value) => parseLocalDate(value))
+    .sort((a, b) => (parseLocalDate(a)?.getTime() ?? 0) - (parseLocalDate(b)?.getTime() ?? 0))[0] ?? "";
 }
 
 type TreatmentStatus = "activo" | "pendiente" | "suspendido" | "finalizado" | "sin-datos";
@@ -56,21 +131,52 @@ function mapApiPatient(item: Record<string, unknown>, index: number) {
   const id = Number(
     item.id_usuario ?? item.id_paciente ?? item.id_perfil ??item.id ?? index + 1
   );
-
-  const rawDate = String(
-    item.ultima_evaluacion ?? item.fecha_ultima_evaluacion ?? item.last_evaluation_date ?? ""
-  );
-  const lastRecord = rawDate
-    ? new Date(rawDate).toLocaleDateString("es-EC", {
-        day: "2-digit", month: "2-digit", year: "numeric",
-      })
-    : "--";
+  const profileId = Number(item.id_perfil ?? item.perfil_id ?? item.profile_id ?? item.id_paciente ?? id);
   const rawStatus =
     item.estado_plan ?? item.estado_tratamiento ?? item.estado ?? item.status ?? null;
   const status = normalizeStatus(rawStatus);
   return {
-    id: Number(id), name: fullName, initials: toInitials(fullName), lastRecord, status,
+    id: Number(id), profileId, name: fullName, initials: toInitials(fullName), planGeneratedDate: "--", status,
   };
+}
+
+async function getFirstPlanGeneratedDate(profileId: number, token: string) {
+  const plansRes = await apiRequest<unknown>(`/nutrition-plans/patient/${profileId}`, {
+    method: "GET",
+    accessToken: token,
+  });
+  const activePlan = pickActivePlan(extractList(plansRes));
+  const planId = pickNumber(activePlan, ["id_plan", "plan_id", "id_plan_nutricional", "plan_nutricional_id"]);
+  if (!planId) return "--";
+
+  const planGeneratedDate = pickDateValue(activePlan, [
+    "fecha_generacion",
+    "fecha_generado",
+    "fecha_generada",
+    "generado_en",
+    "generated_at",
+  ]);
+  if (planGeneratedDate) return formatDate(planGeneratedDate);
+
+  const weeksRes = await apiRequest<unknown>(`/nutrition-plans/${planId}/weeks`, {
+    method: "GET",
+    accessToken: token,
+  });
+  const firstWeekGeneratedDate = pickEarliestDate(extractList(weeksRes), [
+    "fecha_generacion",
+    "fecha_generado",
+    "fecha_generada",
+    "generado_en",
+    "generated_at",
+    "created_at",
+    "createdAt",
+    "fecha_creacion",
+  ]);
+
+  if (firstWeekGeneratedDate) return formatDate(firstWeekGeneratedDate);
+
+  const planCreatedDate = pickDateValue(activePlan, ["created_at", "createdAt", "fecha_creacion"]);
+  return planCreatedDate ? formatDate(planCreatedDate) : "--";
 }
 
 const PlanesIndex = () => {
@@ -95,7 +201,14 @@ const PlanesIndex = () => {
         try {
           const res = await apiRequest<unknown>(path, { method: "GET", accessToken: token });
           const rows = extractPatients(res).map((r, i) => mapApiPatient(r, i));
-          setPatients(rows);
+          const rowsWithPlanDates = await Promise.all(rows.map(async (row) => {
+            try {
+              return { ...row, planGeneratedDate: await getFirstPlanGeneratedDate(row.profileId, token) };
+            } catch {
+              return row;
+            }
+          }));
+          setPatients(rowsWithPlanDates);
           setLoading(false);
           return;
         } catch (err) {
@@ -154,7 +267,7 @@ const PlanesIndex = () => {
                           {statusConfig[p.status].label}
                         </Badge>
                       </td>
-                      <td className="px-5 py-4 text-center text-muted-foreground">{p.lastRecord}</td>
+                      <td className="px-5 py-4 text-center text-muted-foreground">{p.planGeneratedDate}</td>
                       <td className="px-5 py-4 text-center">
                         <Button
                           size="sm"
