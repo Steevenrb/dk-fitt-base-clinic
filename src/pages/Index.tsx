@@ -33,6 +33,8 @@ type ApiAlert = {
   mensaje: string;
   nombre_paciente: string;
   fecha_generacion: string;
+  fecha_alerta?: string | null;
+  severidad?: "normal" | "critica" | null;
   revisada: boolean;
 };
 
@@ -249,9 +251,10 @@ function buildAlertsPanel(alerts: ApiAlert[]): DashboardAlert[] {
     .map((alert) => ({
       type: alert.tipo,
       patient: alert.nombre_paciente || "Paciente",
-      date: formatShortDate(alert.fecha_generacion).replace(/\s\d{4}$/, ""),
+      date: formatShortDate(alert.fecha_alerta || alert.fecha_generacion).replace(/\s\d{4}$/, ""),
       description: alert.mensaje,
-      urgent: alert.tipo === "adherencia" || alert.tipo === "exceso_calorico",
+      urgent: alert.severidad === "critica" || (!alert.severidad && (alert.tipo === "adherencia" || alert.tipo === "exceso_calorico")),
+      severity: alert.severidad || undefined,
     }));
 }
 

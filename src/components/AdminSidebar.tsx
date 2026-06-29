@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, History, LogOut, Sun, Moon } from "lucide-react";
+import { Bell, LayoutDashboard, Users, History, LogOut, Sun, Moon } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -14,6 +14,7 @@ import { useState } from "react";
 const navItems = [
   { title: "Dashboard Admin", url: "/admin", icon: LayoutDashboard },
   { title: "Gestión de Usuarios", url: "/admin/usuarios", icon: Users },
+  { title: "Alertas", url: "/admin/alertas", icon: Bell },
   { title: "Historial de Actividad", url: "/admin/historial", icon: History },
 ];
 

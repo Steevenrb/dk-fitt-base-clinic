@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { AlertTriangle, Flame, TrendingUp, UtensilsCrossed } from "lucide-react";
+import { AlertTriangle, Calendar, Flame, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -173,11 +174,22 @@ async function requestWithFallback<T>(bases: string[], buildPath: (base: string)
 
 export function TabConsumo({ patientId, profileId }: { patientId: number; profileId?: number | null }) {
   const { toast } = useToast();
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
   const [items, setItems] = useState<AdditionalIntakeCard[]>([]);
   const [impact, setImpact] = useState<AdditionalIntakeImpactApi | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => formatLocalDate(new Date()));
   const resolvedPatientRefId = profileId ?? patientId;
+
+  const openDatePicker = () => {
+    const input = dateInputRef.current;
+    if (!input) return;
+
+    input.focus();
+    if ("showPicker" in input) {
+      input.showPicker();
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -295,13 +307,25 @@ export function TabConsumo({ patientId, profileId }: { patientId: number; profil
           <h3 className="text-sm font-semibold text-foreground">Análisis de Consumo Adicional</h3>
           <p className="text-xs text-muted-foreground mt-1">Alimentos y bebidas fuera del plan nutricional</p>
         </div>
-        <div className="flex w-full items-center gap-3 sm:w-auto">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <input
+            ref={dateInputRef}
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#F7CA5E]/50 sm:w-auto"
+            className="h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#F7CA5E]/50 sm:w-auto"
           />
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Abrir calendario de consumo adicional"
+            title="Abrir calendario"
+            onClick={openDatePicker}
+            className="shrink-0"
+          >
+            <Calendar className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 

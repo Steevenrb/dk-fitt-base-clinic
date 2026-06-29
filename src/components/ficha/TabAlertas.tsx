@@ -17,6 +17,8 @@ type ApiAlert = {
   mensaje: string;
   nombre_paciente: string;
   fecha_generacion: string;
+  fecha_alerta?: string | null;
+  severidad?: "normal" | "critica" | null;
   revisada: boolean;
 };
 
@@ -39,6 +41,11 @@ const typeConfig: Record<AlertType, { label: string; icon: ElementType; classNam
   exceso_calorico: { label: "Exceso calorico", icon: Flame, className: "bg-[#FA9C5C]/20 text-foreground border-[#FA9C5C]/50" },
 };
 
+const severityConfig = {
+  normal: "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60",
+  critica: "bg-red-500/15 text-red-600 border-red-500/40 dark:text-red-300",
+} as const;
+
 function normalizeName(value?: string): string {
   return String(value || "")
     .normalize("NFD")
@@ -58,6 +65,10 @@ function formatDate(value?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function getAlertDate(alert: ApiAlert): string {
+  return alert.fecha_alerta || alert.fecha_generacion;
 }
 
 function unwrapAlerts(raw: unknown): AlertsResponse {
@@ -83,7 +94,10 @@ export function TabAlertas({ patientId, profileId, patientName }: TabAlertasProp
 
       setLoading(true);
       try {
-        const response = unwrapAlerts(await apiRequest<unknown>("/alerts?page=1&limit=100", {
+        const path = profileId
+          ? `/alerts/patient/${profileId}`
+          : "/alerts?page=1&limit=100";
+        const response = unwrapAlerts(await apiRequest<unknown>(path, {
           method: "GET",
           accessToken: token,
         }));
@@ -112,7 +126,7 @@ export function TabAlertas({ patientId, profileId, patientName }: TabAlertasProp
 
     return filtered.sort((a, b) => {
       if (a.revisada !== b.revisada) return a.revisada ? 1 : -1;
-      return new Date(b.fecha_generacion).getTime() - new Date(a.fecha_generacion).getTime();
+      return new Date(getAlertDate(b)).getTime() - new Date(getAlertDate(a)).getTime();
     });
   }, [alerts, patientKey]);
 
@@ -149,6 +163,7 @@ export function TabAlertas({ patientId, profileId, patientName }: TabAlertasProp
           const cfg = typeConfig[alert.tipo] ?? typeConfig.adherencia;
           const Icon = cfg.icon;
           const isPending = !alert.revisada;
+          const severityClass = alert.severidad ? severityConfig[alert.severidad] : null;
           return (
             <div key={alert.id_alerta_sistema} className={`flex items-start gap-4 px-5 py-4 ${isPending ? "bg-[#FA9C5C]/8" : ""}`}>
               <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isPending ? "bg-[#FA9C5C]/20 text-[#B7602B]" : "bg-muted text-muted-foreground"}`}>
@@ -157,12 +172,17 @@ export function TabAlertas({ patientId, profileId, patientName }: TabAlertasProp
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Badge variant="outline" className={`text-[10px] ${cfg.className}`}>{cfg.label}</Badge>
+                  {severityClass && (
+                    <Badge variant="outline" className={`text-[10px] ${severityClass}`}>
+                      {alert.severidad === "critica" ? "Critica" : "Normal"}
+                    </Badge>
+                  )}
                   <Badge variant="outline" className={`text-[10px] ${isPending ? "bg-[#F7CA5E]/25 text-foreground border-[#F7CA5E]/60" : "bg-[#C5EB6F]/20 text-foreground border-[#C5EB6F]/50"}`}>
                     {isPending ? "Sin revisar" : "Revisada"}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">{alert.mensaje}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{formatDate(alert.fecha_generacion)}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">Fecha: {formatDate(getAlertDate(alert))}</p>
               </div>
             </div>
           );

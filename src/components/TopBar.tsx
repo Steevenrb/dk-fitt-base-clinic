@@ -25,6 +25,8 @@ type ApiAlert = {
   mensaje: string;
   nombre_paciente: string;
   fecha_generacion: string;
+  fecha_alerta?: string | null;
+  severidad?: "normal" | "critica" | null;
   revisada: boolean;
 };
 
@@ -92,6 +94,10 @@ function isToday(value?: string): boolean {
   return date.getFullYear() === today.getFullYear()
     && date.getMonth() === today.getMonth()
     && date.getDate() === today.getDate();
+}
+
+function getAlertDate(alert: ApiAlert): string {
+  return alert.fecha_alerta || alert.fecha_generacion;
 }
 
 function getAlertLabel(type: AlertType): string {
@@ -207,7 +213,7 @@ export function TopBar({ children }: TopBarProps) {
   }, []);
 
   const roleLabel = getRoleLabelBySex(sex);
-  const todayAlerts = useMemo(() => alerts.filter((alert) => isToday(alert.fecha_generacion)), [alerts]);
+  const todayAlerts = useMemo(() => alerts.filter((alert) => isToday(getAlertDate(alert))), [alerts]);
   const alertPreview = todayAlerts.length > 0 ? todayAlerts : alerts;
 
   const handleLogout = () => {
@@ -285,9 +291,11 @@ export function TopBar({ children }: TopBarProps) {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <p className="truncate text-xs font-semibold text-foreground">{alert.nombre_paciente || "Paciente"}</p>
-                            <span className="shrink-0 text-[10px] text-muted-foreground">{formatAlertDate(alert.fecha_generacion)}</span>
+                            <span className="shrink-0 text-[10px] text-muted-foreground">{formatAlertDate(getAlertDate(alert))}</span>
                           </div>
-                          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">{getAlertLabel(alert.tipo)}</p>
+                          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                            {getAlertLabel(alert.tipo)}{alert.severidad ? ` · ${alert.severidad}` : ""}
+                          </p>
                           <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{alert.mensaje}</p>
                           <div className="mt-2 flex justify-end">
                             <Button

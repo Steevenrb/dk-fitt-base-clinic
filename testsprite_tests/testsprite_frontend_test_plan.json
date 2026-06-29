@@ -1,0 +1,2016 @@
+[
+  {
+    "id": "TC001",
+    "title": "Force a temporary-password user through password change before access",
+    "description": "This verifies a temporary-password user is routed to the mandatory password change screen before accessing the app.",
+    "category": "Authentication and role-based access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the mandatory password change screen is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access to the main dashboard is blocked until a password is changed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Temporary-password user must change password before accessing the app",
+    "description": "This verifies that a temporary-password account is redirected to the mandatory password change screen before protected areas are available.",
+    "category": "Mandatory password change",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the mandatory password change screen is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify protected dashboard content is not displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Nutritionist signs in and reaches the correct dashboard",
+    "description": "This verifies that a nutritionist can authenticate and is routed to the nutritionist dashboard after signing in.",
+    "category": "Authentication and role-based access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the nutritionist dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard KPIs are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Log in and reach the nutritionist dashboard",
+    "description": "This verifies a nutritionist can log in and land on the correct dashboard with protected access available.",
+    "category": "Authentication and role-based access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the nutritionist dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard metrics are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Nutritionist lands on the dashboard after login",
+    "description": "A nutritionist can sign in and reach the correct dashboard with protected access to the main clinical workspace.",
+    "category": "Nutritionist profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the nutritionist dashboard is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Administrator signs in and reaches the admin dashboard",
+    "description": "This verifies that an administrator can authenticate and is routed to the administrator dashboard after signing in.",
+    "category": "Authentication and role-based access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the administrator dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify system indicators are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Prevent access to protected pages before login",
+    "description": "This verifies unauthenticated users cannot access protected nutritionist pages directly and are taken to login.",
+    "category": "Authentication and role-based access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /pacientes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the login screen is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify protected patient content is not displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Administrator lands on the admin dashboard after login",
+    "description": "An administrator can sign in and reach the administrator dashboard instead of the nutritionist workspace.",
+    "category": "Administrator dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the administrator dashboard is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Temporary-password user can set a new password and return to login",
+    "description": "This verifies that a temporary-password user can complete the password change flow and is sent back to the login screen afterward.",
+    "category": "Mandatory password change",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the current password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new password field with a valid strong password"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password confirmation field with the same valid strong password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the password change form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the login screen is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the mandatory password change screen is no longer displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Logged-in user can sign out and return to the login screen",
+    "description": "This verifies that a signed-in user can log out and is returned to the login screen.",
+    "category": "Authentication and role-based access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the sign out control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the login screen is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify protected dashboard content is no longer displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Log out and return to the login screen",
+    "description": "This verifies a logged-in nutritionist can end their session and is returned to the login screen.",
+    "category": "Authentication and role-based access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the account or user menu"
+      },
+      {
+        "type": "action",
+        "description": "Click the log out action"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the login screen is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify protected content is no longer displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Invalid sign-in is rejected",
+    "description": "This verifies that entering invalid credentials prevents access and shows sign-in feedback.",
+    "category": "Authentication and role-based access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with an invalid value"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with an invalid value"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a sign-in error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the protected dashboard is not displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Create a new user from the administrator area",
+    "description": "This verifies an administrator can create a user from the admin user management screen.",
+    "category": "Administrator user management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the administrator dashboard navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Click the user management navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Create a new user"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new user is displayed in the user list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the administrator user list remains accessible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Open a patient from the list and review the full clinical record",
+    "description": "This verifies a nutritionist can search the patient list, open a patient, and inspect the key clinical tabs.",
+    "category": "Patient list and clinical record",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the patient list navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Search for a patient"
+      },
+      {
+        "type": "action",
+        "description": "Open a patient from the results"
+      },
+      {
+        "type": "action",
+        "description": "Switch between the patient summary and clinical tabs"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the patient clinical record is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify patient profile, evaluations, plans, intake, appointments, follow-up, and alerts content are available"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "Administrator creates a new nutritionist user",
+    "description": "An administrator can create a nutritionist account and see it added to the user list.",
+    "category": "Administrator user management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open user management"
+      },
+      {
+        "type": "action",
+        "description": "Open the create nutritionist form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the required nutritionist data"
+      },
+      {
+        "type": "action",
+        "description": "Submit the nutritionist form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new user appears in the user list"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "Open a patient nutrition plan and review the weekly grid",
+    "description": "This verifies a nutritionist can select a patient with plan data and review the weekly nutrition plan detail view.",
+    "category": "Nutrition plans",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the nutrition plans navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Select a patient with nutrition plan data"
+      },
+      {
+        "type": "action",
+        "description": "Open the selected plan detail"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the weekly plan grid is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify plan status and module controls are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "Create a new appointment",
+    "description": "This test verifies that a nutritionist can create a new appointment and see it appear in the appointment list or calendar.",
+    "category": "Appointments",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the appointments section"
+      },
+      {
+        "type": "action",
+        "description": "Open the new appointment form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the required appointment details"
+      },
+      {
+        "type": "action",
+        "description": "Submit the appointment form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new appointment is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the appointment list or calendar reflects the new entry"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC018",
+    "title": "Administrator resets a user's temporary password",
+    "description": "An administrator can generate a new temporary password for a user and review it on screen.",
+    "category": "Administrator user management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open user management"
+      },
+      {
+        "type": "action",
+        "description": "Select a user"
+      },
+      {
+        "type": "action",
+        "description": "Reset the temporary password"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the newly generated password is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC019",
+    "title": "Nutritionist can review dashboard KPIs and patient summary content",
+    "description": "This verifies that the nutritionist dashboard shows KPI data and a patient summary table for daily review.",
+    "category": "Nutritionist dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard KPIs are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the patient summary table is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC020",
+    "title": "Create and update an appointment",
+    "description": "This verifies a nutritionist can create an appointment and then edit it from the appointments view.",
+    "category": "Appointments list/create/edit/status updates",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the appointments navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Create a new appointment"
+      },
+      {
+        "type": "action",
+        "description": "Edit the appointment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the appointment is displayed in the list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated appointment details are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC021",
+    "title": "Administrator edits an existing user",
+    "description": "An administrator can update an existing user record and see the changes reflected in the list.",
+    "category": "Administrator user management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open user management"
+      },
+      {
+        "type": "action",
+        "description": "Open an existing user record"
+      },
+      {
+        "type": "action",
+        "description": "Edit the user data"
+      },
+      {
+        "type": "action",
+        "description": "Submit the changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated user record is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC022",
+    "title": "Edit a user and disable the account",
+    "description": "This verifies an administrator can update a user’s details and disable the account from user management.",
+    "category": "Administrator user management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the administrator dashboard navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Click the user management navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Open an existing user"
+      },
+      {
+        "type": "action",
+        "description": "Edit the user details"
+      },
+      {
+        "type": "action",
+        "description": "Disable the user account"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated user details are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the account is shown as disabled"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC023",
+    "title": "Review a patient opened from the dashboard summary",
+    "description": "This verifies a nutritionist can open a patient directly from the dashboard and reach the patient record view.",
+    "category": "Patient list and clinical record",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open a patient from the dashboard summary table"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the patient clinical record is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the patient summary tab is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC024",
+    "title": "Administrator opens user management from the dashboard",
+    "description": "An administrator can navigate from the dashboard to the user management area.",
+    "category": "Administrator dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the administrator dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to user management"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user management page is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC025",
+    "title": "Weak new password is rejected on mandatory password change",
+    "description": "This verifies that password strength validation blocks an invalid new password on the mandatory password change screen.",
+    "category": "Mandatory password change",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the current password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new password field with a weak password"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password confirmation field with the same weak password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the password change form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a password validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the mandatory password change screen remains visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC026",
+    "title": "Reset a temporary password for a user",
+    "description": "This verifies an administrator can reset a user’s temporary password from user management.",
+    "category": "Administrator user management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the administrator dashboard navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Click the user management navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Open an existing user"
+      },
+      {
+        "type": "action",
+        "description": "Reset the user password"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a password reset confirmation is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user remains listed in management"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC027",
+    "title": "Edit an existing appointment",
+    "description": "This test verifies that a nutritionist can open an existing appointment, update its details, and see the changes reflected.",
+    "category": "Appointments",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the appointments section"
+      },
+      {
+        "type": "action",
+        "description": "Open an existing appointment"
+      },
+      {
+        "type": "action",
+        "description": "Edit the appointment details"
+      },
+      {
+        "type": "action",
+        "description": "Submit the appointment changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated appointment is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the appointment details reflect the edits"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC028",
+    "title": "Administrator activates or deactivates a user account",
+    "description": "An administrator can toggle a user's status and see the updated account state in the list.",
+    "category": "Administrator user management",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open user management"
+      },
+      {
+        "type": "action",
+        "description": "Select a user"
+      },
+      {
+        "type": "action",
+        "description": "Toggle the user account status"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user status change is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC029",
+    "title": "Change a plan status from the plan detail view",
+    "description": "This verifies a nutritionist can activate, suspend, or reactivate a nutrition plan from the plan detail page.",
+    "category": "Nutrition plans",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the nutrition plans navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Select a patient with nutrition plan data"
+      },
+      {
+        "type": "action",
+        "description": "Open the selected plan detail"
+      },
+      {
+        "type": "action",
+        "description": "Change the plan status"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated plan status is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the plan remains accessible after the status change"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC030",
+    "title": "Review and mark an alert as reviewed",
+    "description": "This verifies a nutritionist can open the alerts inbox and mark an alert as reviewed.",
+    "category": "Alerts inbox review and mark as reviewed",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the alerts navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Open an alert"
+      },
+      {
+        "type": "action",
+        "description": "Mark the alert as reviewed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the alert is marked as reviewed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the alert remains visible in the inbox"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC031",
+    "title": "Administrator reviews system indicators on the dashboard",
+    "description": "An administrator can open the dashboard and review the system summary cards and charts.",
+    "category": "Administrator dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the administrator dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard indicators are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC032",
+    "title": "Nutritionist can open a patient from the dashboard summary",
+    "description": "This verifies that opening a patient from the dashboard summary navigates to the patient's clinical record area.",
+    "category": "Nutritionist dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open a patient from the dashboard summary table"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the patient clinical record is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify patient summary details are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC033",
+    "title": "Change an appointment status",
+    "description": "This verifies a nutritionist can update an appointment status from the appointments view.",
+    "category": "Appointments list/create/edit/status updates",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the appointments navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Open an appointment"
+      },
+      {
+        "type": "action",
+        "description": "Change the appointment status"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated appointment status is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the appointment remains in the schedule"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC034",
+    "title": "Replace a daily menu dish in a nutrition plan",
+    "description": "This verifies a nutritionist can replace a dish within a daily menu and see the updated menu reflected in the plan.",
+    "category": "Nutrition plans",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the nutrition plans navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Select a patient with nutrition plan data"
+      },
+      {
+        "type": "action",
+        "description": "Open the selected plan detail"
+      },
+      {
+        "type": "action",
+        "description": "Replace a daily menu dish"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated dish is displayed in the plan"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the weekly menu view remains displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC035",
+    "title": "View appointments list",
+    "description": "This test verifies that a nutritionist can open the appointments page and see the current appointment list.",
+    "category": "Appointments",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the appointments section"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the appointment list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify appointments are visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC036",
+    "title": "Nutritionist updates their password from the profile page",
+    "description": "A nutritionist can change their password from the profile page and return to the updated profile view.",
+    "category": "Nutritionist profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the profile page"
+      },
+      {
+        "type": "action",
+        "description": "Start a password change"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the current password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the new password field with a valid new password"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the confirmation field with the same valid new password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the password update"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated profile view is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC037",
+    "title": "Lock or unlock a plan module",
+    "description": "This verifies a nutritionist can toggle a plan module’s locked state from the plan detail view.",
+    "category": "Nutrition plans",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the nutrition plans navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Select a patient with nutrition plan data"
+      },
+      {
+        "type": "action",
+        "description": "Open the selected plan detail"
+      },
+      {
+        "type": "action",
+        "description": "Toggle a plan module lock state"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the module lock state is updated"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the plan detail view remains visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC038",
+    "title": "Nutritionist can review unread alerts from the dashboard",
+    "description": "This verifies that the dashboard shows unread alerts for quick operational review.",
+    "category": "Nutritionist dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the unread alerts panel is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify alert items are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC039",
+    "title": "Review alerts inbox",
+    "description": "This test verifies that a nutritionist can open the alerts inbox and see alert items ready for review.",
+    "category": "Alerts",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the alerts section"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the alerts inbox is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify alert items are visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC040",
+    "title": "Administrator opens activity history from the dashboard",
+    "description": "An administrator can navigate from the dashboard to the activity history view.",
+    "category": "Administrator dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the administrator dashboard"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to activity history"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the activity history page is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC041",
+    "title": "Inspect a patient's follow-up details",
+    "description": "This test verifies that a nutritionist can select a patient in follow-up and review meals, exercises, and adherence-related status.",
+    "category": "Follow-up",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the follow-up section"
+      },
+      {
+        "type": "action",
+        "description": "Select a patient from the follow-up list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected patient's follow-up details are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify meal, exercise, and adherence information are visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC042",
+    "title": "Nutritionist reviews profile information",
+    "description": "A nutritionist can open their profile page and review their personal and professional information.",
+    "category": "Nutritionist profile",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the profile page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify profile information is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC043",
+    "title": "View recent activity history",
+    "description": "An administrator can open the activity history page and see recent audit records loaded.",
+    "category": "Administrator activity history",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the activity history page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify recent activity records are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC044",
+    "title": "Filter alerts and open a result",
+    "description": "This test verifies that a nutritionist can filter alerts by patient or type and open a matching alert for review.",
+    "category": "Alerts",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the alerts section"
+      },
+      {
+        "type": "action",
+        "description": "Apply an alert filter by patient or type"
+      },
+      {
+        "type": "action",
+        "description": "Open a filtered alert item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the filtered alerts list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the alert details are visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC045",
+    "title": "Review follow-up patients list",
+    "description": "This test verifies that a nutritionist can open the follow-up page and see the patient follow-up list with selectable entries.",
+    "category": "Follow-up",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the follow-up section"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the patient follow-up list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify patient entries are available to review"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC046",
+    "title": "Review administrator activity history with filters",
+    "description": "This verifies an administrator can open activity history and filter the audit trail.",
+    "category": "Administrator activity history",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the administrator dashboard navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Click the activity history navigation link"
+      },
+      {
+        "type": "action",
+        "description": "Apply a history filter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify filtered activity entries are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the activity history page remains visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC047",
+    "title": "Compare follow-up status across patients",
+    "description": "This test verifies that a nutritionist can switch between patients in follow-up and see the displayed status update accordingly.",
+    "category": "Follow-up",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the follow-up section"
+      },
+      {
+        "type": "action",
+        "description": "Select one patient from the follow-up list"
+      },
+      {
+        "type": "action",
+        "description": "Select another patient from the follow-up list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the currently selected patient's follow-up view is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the adherence status reflects the newly selected patient"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC048",
+    "title": "Update the nutritionist profile password",
+    "description": "This verifies a nutritionist can open their profile page and update their password successfully.",
+    "category": "Nutritionist profile/password update",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the profile page"
+      },
+      {
+        "type": "action",
+        "description": "Update the password"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a password update confirmation is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify profile details are still displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC049",
+    "title": "Filter activity history by search term",
+    "description": "An administrator can search the activity log and see the list update to matching records.",
+    "category": "Administrator activity history",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the activity history page"
+      },
+      {
+        "type": "action",
+        "description": "Search the activity history using a valid term"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the activity records are filtered to matching results"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC050",
+    "title": "Change activity history filters",
+    "description": "An administrator can switch history filters and see a different set of records on the page.",
+    "category": "Administrator activity history",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the activity history page"
+      },
+      {
+        "type": "action",
+        "description": "Open a different history filter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the visible activity records update"
+      }
+    ],
+    "priority": "Medium"
+  }
+]

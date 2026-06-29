@@ -25,3 +25,9 @@ dist-ssr
 *.sln
 *.sw?
 
+testsprite_tests/TC*.py
+testsprite_tests/tmp/config.json
+testsprite_tests/tmp/mcp.log
+testsprite_tests/tmp/mcp.log.lock
+testsprite_tests/tmp/raw_report.md
+testsprite_tests/tmp/test_results.json

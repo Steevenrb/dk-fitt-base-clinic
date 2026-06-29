@@ -65,6 +65,7 @@ function AppRoutes() {
       {/* Admin routes */}
       <Route path="/admin" element={<ProtectedRoute role="admin"><DashboardAdmin /></ProtectedRoute>} />
       <Route path="/admin/usuarios" element={<ProtectedRoute role="admin"><GestionUsuarios /></ProtectedRoute>} />
+      <Route path="/admin/alertas" element={<ProtectedRoute role="admin"><Alertas layout="admin" /></ProtectedRoute>} />
       <Route path="/admin/historial" element={<ProtectedRoute role="admin"><HistorialActividad /></ProtectedRoute>} />
       
 

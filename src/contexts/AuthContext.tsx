@@ -289,7 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { success: false, error: "Demasiados intentos. Intenta nuevamente en unos minutos." };
         }
       }
-      return { success: false, error: "No se pudo iniciar sesión. Verifica la conexión con la API." };
+      return { success: false, error: "No se pudo iniciar sesión. Intentalo de nuevo en un momento." };
     }
   }, []);
 

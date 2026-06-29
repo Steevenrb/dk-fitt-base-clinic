@@ -154,11 +154,12 @@ function normalizeAdherenceLevel(value: unknown): "Alta" | "Media" | "Baja" | un
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+  const normalized = raw.replace(/^adherencia\s+/, "");
 
   if (!raw) return undefined;
-  if (["alto", "alta", "high"].includes(raw)) return "Alta";
-  if (["medio", "media", "moderado", "moderada", "medium"].includes(raw)) return "Media";
-  if (["bajo", "baja", "low"].includes(raw)) return "Baja";
+  if (["alto", "alta", "high"].includes(normalized)) return "Alta";
+  if (["medio", "media", "moderado", "moderada", "medium"].includes(normalized)) return "Media";
+  if (["bajo", "baja", "low"].includes(normalized)) return "Baja";
 
   const numeric = parseNumber(value);
   if (numeric !== undefined) {
@@ -277,7 +278,7 @@ function getLatestEvaluations(source: unknown): Record<string, unknown>[] {
     .slice(0, 2);
 }
 
-function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, weightChartSource: unknown, calorieTodaySource?: unknown, calorieHistorySource?: unknown): SummaryView {
+function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, weightChartSource: unknown, calorieTodaySource?: unknown, calorieHistorySource?: unknown, headerAdherenceSource?: string): SummaryView {
   const dashboard = unwrapData(dashboardSource);
   const latestEvaluations = getLatestEvaluations(evaluationsSource);
   const latest = latestEvaluations[0];
@@ -321,9 +322,9 @@ function buildSummaryView(dashboardSource: unknown, evaluationsSource: unknown, 
     "adherence_pct",
   ]);
   const previousAdherenceSource = findFirstValue(previous, ["adherencia_general", "adherencia_pct", "porcentaje_adherencia", "adherence", "adherence_pct"]);
-  const currentAdherence = parseNumber(adherenceSource);
+  const currentAdherence = parseNumber(adherenceSource) ?? parseNumber(headerAdherenceSource);
   const previousAdherence = parseNumber(previousAdherenceSource);
-  const currentAdherenceLevel = normalizeAdherenceLevel(adherenceSource);
+  const currentAdherenceLevel = normalizeAdherenceLevel(adherenceSource) ?? normalizeAdherenceLevel(headerAdherenceSource);
 
   const metrics: SummaryMetric[] = [
     {
@@ -397,7 +398,7 @@ async function requestWithFallback(bases: string[], buildPath: (base: string) =>
   throw lastError;
 }
 
-export function TabResumen({ patientId, profileId }: { patientId: number; profileId?: number | null }) {
+export function TabResumen({ patientId, profileId, headerAdherence }: { patientId: number; profileId?: number | null; headerAdherence?: string }) {
   const { toast } = useToast();
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartInstanceRef = useRef<echarts.EChartsType | null>(null);
@@ -484,11 +485,12 @@ export function TabResumen({ patientId, profileId }: { patientId: number; profil
         weightChartResult.status === "fulfilled" ? weightChartResult.value : undefined,
         calorieTodayResult.status === "fulfilled" ? calorieTodayResult.value : undefined,
         calorieHistoryResult.status === "fulfilled" ? calorieHistoryResult.value : undefined,
+        headerAdherence,
       ));
     };
 
     void fetchSummary();
-  }, [patientId, profileId, refreshToken, toast]);
+  }, [patientId, profileId, refreshToken, toast, headerAdherence]);
 
   const metricCards = useMemo(() => summary.metrics, [summary.metrics]);
   const chartData = useMemo(() => summary.chartData, [summary.chartData]);

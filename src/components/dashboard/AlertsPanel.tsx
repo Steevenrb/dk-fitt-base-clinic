@@ -6,6 +6,7 @@ export interface DashboardAlert {
   date: string;
   description: string;
   urgent: boolean;
+  severity?: "normal" | "critica" | null;
 }
 
 const iconMap = {
@@ -75,7 +76,12 @@ export function AlertsPanel({ alerts = [], loading = false }: { alerts?: Dashboa
                   </p>
                   {alert.urgent && (
                     <span className="rounded-full bg-[#FA9C5C]/20 px-2 py-0.5 text-[10px] font-semibold text-foreground">
-                      prioridad
+                      {alert.severity === "critica" ? "critica" : "prioridad"}
+                    </span>
+                  )}
+                  {alert.severity === "normal" && (
+                    <span className="rounded-full bg-[#F7CA5E]/20 px-2 py-0.5 text-[10px] font-semibold text-foreground">
+                      normal
                     </span>
                   )}
                 </div>

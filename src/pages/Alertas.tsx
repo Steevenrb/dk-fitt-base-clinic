@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { AdminLayout } from "@/components/AdminLayout";
 import { AppLayout } from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,13 +30,17 @@ import {
   Timer,
   Scale,
   Flame,
+  CalendarDays,
+  RefreshCw,
 } from "lucide-react";
 import { apiRequest } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 
 type AlertType = "adherencia" | "peso" | "consumo_adicional" | "inactividad" | "exceso_calorico";
+type AlertSeverity = "normal" | "critica";
 type StatusFilter = "all" | "pending" | "reviewed";
 
 type ApiAlert = {
@@ -44,6 +49,10 @@ type ApiAlert = {
   mensaje: string;
   nombre_paciente: string;
   fecha_generacion: string;
+  fecha_alerta?: string | null;
+  fecha_revision?: string | null;
+  severidad?: AlertSeverity | null;
+  datos?: Record<string, unknown> | null;
   revisada: boolean;
 };
 
@@ -64,6 +73,11 @@ const typeConfig: Record<AlertType, { label: string; icon: React.ElementType; cl
   consumo_adicional: { label: "Consumo adicional", icon: UtensilsCrossed, className: "bg-[#F7CA5E]/25 text-[#8A6B1F] border-[#F7CA5E]/60 dark:text-[#F7CA5E]" },
   inactividad: { label: "Inactividad", icon: Timer, className: "bg-[#E6E6E6]/25 text-[#5F5F5F] border-[#D2D2D2] dark:text-[#E6E6E6]" },
   exceso_calorico: { label: "Exceso calórico", icon: Flame, className: "bg-[#FA9C5C]/20 text-[#A95F2F] border-[#FA9C5C]/55 dark:text-[#FA9C5C]" },
+};
+
+const severityConfig: Record<AlertSeverity, { label: string; className: string }> = {
+  normal: { label: "Normal", className: "bg-[#F7CA5E]/25 text-[#8A6B1F] border-[#F7CA5E]/60 dark:text-[#F7CA5E]" },
+  critica: { label: "Critica", className: "bg-red-500/15 text-red-600 border-red-500/40 dark:text-red-300" },
 };
 
 function formatDate(value?: string): string {
@@ -90,10 +104,22 @@ function formatDateOnly(value?: string): string {
   });
 }
 
+function getAlertDate(alert: ApiAlert): string {
+  return alert.fecha_alerta || alert.fecha_generacion;
+}
+
 function extractPercent(value: string): number | null {
   const match = value.match(/(\d{1,3})\s*%/);
   if (!match) return null;
   return Math.max(0, Math.min(100, Number(match[1])));
+}
+
+function formatDataValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "---";
+  if (typeof value === "number") return Number.isInteger(value) ? value.toString() : value.toFixed(2);
+  if (typeof value === "boolean") return value ? "Si" : "No";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
 }
 
 function alertSummary(alert: ApiAlert): { title: string; description: string } {
@@ -142,8 +168,9 @@ function unwrapAlerts(raw: unknown): AlertsResponse {
   return raw as AlertsResponse;
 }
 
-const Alertas = () => {
+const Alertas = ({ layout = "clinic" }: { layout?: "clinic" | "admin" }) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const initialPatient = searchParams.get("paciente") || "all";
   const [alerts, setAlerts] = useState<ApiAlert[]>([]);
@@ -151,10 +178,14 @@ const Alertas = () => {
   const [loading, setLoading] = useState(true);
   const [markingId, setMarkingId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState<"all" | AlertType>("all");
+  const [filterSeverity, setFilterSeverity] = useState<"all" | AlertSeverity>("all");
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("all");
   const [filterPatient, setFilterPatient] = useState<string>(initialPatient);
   const [selectedAlert, setSelectedAlert] = useState<ApiAlert | null>(null);
   const [page, setPage] = useState(1);
+  const [evaluateDate, setEvaluateDate] = useState("");
+  const [evaluating, setEvaluating] = useState(false);
+  const canEvaluateDaily = layout === "admin" || user?.role === "admin";
 
   const fetchAlerts = async () => {
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -168,6 +199,7 @@ const Alertas = () => {
     params.set("page", "1");
     params.set("limit", "100");
     if (filterType !== "all") params.set("tipo", filterType);
+    if (filterSeverity !== "all") params.set("severidad", filterSeverity);
     if (filterStatus !== "all") params.set("revisada", filterStatus === "reviewed" ? "true" : "false");
 
     setLoading(true);
@@ -193,7 +225,7 @@ const Alertas = () => {
 
   useEffect(() => {
     void fetchAlerts();
-  }, [filterType, filterStatus]);
+  }, [filterType, filterSeverity, filterStatus]);
 
   useEffect(() => {
     const patient = searchParams.get("paciente");
@@ -202,7 +234,7 @@ const Alertas = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [filterType, filterStatus, filterPatient]);
+  }, [filterType, filterSeverity, filterStatus, filterPatient]);
 
   const patients = useMemo(() => [...new Set(alerts.map((alert) => alert.nombre_paciente).filter(Boolean))], [alerts]);
 
@@ -213,7 +245,7 @@ const Alertas = () => {
       list = list.filter((alert) => normalizeName(alert.nombre_paciente) === patientKey);
     }
     list.sort((a, b) => {
-      return new Date(b.fecha_generacion).getTime() - new Date(a.fecha_generacion).getTime();
+      return new Date(getAlertDate(b)).getTime() - new Date(getAlertDate(a)).getTime();
     });
     return list;
   }, [alerts, filterPatient]);
@@ -226,7 +258,11 @@ const Alertas = () => {
   const reviewedCount = Math.max(total - pendingCount, 0);
   const reviewedPct = total > 0 ? Math.round((reviewedCount / total) * 100) : 0;
   const patientsWithAlerts = new Set(alerts.filter((alert) => !alert.revisada).map((alert) => alert.nombre_paciente)).size;
-  const highAttentionCount = alerts.filter((alert) => !alert.revisada && (alert.tipo === "adherencia" || alert.tipo === "exceso_calorico")).length;
+  const criticalCount = alerts.filter((alert) => !alert.revisada && alert.severidad === "critica").length;
+  const highAttentionCount = alerts.filter((alert) => !alert.revisada && (
+    alert.severidad === "critica"
+    || (!alert.severidad && (alert.tipo === "adherencia" || alert.tipo === "exceso_calorico"))
+  )).length;
 
   const markReviewed = async (id: number) => {
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -256,15 +292,70 @@ const Alertas = () => {
     }
   };
 
-  return (
-    <AppLayout>
+  const evaluateDaily = async () => {
+    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!token) return;
+
+    setEvaluating(true);
+    try {
+      await apiRequest("/alerts/evaluate/daily", {
+        method: "POST",
+        accessToken: token,
+        body: evaluateDate ? { fecha: evaluateDate } : undefined,
+      });
+      toast({
+        title: "Evaluacion ejecutada",
+        description: evaluateDate ? `Se evaluaron alertas para ${evaluateDate}.` : "Se evaluaron las alertas del dia anterior.",
+      });
+      await fetchAlerts();
+    } catch {
+      toast({
+        title: "No se pudo evaluar alertas",
+        description: "Verifica endpoint POST /alerts/evaluate/daily.",
+        variant: "destructive",
+      });
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  const content = (
+    <>
       <div className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">Gestión de Alertas</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Alertas clínicas automáticas detectadas para tus pacientes</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Alertas clinicas globales para nutricionistas y administradores</p>
           </div>
         </div>
+
+        {canEvaluateDaily && (
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F7CA5E]/20 text-[#8A6B1F] dark:text-[#F7CA5E]">
+                  <CalendarDays className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Evaluacion de cierre diario</h2>
+                  <p className="text-xs text-muted-foreground">Ejecuta adherencia, inactividad, consumo adicional y exceso calorico. Si no eliges fecha, se evalua el dia anterior.</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  type="date"
+                  value={evaluateDate}
+                  onChange={(event) => setEvaluateDate(event.target.value)}
+                  className="h-9 rounded-md border border-border bg-background px-3 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-[#F7CA5E]/50"
+                />
+                <Button size="sm" className="h-9 gap-1.5 text-xs" disabled={evaluating} onClick={() => void evaluateDaily()}>
+                  <RefreshCw className={`h-3.5 w-3.5 ${evaluating ? "animate-spin" : ""}`} />
+                  Evaluar alertas
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3">
           <Select value={filterType} onValueChange={(value) => setFilterType(value as "all" | AlertType)}>
@@ -278,6 +369,16 @@ const Alertas = () => {
               <SelectItem value="consumo_adicional">Consumo adicional</SelectItem>
               <SelectItem value="inactividad">Inactividad</SelectItem>
               <SelectItem value="exceso_calorico">Exceso calórico</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterSeverity} onValueChange={(value) => setFilterSeverity(value as "all" | AlertSeverity)}>
+            <SelectTrigger className="w-[150px] h-9 text-xs bg-card border-border">
+              <SelectValue placeholder="Severidad" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toda severidad</SelectItem>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="critica">Critica</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as StatusFilter)}>
@@ -309,7 +410,7 @@ const Alertas = () => {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[
             { label: "Alertas sin revisar", value: pendingCount, icon: Bell, color: "bg-[#FA9C5C]", shadow: "shadow-[#FA9C5C]/20" },
-            { label: "Alta atención", value: highAttentionCount, icon: AlertTriangle, color: "bg-[#F7CA5E]", shadow: "shadow-[#F7CA5E]/20" },
+            { label: "Criticas sin revisar", value: criticalCount || highAttentionCount, icon: AlertTriangle, color: "bg-[#F7CA5E]", shadow: "shadow-[#F7CA5E]/20" },
             { label: "Pacientes con alertas", value: patientsWithAlerts, icon: Users, color: "bg-[#A8D1E7]", shadow: "shadow-[#A8D1E7]/20" },
             { label: "Revisadas / Total", value: `${reviewedCount} / ${total}`, icon: CheckCircle2, color: "bg-card", shadow: "shadow-[hsl(var(--soft-shadow)/0.08)]", reviewChart: true },
           ].map((kpi) => (
@@ -357,7 +458,11 @@ const Alertas = () => {
             const tc = typeConfig[alert.tipo] ?? typeConfig.adherencia;
             const TypeIcon = tc.icon;
             const isPending = !alert.revisada;
-            const isHighPending = isPending && (alert.tipo === "adherencia" || alert.tipo === "exceso_calorico");
+            const severity = alert.severidad ? severityConfig[alert.severidad] : null;
+            const isHighPending = isPending && (
+              alert.severidad === "critica"
+              || (!alert.severidad && (alert.tipo === "adherencia" || alert.tipo === "exceso_calorico"))
+            );
             const summary = alertSummary(alert);
 
             return (
@@ -381,6 +486,9 @@ const Alertas = () => {
                       <Badge variant="outline" className={`text-[10px] ${tc.className}`}>
                         <TypeIcon className="h-3 w-3 mr-1" />{tc.label}
                       </Badge>
+                      {severity && (
+                        <Badge variant="outline" className={`text-[10px] ${severity.className}`}>{severity.label}</Badge>
+                      )}
                       {alert.revisada ? (
                         <Badge variant="outline" className="text-[10px] bg-[#A8D1E7]/25 text-[#376378] border-[#A8D1E7]/60 dark:text-[#A8D1E7]">
                           <CheckCircle2 className="h-3 w-3 mr-1" />Revisada
@@ -393,7 +501,7 @@ const Alertas = () => {
                       <p className={`text-xs font-semibold ${isPending ? "text-foreground" : "text-muted-foreground"}`}>{summary.title}</p>
                       <p className="line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{summary.description}</p>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">{formatDateOnly(alert.fecha_generacion)}</p>
+                    <p className="text-[11px] text-muted-foreground">Fecha: {formatDateOnly(getAlertDate(alert))}</p>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -461,6 +569,10 @@ const Alertas = () => {
             const TypeIcon = tc.icon;
             const isPending = !selectedAlert.revisada;
             const adherencePercent = extractPercent(selectedAlert.mensaje);
+            const severity = selectedAlert.severidad ? severityConfig[selectedAlert.severidad] : null;
+            const dataEntries = selectedAlert.datos && typeof selectedAlert.datos === "object"
+              ? Object.entries(selectedAlert.datos).filter(([, value]) => value !== undefined && value !== null && value !== "")
+              : [];
             return (
               <>
                 <SheetHeader className="space-y-3 pb-4 border-b border-border">
@@ -472,13 +584,16 @@ const Alertas = () => {
                     </div>
                     <div>
                       <SheetTitle className="text-foreground">{selectedAlert.nombre_paciente}</SheetTitle>
-                      <p className="text-xs text-muted-foreground">{formatDate(selectedAlert.fecha_generacion)}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(getAlertDate(selectedAlert))}</p>
                     </div>
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <Badge variant="outline" className={`text-[10px] ${tc.className}`}>
                       <TypeIcon className="h-3 w-3 mr-1" />{tc.label}
                     </Badge>
+                    {severity && (
+                      <Badge variant="outline" className={`text-[10px] ${severity.className}`}>{severity.label}</Badge>
+                    )}
                     <Badge variant="outline" className={`text-[10px] ${
                       isPending ? "bg-red-500/15 text-red-600 border-red-500/40 dark:text-red-300" : "bg-[#A8D1E7]/25 text-[#376378] border-[#A8D1E7]/60 dark:text-[#A8D1E7]"
                     }`}>
@@ -504,12 +619,42 @@ const Alertas = () => {
                         <span className="flex items-center gap-2 text-xs text-muted-foreground"><Bell className="h-3.5 w-3.5" />Estado</span>
                         <span className="text-xs font-semibold text-foreground">{isPending ? "Pendiente de revisión" : "Revisada"}</span>
                       </div>
+                      {severity && (
+                        <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2">
+                          <span className="flex items-center gap-2 text-xs text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5" />Severidad</span>
+                          <span className="text-xs font-semibold text-foreground">{severity.label}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2">
-                        <span className="flex items-center gap-2 text-xs text-muted-foreground"><Timer className="h-3.5 w-3.5" />Fecha</span>
+                        <span className="flex items-center gap-2 text-xs text-muted-foreground"><Timer className="h-3.5 w-3.5" />Fecha evaluada</span>
+                        <span className="text-xs font-semibold text-foreground">{formatDate(getAlertDate(selectedAlert))}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2">
+                        <span className="flex items-center gap-2 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Generada</span>
                         <span className="text-xs font-semibold text-foreground">{formatDate(selectedAlert.fecha_generacion)}</span>
                       </div>
+                      {selectedAlert.fecha_revision && (
+                        <div className="flex items-center justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2">
+                          <span className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Revision</span>
+                          <span className="text-xs font-semibold text-foreground">{formatDate(selectedAlert.fecha_revision)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {dataEntries.length > 0 && (
+                    <div className="rounded-2xl border border-border bg-card p-4 shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
+                      <p className="mb-3 text-sm font-semibold text-foreground">Datos del calculo</p>
+                      <div className="grid gap-2">
+                        {dataEntries.map(([key, value]) => (
+                          <div key={key} className="flex items-start justify-between gap-3 rounded-xl bg-muted/40 px-3 py-2">
+                            <span className="text-xs text-muted-foreground">{key.replace(/_/g, " ")}</span>
+                            <span className="max-w-[55%] break-words text-right text-xs font-semibold text-foreground">{formatDataValue(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {adherencePercent !== null && (
                     <div className="rounded-2xl border border-border bg-card p-4 shadow-lg shadow-[hsl(var(--soft-shadow)/0.08)]">
@@ -554,8 +699,14 @@ const Alertas = () => {
           })()}
         </SheetContent>
       </Sheet>
-    </AppLayout>
+    </>
   );
+
+  if (layout === "admin") {
+    return <AdminLayout>{content}</AdminLayout>;
+  }
+
+  return <AppLayout>{content}</AppLayout>;
 };
 
 export default Alertas;
