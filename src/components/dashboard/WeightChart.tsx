@@ -99,8 +99,8 @@ export function WeightChart({
               <Command>
                 <CommandInput placeholder="Buscar paciente..." />
                 <CommandList>
-                  <CommandEmpty>No hay pacientes con registros.</CommandEmpty>
-                  <CommandGroup heading="Maximo 3 pacientes">
+                  <CommandEmpty>No hay pacientes con planes activos.</CommandEmpty>
+                  <CommandGroup heading="Planes activos - maximo 3 pacientes">
                     {patients.map((patient) => {
                       const checked = selectedPatientIds.includes(patient.id);
                       const disabled = !checked && selectedPatientIds.length >= 3;
@@ -145,7 +145,7 @@ export function WeightChart({
               wrapperStyle={{ fontSize: 11, color: "hsl(var(--muted-foreground))" }}
             />
             {chartSeries.map((name, index) => (
-              <Line key={name} type="monotone" dataKey={name} stroke={colors[index % colors.length]} strokeWidth={2.5} dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }} activeDot={{ r: 5, strokeWidth: 2 }} />
+              <Line key={name} type="monotone" dataKey={name} stroke={colors[index % colors.length]} strokeWidth={2.5} connectNulls dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }} activeDot={{ r: 5, strokeWidth: 2 }} />
             ))}
           </LineChart>
         </ResponsiveContainer>

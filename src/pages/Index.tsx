@@ -15,6 +15,7 @@ const PLAN_STATUS_OVERRIDES_KEY = "dkfitt-plan-status-overrides";
 const PATIENTS_ENDPOINTS = ["/api/patients", "/patients", "/api/pacientes"];
 const WEIGHT_RECORDS_CHART_ENDPOINTS = ["/api/weight-records", "/weight-records"];
 const CALORIE_CONTROL_PATIENT_ENDPOINTS = ["/api/calorie-control/patient", "/calorie-control/patient"];
+const PATIENTS_PAGE_SIZE = 50;
 
 type AdherenceLevel = "alto" | "medio" | "bajo" | "sin-plan";
 
@@ -70,6 +71,68 @@ function extractList(raw: unknown): Record<string, unknown>[] {
     if (Array.isArray(raw.data.results)) return raw.data.results.filter(isRecord);
   }
   return [];
+}
+
+function extractTotalPages(raw: unknown): number | null {
+  if (!isRecord(raw)) return null;
+  const containers = [
+    raw.meta,
+    raw.pagination,
+    isRecord(raw.data) ? raw.data.meta : null,
+    isRecord(raw.data) ? raw.data.pagination : null,
+    isRecord(raw.data) ? raw.data : null,
+    raw,
+  ];
+
+  for (const container of containers) {
+    if (!isRecord(container)) continue;
+    const totalPages = parseNumber(container.total_pages ?? container.totalPages);
+    if (totalPages && totalPages > 0) return totalPages;
+    const total = parseNumber(container.total);
+    const limit = parseNumber(container.limit) ?? PATIENTS_PAGE_SIZE;
+    if (total !== undefined && total >= 0 && limit > 0) {
+      return Math.max(1, Math.ceil(total / limit));
+    }
+  }
+
+  return null;
+}
+
+function pageSignature(rows: Record<string, unknown>[]) {
+  return rows
+    .map((row) => String(row.id_usuario ?? row.id_paciente ?? row.id_perfil ?? row.id ?? ""))
+    .join("|");
+}
+
+function withQuery(paths: string[], params: URLSearchParams): string[] {
+  const query = params.toString();
+  return paths.map((path) => `${path}${path.includes("?") ? "&" : "?"}${query}`);
+}
+
+async function fetchAllPatients(token: string): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  let page = 1;
+  let totalPages: number | null = null;
+  let previousSignature = "";
+
+  while (totalPages === null || page <= totalPages) {
+    const params = new URLSearchParams({ page: String(page), limit: String(PATIENTS_PAGE_SIZE) });
+    const response = await requestFirstOk<unknown>(withQuery(PATIENTS_ENDPOINTS, params), token);
+    const pageRows = extractList(response);
+    const signature = pageSignature(pageRows);
+
+    if (page > 1 && signature && signature === previousSignature) break;
+    rows.push(...pageRows);
+    totalPages = extractTotalPages(response);
+
+    if (pageRows.length === 0) break;
+    if (totalPages === null && pageRows.length < PATIENTS_PAGE_SIZE) break;
+
+    previousSignature = signature;
+    page += 1;
+  }
+
+  return rows;
 }
 
 function unwrapData(raw: unknown): unknown {
@@ -140,6 +203,15 @@ function normalizeAdherence(value: unknown): AdherenceLevel {
   return "medio";
 }
 
+function normalizePlanStatus(value: unknown): string {
+  const raw = String(value ?? "").toLowerCase();
+  if (raw === "activo" || raw === "active") return "activo";
+  if (raw === "pendiente" || raw === "pending") return "pendiente";
+  if (raw === "suspendido" || raw === "suspended") return "suspendido";
+  if (raw === "finalizado" || raw === "finished" || raw === "completed") return "finalizado";
+  return raw;
+}
+
 function adherenceScore(level: AdherenceLevel): number {
   if (level === "alto") return 90;
   if (level === "medio") return 60;
@@ -158,7 +230,7 @@ function mapPatient(item: Record<string, unknown>, index: number): DashboardPati
     id,
     trackingId,
     name,
-    status: String(item.estado_tratamiento ?? item.estado_plan ?? item.estado ?? "").toLowerCase(),
+    status: normalizePlanStatus(item.estado_tratamiento ?? item.estado_plan ?? item.plan_estado ?? item.estado ?? item.status),
     adherence: normalizeAdherence(item.nivel_adherencia ?? item.adherencia ?? item.adherence_level),
     lastRecord: formatShortDate(item.ultima_evaluacion ?? item.fecha_ultima_evaluacion ?? item.last_evaluation_date),
   };
@@ -276,20 +348,35 @@ function weightPatientId(item: WeightPatientRows): string {
   return String(item.patient.trackingId || item.patient.id);
 }
 
+function weightPatientLabel(patient: DashboardPatientRow): string {
+  return patient.name.split(/\s+/).slice(0, 2).join(" ");
+}
+
+function sortWeightRows(rows: Record<string, unknown>[]) {
+  return [...rows]
+    .sort((a, b) => {
+      const dateA = new Date(String(a.fecha ?? a.fecha_registro ?? a.date ?? a.created_at ?? "")).getTime();
+      const dateB = new Date(String(b.fecha ?? b.fecha_registro ?? b.date ?? b.created_at ?? "")).getTime();
+      return dateA - dateB;
+    })
+    .slice(-8);
+}
+
 function buildWeightChart(weightsByPatient: WeightPatientRows[], selectedIds: string[]): { data: DashboardWeightPoint[]; series: string[]; options: WeightPatientOption[] } {
   const availablePatients = weightsByPatient;
-  const selectedPatients = availablePatients.filter((item) => selectedIds.includes(weightPatientId(item))).slice(0, 3);
+  const selectedPatients = availablePatients
+    .filter((item) => selectedIds.includes(weightPatientId(item)))
+    .slice(0, 3)
+    .map((item) => ({ ...item, rows: sortWeightRows(item.rows) }));
   const series = selectedPatients
     .filter((item) => item.rows.length > 0)
-    .map((item) => item.patient.name.split(/\s+/).slice(0, 2).join(" "));
-  const labels = Array.from(new Set(selectedPatients.flatMap((item) =>
-    item.rows.map((row) => dateKeyFromApi(row.fecha ?? row.fecha_registro ?? row.date ?? row.created_at)).filter(Boolean)
-  ))).sort((a, b) => parseDateKey(a).getTime() - parseDateKey(b).getTime()).slice(-8);
-  const data = labels.map((dateKey) => {
-    const point: DashboardWeightPoint = { semana: formatChartDateLabel(dateKey) };
+    .map((item) => weightPatientLabel(item.patient));
+  const maxRecords = Math.max(0, ...selectedPatients.map((item) => item.rows.length));
+  const data = Array.from({ length: maxRecords }, (_, index) => {
+    const point: DashboardWeightPoint = { semana: `Reg. ${index + 1}` };
     selectedPatients.forEach((item) => {
-      const key = item.patient.name.split(/\s+/).slice(0, 2).join(" ");
-      const row = item.rows.find((candidate) => dateKeyFromApi(candidate.fecha ?? candidate.fecha_registro ?? candidate.date ?? candidate.created_at) === dateKey);
+      const key = weightPatientLabel(item.patient);
+      const row = item.rows[index];
       const weight = parseNumber(row?.peso_kg ?? row?.peso ?? row?.peso_actual);
       if (weight !== undefined) point[key] = weight;
     });
@@ -419,12 +506,12 @@ const Index = () => {
       }
       try {
         const [patientsResult, alertsResult] = await Promise.allSettled([
-          requestFirstOk<unknown>(PATIENTS_ENDPOINTS, token),
+          fetchAllPatients(token),
           apiRequest<{ data?: ApiAlert[] }>("/alerts?page=1&limit=100", { method: "GET", accessToken: token }),
         ]);
 
         const patientRows = patientsResult.status === "fulfilled"
-          ? extractList(patientsResult.value).map((item, index) => mapPatient(item, index))
+          ? patientsResult.value.map((item, index) => mapPatient(item, index))
           : [];
         const patientRowsWithOverrides = applyPlanStatusOverrides(patientRows);
         const alertRows = alertsResult.status === "fulfilled" && Array.isArray(alertsResult.value.data)
@@ -450,7 +537,7 @@ const Index = () => {
         const caloriePatients = patientRowsWithOverrides.filter((patient) => patient.trackingId && patient.status === "activo");
 
         const [weightResults, calorieResults] = await Promise.all([
-          settleSequential(chartPatients, async (patient) => {
+          settleSequential(activeChartPatients, async (patient) => {
             const raw = await requestWithBaseFallback(WEIGHT_RECORDS_CHART_ENDPOINTS, (base) => `${base}/patient/${patient.trackingId}/chart`, token);
             const rows = extractWeightRows(raw)
               .sort((a, b) => new Date(String(a.fecha ?? a.fecha_registro ?? a.date ?? a.created_at ?? "")).getTime() - new Date(String(b.fecha ?? b.fecha_registro ?? b.date ?? b.created_at ?? "")).getTime())
@@ -462,14 +549,16 @@ const Index = () => {
           ),
         ]);
 
-        const weightsByPatient = weightResults
-          .filter((result): result is PromiseFulfilledResult<{ patient: DashboardPatientRow; rows: Record<string, unknown>[] }> => result.status === "fulfilled")
-          .map((result) => result.value);
+        const weightsByPatient = activeChartPatients.map((patient, index) => {
+          const result = weightResults[index];
+          return result?.status === "fulfilled" ? result.value : { patient, rows: [] };
+        });
         if (cancelled) return;
         setWeightRows(weightsByPatient);
         const availableIds = weightsByPatient.map(weightPatientId);
         const savedIds = readSavedWeightSelection().filter((id) => availableIds.includes(id));
-        const selectedIds = savedIds.length > 0 ? savedIds.slice(0, 3) : availableIds.slice(0, 3);
+        const defaultIds = chartPatients.map((patient) => String(patient.trackingId || patient.id));
+        const selectedIds = savedIds.length > 0 ? savedIds.slice(0, 3) : defaultIds.slice(0, 3);
         setSelectedWeightPatientIds(selectedIds);
         const weight = buildWeightChart(weightsByPatient, selectedIds);
         setWeightData(weight.data);

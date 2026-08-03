@@ -540,11 +540,11 @@ function parseAgeLabel(ageLabel: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function objectiveAdjustmentFactor(objective: string): number {
+function objectiveAdjustmentKcal(objective: string): number {
   const raw = normalizeText(objective || "");
   if (!raw) return 0;
-  if (raw.includes("reduc") || raw.includes("bajar") || raw.includes("perder")) return -0.15;
-  if (raw.includes("aument") || raw.includes("ganar") || raw.includes("subir")) return 0.1;
+  if (raw.includes("reduc") || raw.includes("disminuir") || raw.includes("bajar") || raw.includes("perder")) return -400;
+  if (raw.includes("aument") || raw.includes("ganar") || raw.includes("subir") || raw.includes("masa") || raw.includes("musculo")) return 300;
   return 0;
 }
 
@@ -555,14 +555,28 @@ function activityFactor(activityKey: string): number {
   return 1.2;
 }
 
-function estimateMetabolicAge(chronologicalAge: number, bmi: number, bodyFatPct: number): number {
-  const bodyFatReference = 24;
-  const bmiReference = 22;
-  const extraFromFat = (bodyFatPct - bodyFatReference) * 0.45;
-  const extraFromBmi = (bmi - bmiReference) * 0.6;
-  const estimate = chronologicalAge + extraFromFat + extraFromBmi;
+function estimateExpectedTmbByAge(age: number): number {
+  if (age <= 25) return 1700;
+  if (age <= 35) return 1600;
+  if (age <= 45) return 1520;
+  if (age <= 55) return 1450;
+  if (age <= 65) return 1380;
+  return 1320;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function estimateMetabolicAge(tmb: number, bodyFatPct: number, muscleMassKg: number, chronologicalAge: number): number {
+  const expectedTmb = estimateExpectedTmbByAge(chronologicalAge);
+  const tmbDifferencePct = ((expectedTmb - tmb) / expectedTmb) * 100;
+  const adjustmentFromTmb = tmbDifferencePct * 0.25;
+  const adjustmentFromFat = (bodyFatPct - 25) * 0.35;
+  const adjustmentFromMuscle = (32 - muscleMassKg) * 0.20;
+  const estimate = chronologicalAge + adjustmentFromTmb + adjustmentFromFat + adjustmentFromMuscle;
   if (!Number.isFinite(estimate)) return chronologicalAge;
-  return Math.max(12, Math.round(estimate));
+  return Math.round(clamp(estimate, 12, 95));
 }
 
 function classifyImc(value: number): { label: string; className: string } {
@@ -769,6 +783,10 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
     const peso = toOptionalNumber(evaluationForm.peso_kg);
     const alturaCm = toOptionalNumber(evaluationForm.altura_cm);
     const grasaPct = toOptionalNumber(evaluationForm.porcentaje_grasa);
+    const muscleMassKg = toOptionalNumber(evaluationForm.masa_muscular_kg);
+    const waterPct = toOptionalNumber(evaluationForm.agua_corporal_pct);
+    const visceralFat = toOptionalNumber(evaluationForm.grasa_visceral);
+    const boneMassKg = toOptionalNumber(evaluationForm.masa_osea_kg);
     const age = parseAgeLabel(profile.age);
 
     if (!peso || !alturaCm || !age || alturaCm <= 0) {
@@ -784,9 +802,18 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
     const sexConstant = isFemale ? -161 : isMale ? 5 : -78;
     const tmb = (10 * peso) + (6.25 * alturaCm) - (5 * age) + sexConstant;
     const get = tmb * activityFactor(profile.activityLevelKey);
-    const kcalObjective = get * (1 + objectiveAdjustmentFactor(profile.medicalObservation));
-    const metabolicAge = grasaPct !== undefined
-      ? estimateMetabolicAge(age, imc, grasaPct)
+    const kcalObjective = get + objectiveAdjustmentKcal(profile.medicalObservation);
+    const hasCompleteMeasuredData = [
+      peso,
+      alturaCm,
+      grasaPct,
+      muscleMassKg,
+      waterPct,
+      visceralFat,
+      boneMassKg,
+    ].every((value) => value !== undefined);
+    const metabolicAge = hasCompleteMeasuredData && grasaPct !== undefined && muscleMassKg !== undefined
+      ? estimateMetabolicAge(tmb, grasaPct, muscleMassKg, age)
       : undefined;
 
     return {
@@ -797,7 +824,11 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
       edadMetabolica: metabolicAge !== undefined ? `${metabolicAge} años (estimado)` : "---",
     };
   }, [
+    evaluationForm.agua_corporal_pct,
     evaluationForm.altura_cm,
+    evaluationForm.grasa_visceral,
+    evaluationForm.masa_muscular_kg,
+    evaluationForm.masa_osea_kg,
     evaluationForm.peso_kg,
     evaluationForm.porcentaje_grasa,
     profile.activityLevelKey,
@@ -808,6 +839,7 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
 
   const handleEvaluationFieldChange = (field: keyof EvaluationFormState, value: string) => {
     setEvaluationForm((prev) => ({ ...prev, [field]: value }));
+    setCalculatedMetrics(defaultCalculatedMetrics());
   };
 
   const handleSaveClinicalEvaluation = async () => {
@@ -885,8 +917,8 @@ export function TabPerfilClinico({ patientId }: { patientId: number }) {
 
     setSubmittingEvaluation(true);
     try {
-      const response = await requestCreateEvaluationWithFallback(payload, token);
-      setCalculatedMetrics(mapCalculatedMetricsFromResponse(response));
+      await requestCreateEvaluationWithFallback(payload, token);
+      setCalculatedMetrics(defaultCalculatedMetrics());
       window.dispatchEvent(new CustomEvent("dkfitt-patient-data-updated", {
         detail: { patientId, source: "clinical-evaluation" },
       }));

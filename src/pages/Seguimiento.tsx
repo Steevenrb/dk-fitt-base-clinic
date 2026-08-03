@@ -14,6 +14,7 @@ import {
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const PATIENTS_ENDPOINTS = ["/api/patients", "/patients", "/api/pacientes"];
+const PATIENTS_PAGE_SIZE = 50;
 
 type PatientRow = {
   id: number;
@@ -80,6 +81,10 @@ type DayData = {
   plannedCalories: number;
   registeredCalories: number;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 const normalizeStatus = (value: unknown) => {
   const raw = String(value ?? "").toLowerCase();
@@ -196,21 +201,83 @@ async function requestWithFallback<T>(paths: string[], token: string): Promise<T
   throw lastError;
 }
 
+function withQuery(paths: string[], params: URLSearchParams): string[] {
+  const query = params.toString();
+  return paths.map((path) => `${path}${path.includes("?") ? "&" : "?"}${query}`);
+}
+
 function extractList(raw: unknown): Record<string, unknown>[] {
   if (Array.isArray(raw)) return raw as Record<string, unknown>[];
-  if (!raw || typeof raw !== "object") return [];
-  const root = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return [];
+  const root = raw;
   if (Array.isArray(root.data)) return root.data as Record<string, unknown>[];
   if (Array.isArray(root.patients)) return root.patients as Record<string, unknown>[];
   if (Array.isArray(root.pacientes)) return root.pacientes as Record<string, unknown>[];
-  if (root.data && typeof root.data === "object") {
-    const data = root.data as Record<string, unknown>;
+  if (isRecord(root.data)) {
+    const data = root.data;
     if (Array.isArray(data.patients)) return data.patients as Record<string, unknown>[];
     if (Array.isArray(data.pacientes)) return data.pacientes as Record<string, unknown>[];
     if (Array.isArray(data.items)) return data.items as Record<string, unknown>[];
     if (Array.isArray(data.results)) return data.results as Record<string, unknown>[];
   }
   return [];
+}
+
+function extractTotalPages(raw: unknown): number | null {
+  if (!isRecord(raw)) return null;
+  const containers = [
+    raw.meta,
+    raw.pagination,
+    isRecord(raw.data) ? raw.data.meta : null,
+    isRecord(raw.data) ? raw.data.pagination : null,
+    isRecord(raw.data) ? raw.data : null,
+    raw,
+  ];
+
+  for (const container of containers) {
+    if (!isRecord(container)) continue;
+    const totalPages = Number(container.total_pages ?? container.totalPages);
+    if (Number.isFinite(totalPages) && totalPages > 0) return totalPages;
+    const total = Number(container.total);
+    const limit = Number(container.limit ?? PATIENTS_PAGE_SIZE);
+    if (Number.isFinite(total) && total >= 0 && Number.isFinite(limit) && limit > 0) {
+      return Math.max(1, Math.ceil(total / limit));
+    }
+  }
+
+  return null;
+}
+
+function pageSignature(rows: Record<string, unknown>[]) {
+  return rows
+    .map((row) => String(row.id_usuario ?? row.id_paciente ?? row.id_perfil ?? row.id ?? ""))
+    .join("|");
+}
+
+async function fetchAllPatients(token: string): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  let page = 1;
+  let totalPages: number | null = null;
+  let previousSignature = "";
+
+  while (totalPages === null || page <= totalPages) {
+    const params = new URLSearchParams({ page: String(page), limit: String(PATIENTS_PAGE_SIZE) });
+    const response = await requestWithFallback<unknown>(withQuery(PATIENTS_ENDPOINTS, params), token);
+    const pageRows = extractList(response);
+    const signature = pageSignature(pageRows);
+
+    if (page > 1 && signature && signature === previousSignature) break;
+    rows.push(...pageRows);
+    totalPages = extractTotalPages(response);
+
+    if (pageRows.length === 0) break;
+    if (totalPages === null && pageRows.length < PATIENTS_PAGE_SIZE) break;
+
+    previousSignature = signature;
+    page += 1;
+  }
+
+  return rows;
 }
 
 function extractMealRows(raw: unknown): MealTrackingRow[] {
@@ -301,8 +368,8 @@ const Seguimiento = () => {
 
       setLoadingPatients(true);
       try {
-        const response = await requestWithFallback<unknown>(PATIENTS_ENDPOINTS, token);
-        setPatients(extractList(response).map((item, index) => mapPatient(item, index)));
+        const rows = await fetchAllPatients(token);
+        setPatients(rows.map((item, index) => mapPatient(item, index)));
       } catch {
         setPatients([]);
         toast({

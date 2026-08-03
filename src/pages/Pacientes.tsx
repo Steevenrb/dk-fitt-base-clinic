@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle, CircleMinus, Eye, Search } from "lucide-react";
+import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, CircleMinus, Eye, Search } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,12 +30,14 @@ interface Patient {
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const PATIENTS_ENDPOINTS = ["/api/patients", "/patients", "/api/pacientes"];
+const PATIENTS_PAGE_SIZE = 50;
 
 interface PatientsApiMeta {
   page?: number;
   limit?: number;
   total?: number;
   total_pages?: number;
+  totalPages?: number;
 }
 
 const statusConfig: Record<TreatmentStatus, { label: string; className: string }> = {
@@ -103,6 +105,11 @@ async function requestWithFallback<T>(paths: string[], token: string): Promise<T
   throw lastError;
 }
 
+function withQuery(paths: string[], params: URLSearchParams): string[] {
+  const query = params.toString();
+  return paths.map((path) => `${path}${path.includes("?") ? "&" : "?"}${query}`);
+}
+
 function extractPatients(raw: unknown): Record<string, unknown>[] {
   if (Array.isArray(raw)) return raw as Record<string, unknown>[];
   if (!raw || typeof raw !== "object") return [];
@@ -127,11 +134,26 @@ function extractMeta(raw: unknown): PatientsApiMeta {
   if (!raw || typeof raw !== "object") return {};
   const root = raw as Record<string, unknown>;
   if (root.meta && typeof root.meta === "object") return root.meta as PatientsApiMeta;
+  if (root.pagination && typeof root.pagination === "object") return root.pagination as PatientsApiMeta;
   if (root.data && typeof root.data === "object") {
     const data = root.data as Record<string, unknown>;
     if (data.meta && typeof data.meta === "object") return data.meta as PatientsApiMeta;
+    if (data.pagination && typeof data.pagination === "object") return data.pagination as PatientsApiMeta;
+    return {
+      page: typeof data.page === "number" ? data.page : undefined,
+      limit: typeof data.limit === "number" ? data.limit : undefined,
+      total: typeof data.total === "number" ? data.total : undefined,
+      total_pages: typeof data.total_pages === "number" ? data.total_pages : undefined,
+      totalPages: typeof data.totalPages === "number" ? data.totalPages : undefined,
+    };
   }
-  return {};
+  return {
+    page: typeof root.page === "number" ? root.page : undefined,
+    limit: typeof root.limit === "number" ? root.limit : undefined,
+    total: typeof root.total === "number" ? root.total : undefined,
+    total_pages: typeof root.total_pages === "number" ? root.total_pages : undefined,
+    totalPages: typeof root.totalPages === "number" ? root.totalPages : undefined,
+  };
 }
 
 function mapApiPatient(item: Record<string, unknown>, index: number): Patient {
@@ -215,6 +237,8 @@ const Pacientes = () => {
   const { toast } = useToast();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [totalPatients, setTotalPatients] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
@@ -232,14 +256,25 @@ const Pacientes = () => {
 
       setLoading(true);
       try {
-        const response = await requestWithFallback<unknown>(PATIENTS_ENDPOINTS, token);
+        const params = new URLSearchParams({ page: String(page), limit: String(PATIENTS_PAGE_SIZE) });
+        const response = await requestWithFallback<unknown>(withQuery(PATIENTS_ENDPOINTS, params), token);
         const rows = extractPatients(response).map((item, index) => mapApiPatient(item, index));
         const meta = extractMeta(response);
+        const total = typeof meta.total === "number" ? meta.total : rows.length;
+        const resolvedTotalPages =
+          typeof meta.total_pages === "number"
+            ? meta.total_pages
+            : typeof meta.totalPages === "number"
+              ? meta.totalPages
+              : Math.max(1, Math.ceil(total / PATIENTS_PAGE_SIZE));
+
         setPatients(rows);
-        setTotalPatients(typeof meta.total === "number" ? meta.total : rows.length);
+        setTotalPatients(total);
+        setTotalPages(Math.max(1, resolvedTotalPages));
       } catch {
         setPatients([]);
         setTotalPatients(0);
+        setTotalPages(1);
         toast({
           title: "No se pudo cargar pacientes",
           description: "Verifica que el endpoint GET /patients este disponible para nutricionista.",
@@ -251,7 +286,11 @@ const Pacientes = () => {
     };
 
     void fetchPatients();
-  }, [toast]);
+  }, [page, toast]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, adherenceFilter]);
 
   const filtered = useMemo(() => {
     return patients.filter((p) => {
@@ -272,7 +311,7 @@ const Pacientes = () => {
                 <h1 className="text-xl font-bold text-foreground">Gestion de Pacientes</h1>
                 <p className="mt-1 text-sm text-muted-foreground">Monitoreo y seguimiento nutricional</p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {filtered.length} de {totalPatients} pacientes
+                  {filtered.length} en esta pagina de {totalPatients} pacientes
                 </p>
               </div>
               <PacientesTopBarContent
@@ -356,6 +395,36 @@ const Pacientes = () => {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Mostrando hasta {PATIENTS_PAGE_SIZE} pacientes por pagina
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 flex-1 text-xs sm:flex-none"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              >
+                <ChevronLeft className="mr-1 h-3.5 w-3.5" />
+                Anterior
+              </Button>
+              <span className="rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-foreground">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 flex-1 text-xs sm:flex-none"
+                disabled={loading || page >= totalPages}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              >
+                Siguiente
+                <ChevronRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>

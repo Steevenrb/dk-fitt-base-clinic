@@ -148,6 +148,12 @@ function formatDelta(value: number | undefined, unit = "", digits = 1): string {
   return `${sign}${formatNumber(value, unit, digits)}`;
 }
 
+function classifyAdherencePercent(value: number): "Alta" | "Media" | "Baja" {
+  if (value >= 80) return "Alta";
+  if (value >= 60) return "Media";
+  return "Baja";
+}
+
 function normalizeAdherenceLevel(value: unknown): "Alta" | "Media" | "Baja" | undefined {
   const raw = String(value ?? "")
     .normalize("NFD")
@@ -163,9 +169,7 @@ function normalizeAdherenceLevel(value: unknown): "Alta" | "Media" | "Baja" | un
 
   const numeric = parseNumber(value);
   if (numeric !== undefined) {
-    if (numeric >= 80) return "Alta";
-    if (numeric >= 50) return "Media";
-    return "Baja";
+    return classifyAdherencePercent(numeric);
   }
 
   return undefined;

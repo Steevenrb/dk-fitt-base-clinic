@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const ACCESS_TOKEN_KEY = "dkfitt-access-token";
 const PATIENTS_ENDPOINTS = ["/api/patients", "/patients", "/api/pacientes"];
+const PATIENTS_PAGE_SIZE = 50;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -28,7 +29,83 @@ function extractPatients(raw: unknown): Record<string, unknown>[] {
   if (Array.isArray(root.data)) return root.data as Record<string, unknown>[];
   if (Array.isArray(root.patients)) return root.patients as Record<string, unknown>[];
   if (Array.isArray(root.pacientes)) return root.pacientes as Record<string, unknown>[];
+  if (isRecord(root.data)) {
+    if (Array.isArray(root.data.patients)) return root.data.patients.filter(isRecord);
+    if (Array.isArray(root.data.pacientes)) return root.data.pacientes.filter(isRecord);
+    if (Array.isArray(root.data.items)) return root.data.items.filter(isRecord);
+    if (Array.isArray(root.data.results)) return root.data.results.filter(isRecord);
+  }
   return [];
+}
+
+function extractTotalPages(raw: unknown): number | null {
+  if (!isRecord(raw)) return null;
+  const containers = [
+    raw.meta,
+    raw.pagination,
+    isRecord(raw.data) ? raw.data.meta : null,
+    isRecord(raw.data) ? raw.data.pagination : null,
+    isRecord(raw.data) ? raw.data : null,
+    raw,
+  ];
+
+  for (const container of containers) {
+    if (!isRecord(container)) continue;
+    const totalPages = Number(container.total_pages ?? container.totalPages);
+    if (Number.isFinite(totalPages) && totalPages > 0) return totalPages;
+    const total = Number(container.total);
+    const limit = Number(container.limit ?? PATIENTS_PAGE_SIZE);
+    if (Number.isFinite(total) && total >= 0 && Number.isFinite(limit) && limit > 0) {
+      return Math.max(1, Math.ceil(total / limit));
+    }
+  }
+
+  return null;
+}
+
+function pageSignature(rows: Record<string, unknown>[]) {
+  return rows
+    .map((row) => String(row.id_usuario ?? row.id_paciente ?? row.id_perfil ?? row.id ?? ""))
+    .join("|");
+}
+
+async function fetchAllPatients(token: string): Promise<Record<string, unknown>[]> {
+  let lastError: unknown = null;
+
+  for (const basePath of PATIENTS_ENDPOINTS) {
+    const rows: Record<string, unknown>[] = [];
+    let page = 1;
+    let totalPages: number | null = null;
+    let previousSignature = "";
+
+    try {
+      while (totalPages === null || page <= totalPages) {
+        const separator = basePath.includes("?") ? "&" : "?";
+        const response = await apiRequest<unknown>(
+          `${basePath}${separator}page=${page}&limit=${PATIENTS_PAGE_SIZE}`,
+          { method: "GET", accessToken: token },
+        );
+        const pageRows = extractPatients(response);
+        const signature = pageSignature(pageRows);
+
+        if (page > 1 && signature && signature === previousSignature) break;
+        rows.push(...pageRows);
+        totalPages = extractTotalPages(response);
+
+        if (pageRows.length === 0) break;
+        if (totalPages === null && pageRows.length < PATIENTS_PAGE_SIZE) break;
+
+        previousSignature = signature;
+        page += 1;
+      }
+
+      return rows;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError;
 }
 
 function extractList(raw: unknown): Record<string, unknown>[] {
@@ -196,29 +273,22 @@ const PlanesIndex = () => {
       }
 
       setLoading(true);
-      let lastError: unknown = null;
-      for (const path of PATIENTS_ENDPOINTS) {
-        try {
-          const res = await apiRequest<unknown>(path, { method: "GET", accessToken: token });
-          const rows = extractPatients(res).map((r, i) => mapApiPatient(r, i));
-          const rowsWithPlanDates = await Promise.all(rows.map(async (row) => {
-            try {
-              return { ...row, planGeneratedDate: await getFirstPlanGeneratedDate(row.profileId, token) };
-            } catch {
-              return row;
-            }
-          }));
-          setPatients(rowsWithPlanDates);
-          setLoading(false);
-          return;
-        } catch (err) {
-          lastError = err;
-        }
+      try {
+        const rows = (await fetchAllPatients(token)).map((r, i) => mapApiPatient(r, i));
+        const rowsWithPlanDates = await Promise.all(rows.map(async (row) => {
+          try {
+            return { ...row, planGeneratedDate: await getFirstPlanGeneratedDate(row.profileId, token) };
+          } catch {
+            return row;
+          }
+        }));
+        setPatients(rowsWithPlanDates);
+      } catch {
+        setPatients([]);
+        toast({ title: "No se pudo cargar pacientes", description: "Verifica que GET /patients esté disponible.", variant: "destructive" });
+      } finally {
+        setLoading(false);
       }
-
-      setPatients([]);
-      setLoading(false);
-      toast({ title: "No se pudo cargar pacientes", description: "Verifica que GET /patients esté disponible.", variant: "destructive" });
     };
 
     void fetchPatients();

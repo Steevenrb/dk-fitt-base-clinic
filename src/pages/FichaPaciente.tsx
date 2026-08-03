@@ -43,6 +43,12 @@ function normalizeAdherenceLabel(value?: string): string {
   if (raw === "alto" || raw === "alta") return "Adherencia Alta";
   if (raw === "medio" || raw === "media") return "Adherencia Media";
   if (raw === "bajo" || raw === "baja") return "Adherencia Baja";
+  const numeric = Number(String(value || "").replace(/[^\d,.-]/g, "").replace(/,/g, ""));
+  if (Number.isFinite(numeric)) {
+    if (numeric >= 80) return "Adherencia Alta";
+    if (numeric >= 60) return "Adherencia Media";
+    return "Adherencia Baja";
+  }
   return value ? `Adherencia ${value}` : "";
 }
 
