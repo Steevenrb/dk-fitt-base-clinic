@@ -669,22 +669,7 @@ export function TabResumen({ patientId, profileId, headerAdherence }: { patientI
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">Balance Calórico Semanal</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {[
-            { label: "Calorías Planificadas", value: summary.balance.planned, sub: "Meta promedio semanal" },
-            { label: "Calorías Consumidas", value: summary.balance.consumed, sub: "Promedio real semanal" },
-            { label: "Balance", value: summary.balance.balanceLabel, sub: summary.balance.balanceSub, highlight: summary.balance.highlight },
-          ].map((item) => (
-            <div key={item.label} className={`rounded-lg border p-4 ${item.highlight ? "border-[#FA9C5C]/50 bg-[#FA9C5C]/10" : "border-border bg-muted/30"}`}>
-              <p className="text-xs text-muted-foreground">{item.label}</p>
-              <p className={`mt-1 text-lg font-bold ${item.highlight ? "text-[#B7602B]" : "text-foreground"}`}>{item.value}</p>
-              <p className="text-xs text-muted-foreground">{item.sub}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      
     </div>
   );
 }
